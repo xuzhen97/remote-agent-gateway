@@ -1,0 +1,11 @@
+{
+  "clientId": "dev-client-01",
+  "clientName": "Development Machine",
+  "serverUrl": "ws://localhost:3000/ws/client",
+  "apiBaseUrl": "http://localhost:3000",
+  "token": "test_agent_token",
+  "workspaceDir": "./workspace",
+  "frpcPath": "./bin/frpc",
+  "frpcWorkDir": "./frp",
+  "tags": ["dev"]
+}

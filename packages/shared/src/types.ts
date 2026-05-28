@@ -61,6 +61,7 @@ export interface PushFilePayload {
 }
 
 export interface FrpCreateProxyPayload {
+  mappingId: string;
   name: string;
   proxyType: 'tcp' | 'http' | 'https';
   localIp: string;

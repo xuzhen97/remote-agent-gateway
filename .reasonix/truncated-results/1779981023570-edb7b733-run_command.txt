@@ -1,0 +1,1217 @@
+$ node -e "const p = require('./node_modules/.pnpm/drizzle-orm@0.38.4_sql.js@1.14.1/node_modules/drizzle-orm/package.json'); console.log(JSON.stringify(p.exports, null, 2))"
+[exit 0]
+{
+  "./alias": {
+    "import": {
+      "types": "./alias.d.ts",
+      "default": "./alias.js"
+    },
+    "require": {
+      "types": "./alias.d.cts",
+      "default": "./alias.cjs"
+    },
+    "types": "./alias.d.ts",
+    "default": "./alias.js"
+  },
+  "./batch": {
+    "import": {
+      "types": "./batch.d.ts",
+      "default": "./batch.js"
+    },
+    "require": {
+      "types": "./batch.d.cts",
+      "default": "./batch.cjs"
+    },
+    "types": "./batch.d.ts",
+    "default": "./batch.js"
+  },
+  "./casing": {
+    "import": {
+      "types": "./casing.d.ts",
+      "default": "./casing.js"
+    },
+    "require": {
+      "types": "./casing.d.cts",
+      "default": "./casing.cjs"
+    },
+    "types": "./casing.d.ts",
+    "default": "./casing.js"
+  },
+  "./column-builder": {
+    "import": {
+      "types": "./column-builder.d.ts",
+      "default": "./column-builder.js"
+    },
+    "require": {
+      "types": "./column-builder.d.cts",
+      "default": "./column-builder.cjs"
+    },
+    "types": "./column-builder.d.ts",
+    "default": "./column-builder.js"
+  },
+  "./column": {
+    "import": {
+      "types": "./column.d.ts",
+      "default": "./column.js"
+    },
+    "require": {
+      "types": "./column.d.cts",
+      "default": "./column.cjs"
+    },
+    "types": "./column.d.ts",
+    "default": "./column.js"
+  },
+  "./entity": {
+    "import": {
+      "types": "./entity.d.ts",
+      "default": "./entity.js"
+    },
+    "require": {
+      "types": "./entity.d.cts",
+      "default": "./entity.cjs"
+    },
+    "types": "./entity.d.ts",
+    "default": "./entity.js"
+  },
+  "./errors": {
+    "import": {
+      "types": "./errors.d.ts",
+      "default": "./errors.js"
+    },
+    "require": {
+      "types": "./errors.d.cts",
+      "default": "./errors.cjs"
+    },
+    "types": "./errors.d.ts",
+    "default": "./errors.js"
+  },
+  "./expressions": {
+    "import": {
+      "types": "./expressions.d.ts",
+      "default": "./expressions.js"
+    },
+    "require": {
+      "types": "./expressions.d.cts",
+      "default": "./expressions.cjs"
+    },
+    "types": "./expressions.d.ts",
+    "default": "./expressions.js"
+  },
+  ".": {
+    "import": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "require": {
+      "types": "./index.d.cts",
+      "default": "./index.cjs"
+    },
+    "types": "./index.d.ts",
+    "default": "./index.js"
+  },
+  "./logger": {
+    "import": {
+      "types": "./logger.d.ts",
+      "default": "./logger.js"
+    },
+    "require": {
+      "types": "./logger.d.cts",
+      "default": "./logger.cjs"
+    },
+    "types": "./logger.d.ts",
+    "default": "./logger.js"
+  },
+  "./migrator": {
+    "import": {
+      "types": "./migrator.d.ts",
+      "default": "./migrator.js"
+    },
+    "require": {
+      "types": "./migrator.d.cts",
+      "default": "./migrator.cjs"
+    },
+    "types": "./migrator.d.ts",
+    "default": "./migrator.js"
+  },
+  "./operations": {
+    "import": {
+      "types": "./operations.d.ts",
+      "default": "./operations.js"
+    },
+    "require": {
+      "types": "./operations.d.cts",
+      "default": "./operations.cjs"
+    },
+    "types": "./operations.d.ts",
+    "default": "./operations.js"
+  },
+  "./primary-key": {
+    "import": {
+      "types": "./primary-key.d.ts",
+      "default": "./primary-key.js"
+    },
+    "require": {
+      "types": "./primary-key.d.cts",
+      "default": "./primary-key.cjs"
+    },
+    "types": "./primary-key.d.ts",
+    "default": "./primary-key.js"
+  },
+  "./query-promise": {
+    "import": {
+      "types": "./query-promise.d.ts",
+      "default": "./query-promise.js"
+    },
+    "require": {
+      "types": "./query-promise.d.cts",
+      "default": "./query-promise.cjs"
+    },
+    "types": "./query-promise.d.ts",
+    "default": "./query-promise.js"
+  },
+  "./relations": {
+    "import": {
+      "types": "./relations.d.ts",
+      "default": "./relations.js"
+    },
+    "require": {
+      "types": "./relations.d.cts",
+      "default": "./relations.cjs"
+    },
+    "types": "./relations.d.ts",
+    "default": "./relations.js"
+  },
+  "./runnable-query": {
+    "import": {
+      "types": "./runnable-query.d.ts",
+      "default": "./runnable-query.js"
+    },
+    "require": {
+      "types": "./runnable-query.d.cts",
+      "default": "./runnable-query.cjs"
+    },
+    "types": "./runnable-query.d.ts",
+    "default": "./runnable-query.js"
+  },
+  "./selection-proxy": {
+    "import": {
+      "types": "./selection-proxy.d.ts",
+      "default": "./selection-proxy.js"
+    },
+    "require": {
+      "types": "./selection-proxy.d.cts",
+      "default": "./selection-proxy.cjs"
+    },
+    "types": "./selection-proxy.d.ts",
+    "default": "./selection-proxy.js"
+  },
+  "./session": {
+    "import": {
+      "types": "./session.d.ts",
+      "default": "./session.js"
+    },
+    "require": {
+      "types": "./session.d.cts",
+      "default": "./session.cjs"
+    },
+    "types": "./session.d.ts",
+    "default": "./session.js"
+  },
+  "./subquery": {
+    "import": {
+      "types": "./subquery.d.ts",
+      "default": "./subquery.js"
+    },
+    "require": {
+      "types": "./subquery.d.cts",
+      "default": "./subquery.cjs"
+    },
+    "types": "./subquery.d.ts",
+    "default": "./subquery.js"
+  },
+  "./table": {
+    "import": {
+      "types": "./table.d.ts",
+      "default": "./table.js"
+    },
+    "require": {
+      "types": "./table.d.cts",
+      "default": "./table.cjs"
+    },
+    "types": "./table.d.ts",
+    "default": "./table.js"
+  },
+  "./table.utils": {
+    "import": {
+      "types": "./table.utils.d.ts",
+      "default": "./table.utils.js"
+    },
+    "require": {
+      "types": "./table.utils.d.cts",
+      "default": "./table.utils.cjs"
+    },
+    "types": "./table.utils.d.ts",
+    "default": "./table.utils.js"
+  },
+  "./tracing-utils": {
+    "import": {
+      "types": "./tracing-utils.d.ts",
+      "default": "./tracing-utils.js"
+    },
+    "require": {
+      "types": "./tracing-utils.d.cts",
+      "default": "./tracing-utils.cjs"
+    },
+    "types": "./tracing-utils.d.ts",
+    "default": "./tracing-utils.js"
+  },
+  "./tracing": {
+    "import": {
+      "types": "./tracing.d.ts",
+      "default": "./tracing.js"
+    },
+    "require": {
+      "types": "./tracing.d.cts",
+      "default": "./tracing.cjs"
+    },
+    "types": "./tracing.d.ts",
+    "default": "./tracing.js"
+  },
+  "./utils": {
+    "import": {
+      "types": "./utils.d.ts",
+      "default": "./utils.js"
+    },
+    "require": {
+      "types": "./utils.d.cts",
+      "default": "./utils.cjs"
+    },
+    "types": "./utils.d.ts",
+    "default": "./utils.js"
+  },
+  "./version": {
+    "import": {
+      "types": "./version.d.ts",
+      "default": "./version.js"
+    },
+    "require": {
+      "types": "./version.d.cts",
+      "default": "./version.cjs"
+    },
+    "types": "./version.d.ts",
+    "default": "./version.js"
+  },
+  "./view-common": {
+    "import": {
+      "types": "./view-common.d.ts",
+      "default": "./view-common.js"
+    },
+    "require": {
+      "types": "./view-common.d.cts",
+      "default": "./view-common.cjs"
+    },
+    "types": "./view-common.d.ts",
+    "default": "./view-common.js"
+  },
+  "./better-sqlite3/driver": {
+    "import": {
+      "types": "./better-sqlite3/driver.d.ts",
+      "default": "./better-sqlite3/driver.js"
+    },
+    "require": {
+      "types": "./better-sqlite3/driver.d.cts",
+      "default": "./better-sqlite3/driver.cjs"
+    },
+    "types": "./better-sqlite3/driver.d.ts",
+    "default": "./better-sqlite3/driver.js"
+  },
+  "./better-sqlite3": {
+    "import": {
+      "types": "./better-sqlite3/index.d.ts",
+      "default": "./better-sqlite3/index.js"
+    },
+    "require": {
+      "types": "./better-sqlite3/index.d.cts",
+      "default": "./better-sqlite3/index.cjs"
+    },
+    "types": "./better-sqlite3/index.d.ts",
+    "default": "./better-sqlite3/index.js"
+  },
+  "./better-sqlite3/migrator": {
+    "import": {
+      "types": "./better-sqlite3/migrator.d.ts",
+      "default": "./better-sqlite3/migrator.js"
+    },
+    "require": {
+      "types": "./better-sqlite3/migrator.d.cts",
+      "default": "./better-sqlite3/migrator.cjs"
+    },
+    "types": "./better-sqlite3/migrator.d.ts",
+    "default": "./better-sqlite3/migrator.js"
+  },
+  "./better-sqlite3/session": {
+    "import": {
+      "types": "./better-sqlite3/session.d.ts",
+      "default": "./better-sqlite3/session.js"
+    },
+    "require": {
+      "types": "./better-sqlite3/session.d.cts",
+      "default": "./better-sqlite3/session.cjs"
+    },
+    "types": "./better-sqlite3/session.d.ts",
+    "default": "./better-sqlite3/session.js"
+  },
+  "./bun-sqlite/driver": {
+    "import": {
+      "types": "./bun-sqlite/driver.d.ts",
+      "default": "./bun-sqlite/driver.js"
+    },
+    "require": {
+      "types": "./bun-sqlite/driver.d.cts",
+      "default": "./bun-sqlite/driver.cjs"
+    },
+    "types": "./bun-sqlite/driver.d.ts",
+    "default": "./bun-sqlite/driver.js"
+  },
+  "./bun-sqlite": {
+    "import": {
+      "types": "./bun-sqlite/index.d.ts",
+      "default": "./bun-sqlite/index.js"
+    },
+    "require": {
+      "types": "./bun-sqlite/index.d.cts",
+      "default": "./bun-sqlite/index.cjs"
+    },
+    "types": "./bun-sqlite/index.d.ts",
+    "default": "./bun-sqlite/index.js"
+  },
+  "./bun-sqlite/migrator": {
+    "import": {
+      "types": "./bun-sqlite/migrator.d.ts",
+      "default": "./bun-sqlite/migrator.js"
+    },
+    "require": {
+      "types": "./bun-sqlite/migrator.d.cts",
+      "default": "./bun-sqlite/migrator.cjs"
+    },
+    "types": "./bun-sqlite/migrator.d.ts",
+    "default": "./bun-sqlite/migrator.js"
+  },
+  "./bun-sqlite/session": {
+    "import": {
+      "types": "./bun-sqlite/session.d.ts",
+      "default": "./bun-sqlite/session.js"
+    },
+    "require": {
+      "types": "./bun-sqlite/session.d.cts",
+      "default": "./bun-sqlite/session.cjs"
+    },
+    "types": "./bun-sqlite/session.d.ts",
+    "default": "./bun-sqlite/session.js"
+  },
+  "./d1/driver": {
+    "import": {
+      "types": "./d1/driver.d.ts",
+      "default": "./d1/driver.js"
+    },
+    "require": {
+      "types": "./d1/driver.d.cts",
+      "default": "./d1/driver.cjs"
+    },
+    "types": "./d1/driver.d.ts",
+    "default": "./d1/driver.js"
+  },
+  "./d1": {
+    "import": {
+      "types": "./d1/index.d.ts",
+      "default": "./d1/index.js"
+    },
+    "require": {
+      "types": "./d1/index.d.cts",
+      "default": "./d1/index.cjs"
+    },
+    "types": "./d1/index.d.ts",
+    "default": "./d1/index.js"
+  },
+  "./d1/migrator": {
+    "import": {
+      "types": "./d1/migrator.d.ts",
+      "default": "./d1/migrator.js"
+    },
+    "require": {
+      "types": "./d1/migrator.d.cts",
+      "default": "./d1/migrator.cjs"
+    },
+    "types": "./d1/migrator.d.ts",
+    "default": "./d1/migrator.js"
+  },
+  "./d1/session": {
+    "import": {
+      "types": "./d1/session.d.ts",
+      "default": "./d1/session.js"
+    },
+    "require": {
+      "types": "./d1/session.d.cts",
+      "default": "./d1/session.cjs"
+    },
+    "types": "./d1/session.d.ts",
+    "default": "./d1/session.js"
+  },
+  "./durable-sqlite/driver": {
+    "import": {
+      "types": "./durable-sqlite/driver.d.ts",
+      "default": "./durable-sqlite/driver.js"
+    },
+    "require": {
+      "types": "./durable-sqlite/driver.d.cts",
+      "default": "./durable-sqlite/driver.cjs"
+    },
+    "types": "./durable-sqlite/driver.d.ts",
+    "default": "./durable-sqlite/driver.js"
+  },
+  "./durable-sqlite": {
+    "import": {
+      "types": "./durable-sqlite/index.d.ts",
+      "default": "./durable-sqlite/index.js"
+    },
+    "require": {
+      "types": "./durable-sqlite/index.d.cts",
+      "default": "./durable-sqlite/index.cjs"
+    },
+    "types": "./durable-sqlite/index.d.ts",
+    "default": "./durable-sqlite/index.js"
+  },
+  "./durable-sqlite/migrator": {
+    "import": {
+      "types": "./durable-sqlite/migrator.d.ts",
+      "default": "./durable-sqlite/migrator.js"
+    },
+    "require": {
+      "types": "./durable-sqlite/migrator.d.cts",
+      "default": "./durable-sqlite/migrator.cjs"
+    },
+    "types": "./durable-sqlite/migrator.d.ts",
+    "default": "./durable-sqlite/migrator.js"
+  },
+  "./durable-sqlite/session": {
+    "import": {
+      "types": "./durable-sqlite/session.d.ts",
+      "default": "./durable-sqlite/session.js"
+    },
+    "require": {
+      "types": "./durable-sqlite/session.d.cts",
+      "default": "./durable-sqlite/session.cjs"
+    },
+    "types": "./durable-sqlite/session.d.ts",
+    "default": "./durable-sqlite/session.js"
+  },
+  "./expo-sqlite/driver": {
+    "import": {
+      "types": "./expo-sqlite/driver.d.ts",
+      "default": "./expo-sqlite/driver.js"
+    },
+    "require": {
+      "types": "./expo-sqlite/driver.d.cts",
+      "default": "./expo-sqlite/driver.cjs"
+    },
+    "types": "./expo-sqlite/driver.d.ts",
+    "default": "./expo-sqlite/driver.js"
+  },
+  "./expo-sqlite": {
+    "import": {
+      "types": "./expo-sqlite/index.d.ts",
+      "default": "./expo-sqlite/index.js"
+    },
+    "require": {
+      "types": "./expo-sqlite/index.d.cts",
+      "default": "./expo-sqlite/index.cjs"
+    },
+    "types": "./expo-sqlite/index.d.ts",
+    "default": "./expo-sqlite/index.js"
+  },
+  "./expo-sqlite/migrator": {
+    "import": {
+      "types": "./expo-sqlite/migrator.d.ts",
+      "default": "./expo-sqlite/migrator.js"
+    },
+    "require": {
+      "types": "./expo-sqlite/migrator.d.cts",
+      "default": "./expo-sqlite/migrator.cjs"
+    },
+    "types": "./expo-sqlite/migrator.d.ts",
+    "default": "./expo-sqlite/migrator.js"
+  },
+  "./expo-sqlite/query": {
+    "import": {
+      "types": "./expo-sqlite/query.d.ts",
+      "default": "./expo-sqlite/query.js"
+    },
+    "require": {
+      "types": "./expo-sqlite/query.d.cts",
+      "default": "./expo-sqlite/query.cjs"
+    },
+    "types": "./expo-sqlite/query.d.ts",
+    "default": "./expo-sqlite/query.js"
+  },
+  "./expo-sqlite/session": {
+    "import": {
+      "types": "./expo-sqlite/session.d.ts",
+      "default": "./expo-sqlite/session.js"
+    },
+    "require": {
+      "types": "./expo-sqlite/session.d.cts",
+      "default": "./expo-sqlite/session.cjs"
+    },
+    "types": "./expo-sqlite/session.d.ts",
+    "default": "./expo-sqlite/session.js"
+  },
+  "./knex": {
+    "import": {
+      "types": "./knex/index.d.ts",
+      "default": "./knex/index.js"
+    },
+    "require": {
+      "types": "./knex/index.d.cts",
+      "default": "./knex/index.cjs"
+    },
+    "types": "./knex/index.d.ts",
+    "default": "./knex/index.js"
+  },
+  "./kysely": {
+    "import": {
+      "types": "./kysely/index.d.ts",
+      "default": "./kysely/index.js"
+    },
+    "require": {
+      "types": "./kysely/index.d.cts",
+      "default": "./kysely/index.cjs"
+    },
+    "types": "./kysely/index.d.ts",
+    "default": "./kysely/index.js"
+  },
+  "./libsql/driver-core": {
+    "import": {
+      "types": "./libsql/driver-core.d.ts",
+      "default": "./libsql/driver-core.js"
+    },
+    "require": {
+      "types": "./libsql/driver-core.d.cts",
+      "default": "./libsql/driver-core.cjs"
+    },
+    "types": "./libsql/driver-core.d.ts",
+    "default": "./libsql/driver-core.js"
+  },
+  "./libsql/driver": {
+    "import": {
+      "types": "./libsql/driver.d.ts",
+      "default": "./libsql/driver.js"
+    },
+    "require": {
+      "types": "./libsql/driver.d.cts",
+      "default": "./libsql/driver.cjs"
+    },
+    "types": "./libsql/driver.d.ts",
+    "default": "./libsql/driver.js"
+  },
+  "./libsql": {
+    "import": {
+      "types": "./libsql/index.d.ts",
+      "default": "./libsql/index.js"
+    },
+    "require": {
+      "types": "./libsql/index.d.cts",
+      "default": "./libsql/index.cjs"
+    },
+    "types": "./libsql/index.d.ts",
+    "default": "./libsql/index.js"
+  },
+  "./libsql/migrator": {
+    "import": {
+      "types": "./libsql/migrator.d.ts",
+      "default": "./libsql/migrator.js"
+    },
+    "require": {
+      "types": "./libsql/migrator.d.cts",
+      "default": "./libsql/migrator.cjs"
+    },
+    "types": "./libsql/migrator.d.ts",
+    "default": "./libsql/migrator.js"
+  },
+  "./libsql/session": {
+    "import": {
+      "types": "./libsql/session.d.ts",
+      "default": "./libsql/session.js"
+    },
+    "require": {
+      "types": "./libsql/session.d.cts",
+      "default": "./libsql/session.cjs"
+    },
+    "types": "./libsql/session.d.ts",
+    "default": "./libsql/session.js"
+  },
+  "./mysql-core/alias": {
+    "import": {
+      "types": "./mysql-core/alias.d.ts",
+      "default": "./mysql-core/alias.js"
+    },
+    "require": {
+      "types": "./mysql-core/alias.d.cts",
+      "default": "./mysql-core/alias.cjs"
+    },
+    "types": "./mysql-core/alias.d.ts",
+    "default": "./mysql-core/alias.js"
+  },
+  "./mysql-core/checks": {
+    "import": {
+      "types": "./mysql-core/checks.d.ts",
+      "default": "./mysql-core/checks.js"
+    },
+    "require": {
+      "types": "./mysql-core/checks.d.cts",
+      "default": "./mysql-core/checks.cjs"
+    },
+    "types": "./mysql-core/checks.d.ts",
+    "default": "./mysql-core/checks.js"
+  },
+  "./mysql-core/db": {
+    "import": {
+      "types": "./mysql-core/db.d.ts",
+      "default": "./mysql-core/db.js"
+    },
+    "require": {
+      "types": "./mysql-core/db.d.cts",
+      "default": "./mysql-core/db.cjs"
+    },
+    "types": "./mysql-core/db.d.ts",
+    "default": "./mysql-core/db.js"
+  },
+  "./mysql-core/dialect": {
+    "import": {
+      "types": "./mysql-core/dialect.d.ts",
+      "default": "./mysql-core/dialect.js"
+    },
+    "require": {
+      "types": "./mysql-core/dialect.d.cts",
+      "default": "./mysql-core/dialect.cjs"
+    },
+    "types": "./mysql-core/dialect.d.ts",
+    "default": "./mysql-core/dialect.js"
+  },
+  "./mysql-core/expressions": {
+    "import": {
+      "types": "./mysql-core/expressions.d.ts",
+      "default": "./mysql-core/expressions.js"
+    },
+    "require": {
+      "types": "./mysql-core/expressions.d.cts",
+      "default": "./mysql-core/expressions.cjs"
+    },
+    "types": "./mysql-core/expressions.d.ts",
+    "default": "./mysql-core/expressions.js"
+  },
+  "./mysql-core/foreign-keys": {
+    "import": {
+      "types": "./mysql-core/foreign-keys.d.ts",
+      "default": "./mysql-core/foreign-keys.js"
+    },
+    "require": {
+      "types": "./mysql-core/foreign-keys.d.cts",
+      "default": "./mysql-core/foreign-keys.cjs"
+    },
+    "types": "./mysql-core/foreign-keys.d.ts",
+    "default": "./mysql-core/foreign-keys.js"
+  },
+  "./mysql-core": {
+    "import": {
+      "types": "./mysql-core/index.d.ts",
+      "default": "./mysql-core/index.js"
+    },
+    "require": {
+      "types": "./mysql-core/index.d.cts",
+      "default": "./mysql-core/index.cjs"
+    },
+    "types": "./mysql-core/index.d.ts",
+    "default": "./mysql-core/index.js"
+  },
+  "./mysql-core/indexes": {
+    "import": {
+      "types": "./mysql-core/indexes.d.ts",
+      "default": "./mysql-core/indexes.js"
+    },
+    "require": {
+      "types": "./mysql-core/indexes.d.cts",
+      "default": "./mysql-core/indexes.cjs"
+    },
+    "types": "./mysql-core/indexes.d.ts",
+    "default": "./mysql-core/indexes.js"
+  },
+  "./mysql-core/primary-keys": {
+    "import": {
+      "types": "./mysql-core/primary-keys.d.ts",
+      "default": "./mysql-core/primary-keys.js"
+    },
+    "require": {
+      "types": "./mysql-core/primary-keys.d.cts",
+      "default": "./mysql-core/primary-keys.cjs"
+    },
+    "types": "./mysql-core/primary-keys.d.ts",
+    "default": "./mysql-core/primary-keys.js"
+  },
+  "./mysql-core/schema": {
+    "import": {
+      "types": "./mysql-core/schema.d.ts",
+      "default": "./mysql-core/schema.js"
+    },
+    "require": {
+      "types": "./mysql-core/schema.d.cts",
+      "default": "./mysql-core/schema.cjs"
+    },
+    "types": "./mysql-core/schema.d.ts",
+    "default": "./mysql-core/schema.js"
+  },
+  "./mysql-core/session": {
+    "import": {
+      "types": "./mysql-core/session.d.ts",
+      "default": "./mysql-core/session.js"
+    },
+    "require": {
+      "types": "./mysql-core/session.d.cts",
+      "default": "./mysql-core/session.cjs"
+    },
+    "types": "./mysql-core/session.d.ts",
+    "default": "./mysql-core/session.js"
+  },
+  "./mysql-core/subquery": {
+    "import": {
+      "types": "./mysql-core/subquery.d.ts",
+      "default": "./mysql-core/subquery.js"
+    },
+    "require": {
+      "types": "./mysql-core/subquery.d.cts",
+      "default": "./mysql-core/subquery.cjs"
+    },
+    "types": "./mysql-core/subquery.d.ts",
+    "default": "./mysql-core/subquery.js"
+  },
+  "./mysql-core/table": {
+    "import": {
+      "types": "./mysql-core/table.d.ts",
+      "default": "./mysql-core/table.js"
+    },
+    "require": {
+      "types": "./mysql-core/table.d.cts",
+      "default": "./mysql-core/table.cjs"
+    },
+    "types": "./mysql-core/table.d.ts",
+    "default": "./mysql-core/table.js"
+  },
+  "./mysql-core/unique-constraint": {
+    "import": {
+      "types": "./mysql-core/unique-constraint.d.ts",
+      "default": "./mysql-core/unique-constraint.js"
+    },
+    "require": {
+      "types": "./mysql-core/unique-constraint.d.cts",
+      "default": "./mysql-core/unique-constraint.cjs"
+    },
+    "types": "./mysql-core/unique-constraint.d.ts",
+    "default": "./mysql-core/unique-constraint.js"
+  },
+  "./mysql-core/utils": {
+    "import": {
+      "types": "./mysql-core/utils.d.ts",
+      "default": "./mysql-core/utils.js"
+    },
+    "require": {
+      "types": "./mysql-core/utils.d.cts",
+      "default": "./mysql-core/utils.cjs"
+    },
+    "types": "./mysql-core/utils.d.ts",
+    "default": "./mysql-core/utils.js"
+  },
+  "./mysql-core/view-base": {
+    "import": {
+      "types": "./mysql-core/view-base.d.ts",
+      "default": "./mysql-core/view-base.js"
+    },
+    "require": {
+      "types": "./mysql-core/view-base.d.cts",
+      "default": "./mysql-core/view-base.cjs"
+    },
+    "types": "./mysql-core/view-base.d.ts",
+    "default": "./mysql-core/view-base.js"
+  },
+  "./mysql-core/view-common": {
+    "import": {
+      "types": "./mysql-core/view-common.d.ts",
+      "default": "./mysql-core/view-common.js"
+    },
+    "require": {
+      "types": "./mysql-core/view-common.d.cts",
+      "default": "./mysql-core/view-common.cjs"
+    },
+    "types": "./mysql-core/view-common.d.ts",
+    "default": "./mysql-core/view-common.js"
+  },
+  "./mysql-core/view": {
+    "import": {
+      "types": "./mysql-core/view.d.ts",
+      "default": "./mysql-core/view.js"
+    },
+    "require": {
+      "types": "./mysql-core/view.d.cts",
+      "default": "./mysql-core/view.cjs"
+    },
+    "types": "./mysql-core/view.d.ts",
+    "default": "./mysql-core/view.js"
+  },
+  "./mysql-proxy/driver": {
+    "import": {
+      "types": "./mysql-proxy/driver.d.ts",
+      "default": "./mysql-proxy/driver.js"
+    },
+    "require": {
+      "types": "./mysql-proxy/driver.d.cts",
+      "default": "./mysql-proxy/driver.cjs"
+    },
+    "types": "./mysql-proxy/driver.d.ts",
+    "default": "./mysql-proxy/driver.js"
+  },
+  "./mysql-proxy": {
+    "import": {
+      "types": "./mysql-proxy/index.d.ts",
+      "default": "./mysql-proxy/index.js"
+    },
+    "require": {
+      "types": "./mysql-proxy/index.d.cts",
+      "default": "./mysql-proxy/index.cjs"
+    },
+    "types": "./mysql-proxy/index.d.ts",
+    "default": "./mysql-proxy/index.js"
+  },
+  "./mysql-proxy/migrator": {
+    "import": {
+      "types": "./mysql-proxy/migrator.d.ts",
+      "default": "./mysql-proxy/migrator.js"
+    },
+    "require": {
+      "types": "./mysql-proxy/migrator.d.cts",
+      "default": "./mysql-proxy/migrator.cjs"
+    },
+    "types": "./mysql-proxy/migrator.d.ts",
+    "default": "./mysql-proxy/migrator.js"
+  },
+  "./mysql-proxy/session": {
+    "import": {
+      "types": "./mysql-proxy/session.d.ts",
+      "default": "./mysql-proxy/session.js"
+    },
+    "require": {
+      "types": "./mysql-proxy/session.d.cts",
+      "default": "./mysql-proxy/session.cjs"
+    },
+    "types": "./mysql-proxy/session.d.ts",
+    "default": "./mysql-proxy/session.js"
+  },
+  "./mysql2/driver": {
+    "import": {
+      "types": "./mysql2/driver.d.ts",
+      "default": "./mysql2/driver.js"
+    },
+    "require": {
+      "types": "./mysql2/driver.d.cts",
+      "default": "./mysql2/driver.cjs"
+    },
+    "types": "./mysql2/driver.d.ts",
+    "default": "./mysql2/driver.js"
+  },
+  "./mysql2": {
+    "import": {
+      "types": "./mysql2/index.d.ts",
+      "default": "./mysql2/index.js"
+    },
+    "require": {
+      "types": "./mysql2/index.d.cts",
+      "default": "./mysql2/index.cjs"
+    },
+    "types": "./mysql2/index.d.ts",
+    "default": "./mysql2/index.js"
+  },
+  "./mysql2/migrator": {
+    "import": {
+      "types": "./mysql2/migrator.d.ts",
+      "default": "./mysql2/migrator.js"
+    },
+    "require": {
+      "types": "./mysql2/migrator.d.cts",
+      "default": "./mysql2/migrator.cjs"
+    },
+    "types": "./mysql2/migrator.d.ts",
+    "default": "./mysql2/migrator.js"
+  },
+  "./mysql2/session": {
+    "import": {
+      "types": "./mysql2/session.d.ts",
+      "default": "./mysql2/session.js"
+    },
+    "require": {
+      "types": "./mysql2/session.d.cts",
+      "default": "./mysql2/session.cjs"
+    },
+    "types": "./mysql2/session.d.ts",
+    "default": "./mysql2/session.js"
+  },
+  "./neon": {
+    "import": {
+      "types": "./neon/index.d.ts",
+      "default": "./neon/index.js"
+    },
+    "require": {
+      "types": "./neon/index.d.cts",
+      "default": "./neon/index.cjs"
+    },
+    "types": "./neon/index.d.ts",
+    "default": "./neon/index.js"
+  },
+  "./neon/rls": {
+    "import": {
+      "types": "./neon/rls.d.ts",
+      "default": "./neon/rls.js"
+    },
+    "require": {
+      "types": "./neon/rls.d.cts",
+      "default": "./neon/rls.cjs"
+    },
+    "types": "./neon/rls.d.ts",
+    "default": "./neon/rls.js"
+  },
+  "./neon-http/driver": {
+    "import": {
+      "types": "./neon-http/driver.d.ts",
+      "default": "./neon-http/driver.js"
+    },
+    "require": {
+      "types": "./neon-http/driver.d.cts",
+      "default": "./neon-http/driver.cjs"
+    },
+    "types": "./neon-http/driver.d.ts",
+    "default": "./neon-http/driver.js"
+  },
+  "./neon-http": {
+    "import": {
+      "types": "./neon-http/index.d.ts",
+      "default": "./neon-http/index.js"
+    },
+    "require": {
+      "types": "./neon-http/index.d.cts",
+      "default": "./neon-http/index.cjs"
+    },
+    "types": "./neon-http/index.d.ts",
+    "default": "./neon-http/index.js"
+  },
+  "./neon-http/migrator": {
+    "import": {
+      "types": "./neon-http/migrator.d.ts",
+      "default": "./neon-http/migrator.js"
+    },
+    "require": {
+      "types": "./neon-http/migrator.d.cts",
+      "default": "./neon-http/migrator.cjs"
+    },
+    "types": "./neon-http/migrator.d.ts",
+    "default": "./neon-http/migrator.js"
+  },
+  "./neon-http/session": {
+    "import": {
+      "types": "./neon-http/session.d.ts",
+      "default": "./neon-http/session.js"
+    },
+    "require": {
+      "types": "./neon-http/session.d.cts",
+      "default": "./neon-http/session.cjs"
+    },
+    "types": "./neon-http/session.d.ts",
+    "default": "./neon-http/session.js"
+  },
+  "./neon-serverless/driver": {
+    "import": {
+      "types": "./neon-serverless/driver.d.ts",
+      "default": "./neon-serverless/driver.js"
+    },
+    "require": {
+      "types": "./neon-serverless/driver.d.cts",
+      "default": "./neon-serverless/driver.cjs"
+    },
+    "types": "./neon-serverless/driver.d.ts",
+    "default": "./neon-serverless/driver.js"
+  },
+  "./neon-serverless": {
+    "import": {
+      "types": "./neon-serverless/index.d.ts",
+      "default": "./neon-serverless/index.js"
+    },
+    "require": {
+      "types": "./neon-serverless/index.d.cts",
+      "default": "./neon-serverless/index.cjs"
+    },
+    "types": "./neon-serverless/index.d.ts",
+    "default": "./neon-serverless/index.js"
+  },
+  "./neon-serverless/migrator": {
+    "import": {
+      "types": "./neon-serverless/migrator.d.ts",
+      "default": "./neon-serverless/migrator.js"
+    },
+    "require": {
+      "types": "./neon-serverless/migrator.d.cts",
+      "default": "./neon-serverless/migrator.cjs"
+    },
+    "types": "./neon-serverless/migrator.d.ts",
+    "default": "./neon-serverless/migrator.js"
+  },
+  "./neon-serverless/session": {
+    "import": {
+      "types": "./neon-serverless/session.d.ts",
+      "default": "./neon-serverless/session.js"
+    },
+    "require": {
+      "types": "./neon-serverless/session.d.cts",
+      "default": "./neon-serverless/session.cjs"
+    },
+    "types": "./neon-serverless/session.d.ts",
+    "default": "./neon-serverless/session.js"
+  },
+  "./node-postgres/driver": {
+    "import": {
+      "types": "./node-postgres/driver.d.ts",
+      "default": "./node-postgres/driver.js"
+    },
+    "require": {
+      "types": "./node-postgres/driver.d.cts",
+      "default": "./node-postgres/driver.cjs"
+    },
+    "types": "./node-postgres/driver.d.ts",
+    "default": "./node-postgres/driver.js"
+  },
+  "./node-postgres": {
+    "import": {
+      "types": "./node-postgres/index.d.ts",
+      "default": "./node-postgres/index.js"
+    },
+    "require": {
+      "types": "./node-postgres/index.d.cts",
+      "default": "./node-postgres/index.cjs"
+    },
+    "types": "./node-postgres/index.d.ts",
+    "default": "./node-postgres/index.js"
+  },
+  "./node-postgres/migrator": {
+    "import": {
+      "types": "./node-postgres/migrator.d.ts",
+      "default": "./node-postgres/migrator.js"
+    },
+    "require": {
+      "types": "./node-postgres/migrator.d.cts",
+      "default": "./node-postgres/migrator.cjs"
+    },
+    "types": "./node-postgres/migrator.d.ts",
+    "default": "./node-postgres/migrator.js"
+  },
+  "./node-postgres/session": {
+    "import": {
+      "types": "./node-postgres/session.d.ts",
+      "default": "./node-postgres/session.js"
+    },
+    "require": {
+      "types": "./node-postgres/session.d.cts",
+      "default": "./node-postgres/session.cjs"
+    },
+    "types": "./node-postgres/session.d.ts",
+    "default": "./node-postgres/session.js"
+  },
+  "./op-sqlite/driver": {
+    "import": {
+      "types": "./op-sqlite/driver.d.ts",
+      "default": "./op-sqlite/driver.js"
+    },
+    "require": {
+      "types": "./op-sqlite/driver.d.cts",
+      "default": "./op-sqlite/driver.cjs"
+    },
+    "types": "./op-sqlite/driver.d.ts",
+    "default": "./op-sqlite/driver.js"
+  },
+  "./op-sqlite": {
+    "import": {
+      "types": "./op-sqlite/index.d.ts",
+      "default": "./op-sqlite/index.js"
+    },
+    "require": {
+      "types": "./op-sqlite/index.d.cts",
+      "default": "./op-sqlite/index.cjs"
+    },
+    "types": "./op-sqlite/index.d.ts",
+    "default": "./op-sqlite/index.js"
+  },
+  "./op-sqlite/migrator": {
+    "import": {
+      "types": "./op-sqlite/migrator.d.ts",
+      "default": "./op-sqlite/migrator.js"
+    },
+    "require": {
+      "types": "./op-sqlite/migrator.d.cts",
+      "default": "./op-sqlite/migrator.cjs"
+    },
+    "types": "./op-sqlite/migrator.d.ts",
+    "default": "./op-sqlite/migrator.js"
+  },
+  "./op-sqlite/session": {
+    "import": {
+      "types": "./op-sqlite/session.d.ts",
+      "default": "./op-sqlite/session.js"
+    },
+    "require": {
+      "types": "./op-sqlite/session.d.cts",
+      "default": "./op-sqlite/session.cjs"
+    },
+    "types": "./op-sqlite/session.d.ts",
+    "default": "./op-sqlite/session.js"
+  },
+  "./pg-core/alias": {
+    "import": {
+      "types": "./pg-core/alias.d.ts",
+      "default": "./pg-core/alias.js"
+    },
+    "require": {
+      "types": "./pg-core/alias.d.cts",
+      "default": "./pg-core/alias.cjs"
+    },
+    "types": "./pg-core/alias.d.ts",
+    "default": "./pg-core/alias.js"
+  },
+  "./pg-core/checks": {
+    "import": {
+      "types": "./pg-core/checks.d.ts",
+      "default": "./pg-core/checks.js"
+    },
+    "require": {
+      "types": "./pg-core/checks.d.cts",
+      "default": "./pg-core/checks.cjs"
+    },
+    "types": "./pg-core/checks.d.ts",
+    "default": "./pg-core/checks.js"
+  },
+  "./pg-core/db": {
+    "import": {
+      "types": "./pg-core/db.d.ts",
+      "default": "./pg-core/db.js"
+    },
+    "require": {
+      "types": "./pg-core/db.d.cts",
+      "default": "./pg-core/db.cjs"
+    },
+    "types": "./pg-core/db.d.ts",
+    "default": "./pg-core/db.js"
+ 
+
+[… truncated 104221 chars …]

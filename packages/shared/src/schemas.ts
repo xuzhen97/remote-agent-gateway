@@ -37,6 +37,7 @@ export const PushFilePayloadSchema = z.object({
 });
 
 export const FrpCreateProxyPayloadSchema = z.object({
+  mappingId: z.string().min(1),
   name: z.string().min(1).max(128),
   proxyType: z.enum(['tcp', 'http', 'https']),
   localIp: z.string().min(1),
