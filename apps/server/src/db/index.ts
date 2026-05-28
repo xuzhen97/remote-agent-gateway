@@ -1,12 +1,12 @@
-import initSqlJs from 'sql.js';
+import initSqlJs, { type Database } from 'sql.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { env } from '../config/env.js';
 import { migrate } from './migrate.js';
 
-let dbInstance: initSqlJs.Database | null = null;
+let dbInstance: Database | null = null;
 
-export async function initDb(): Promise<initSqlJs.Database> {
+export async function initDb(): Promise<Database> {
   if (dbInstance) return dbInstance;
 
   const SQL = await initSqlJs();
@@ -31,7 +31,7 @@ export async function initDb(): Promise<initSqlJs.Database> {
   return dbInstance;
 }
 
-export function getDb(): initSqlJs.Database {
+export function getDb(): Database {
   if (!dbInstance) {
     throw new Error('Database not initialized. Call initDb() first.');
   }

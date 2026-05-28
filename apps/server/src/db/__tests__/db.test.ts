@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import initSqlJs from 'sql.js';
-import type { Database } from 'sql.js';
+import initSqlJs, { type Database } from 'sql.js';
 import { migrate } from '../migrate.js';
 
 function queryAll(db: Database, sql: string, params?: unknown[]): unknown[] {
