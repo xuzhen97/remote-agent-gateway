@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+storage/files/
+storage/logs/
+storage/db.sqlite
+.env
+apps/client/config.json
