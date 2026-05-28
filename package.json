@@ -1,15 +1,23 @@
 {
   "name": "remote-agent-gateway",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev:server": "pnpm --filter @rag/server dev",
     "dev:client": "pnpm --filter @rag/client dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "build:dist": "tsx scripts/build-all.ts",
+    "build:dist:server": "tsx scripts/build-server.ts",
+    "build:dist:client": "tsx scripts/build-client.ts"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

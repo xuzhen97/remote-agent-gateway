@@ -25,14 +25,23 @@ async function main(): Promise<void> {
   saveDb();
 
   // Create Fastify instance
-  const app = Fastify({
-    logger: {
+  // In bundled mode, pino-pretty may not be resolvable — fall back to basic logger
+  let loggerConfig: Record<string, unknown>;
+  try {
+    // Test if pino-pretty is available
+    require.resolve('pino-pretty');
+    loggerConfig = {
       transport: {
         target: 'pino-pretty',
         options: { colorize: true },
       },
-    },
-  });
+    };
+  } catch {
+    loggerConfig = { level: 'info' };
+    console.log('pino-pretty not available, using basic logger');
+  }
+
+  const app = Fastify({ logger: loggerConfig });
 
   // Register plugins
   await app.register(cors);
