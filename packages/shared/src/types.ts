@@ -1,0 +1,149 @@
+// Task type enum
+export const TASK_TYPES = [
+  'health_check',
+  'exec_script',
+  'exec_command',
+  'push_file',
+  'frp_create_proxy',
+  'frp_remove_proxy',
+] as const;
+export type TaskType = (typeof TASK_TYPES)[number];
+
+// Task status enum
+export const TASK_STATUSES = [
+  'pending',
+  'dispatched',
+  'running',
+  'success',
+  'failed',
+  'cancelled',
+] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+// Client info
+export interface ClientInfo {
+  clientId: string;
+  name: string;
+  hostname?: string;
+  os?: string;
+  arch?: string;
+  version?: string;
+  tags?: string[];
+}
+
+// Client record (DB)
+export interface ClientRecord extends ClientInfo {
+  status: 'online' | 'offline';
+  tokenHash?: string;
+  lastSeenAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Task payloads
+export interface ExecScriptPayload {
+  runtime?: 'node' | 'python' | 'bash';
+  script: string;
+  timeoutMs?: number;
+}
+
+export interface ExecCommandPayload {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  timeoutMs?: number;
+}
+
+export interface PushFilePayload {
+  fileId: string;
+  targetPath: string;
+  fileName: string;
+}
+
+export interface FrpCreateProxyPayload {
+  name: string;
+  proxyType: 'tcp' | 'http' | 'https';
+  localIp: string;
+  localPort: number;
+  remotePort: number;
+  customDomain?: string;
+}
+
+export interface FrpRemoveProxyPayload {
+  mappingId: string;
+}
+
+export interface HealthCheckPayload {
+  // empty
+}
+
+export type TaskPayloadMap = {
+  health_check: HealthCheckPayload;
+  exec_script: ExecScriptPayload;
+  exec_command: ExecCommandPayload;
+  push_file: PushFilePayload;
+  frp_create_proxy: FrpCreateProxyPayload;
+  frp_remove_proxy: FrpRemoveProxyPayload;
+};
+
+// Task record (DB)
+export interface TaskRecord<T extends TaskType = TaskType> {
+  id: string;
+  clientId: string;
+  type: T;
+  status: TaskStatus;
+  payload: TaskPayloadMap[T];
+  result?: unknown;
+  error?: string;
+  createdBy?: string;
+  createdAt: number;
+  startedAt?: number;
+  finishedAt?: number;
+}
+
+// Task log
+export interface TaskLog {
+  id?: number;
+  taskId: string;
+  stream: 'stdout' | 'stderr';
+  content: string;
+  createdAt: number;
+}
+
+// File record
+export interface FileRecord {
+  id: string;
+  originalName: string;
+  storedPath: string;
+  size?: number;
+  sha256?: string;
+  mimeType?: string;
+  createdAt: number;
+}
+
+// Port mapping
+export interface PortMapping {
+  id: string;
+  clientId: string;
+  name: string;
+  proxyType: 'tcp' | 'http' | 'https';
+  localIp: string;
+  localPort: number;
+  remotePort?: number;
+  customDomain?: string;
+  status: 'active' | 'inactive' | 'error';
+  publicUrl?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Audit log
+export interface AuditLog {
+  id?: number;
+  actor?: string;
+  action: string;
+  targetType?: string;
+  targetId?: string;
+  detail?: string;
+  createdAt: number;
+}
