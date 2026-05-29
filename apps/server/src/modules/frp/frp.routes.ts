@@ -1,12 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { frpService } from './frp.service.js';
+import { frpService, getFrpsConnectionInfo } from './frp.service.js';
 import { CreatePortMappingPayloadSchema } from '@rag/shared';
 import { authMiddleware } from '../auth/auth.middleware.js';
 import { auditService } from '../audit/audit.service.js';
 import { connectionManager } from '../connections/connections.manager.js';
 import { tasksService } from '../tasks/tasks.service.js';
 import { clientsService } from '../clients/clients.service.js';
-import { env } from '../../config/env.js';
 
 export async function frpRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', authMiddleware);
@@ -26,6 +25,8 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: 'Client not found' });
     }
 
+    const frpsInfo = getFrpsConnectionInfo();
+
     const mapping = frpService.createMapping({
       clientId,
       name,
@@ -34,7 +35,6 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       localPort,
       remotePort,
       customDomain,
-      serverHost: env.SERVER_HOST,
     });
 
     auditService.log({
@@ -45,19 +45,25 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       detail: `Created ${proxyType} mapping ${name}: ${localIp}:${localPort} -> ${mapping.remote_port}`,
     });
 
+    // Build the dispatch payload with frps connection info
+    const dispatchPayload = {
+      mappingId: mapping.id,
+      name,
+      proxyType,
+      localIp,
+      localPort,
+      remotePort: mapping.remote_port,
+      customDomain,
+      serverAddr: frpsInfo.serverAddr,
+      serverPort: frpsInfo.serverPort,
+      authToken: frpsInfo.authToken,
+    };
+
     // Dispatch FRP create task to client
     const task = tasksService.createTask({
       clientId,
       type: 'frp_create_proxy',
-      payload: {
-        mappingId: mapping.id,
-        name,
-        proxyType,
-        localIp,
-        localPort,
-        remotePort: mapping.remote_port,
-        customDomain,
-      },
+      payload: dispatchPayload,
     });
 
     connectionManager.sendToClient(clientId, {
@@ -66,15 +72,7 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
       payload: {
         taskId: task.id,
         taskType: 'frp_create_proxy',
-        payload: {
-          mappingId: mapping.id,
-          name,
-          proxyType,
-          localIp,
-          localPort,
-          remotePort: mapping.remote_port,
-          customDomain,
-        },
+        payload: dispatchPayload,
       },
     });
 

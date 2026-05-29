@@ -1,6 +1,6 @@
 import { getDb } from '../../db/index.js';
 import { v4 as uuid } from 'uuid';
-import { env } from '../../config/env.js';
+import { env, resolveFrpsHost, buildFrpPublicUrl } from '../../config/env.js';
 
 export interface PortMappingRow {
   id: string;
@@ -26,7 +26,6 @@ export class FrpService {
     localPort: number;
     remotePort?: number;
     customDomain?: string;
-    serverHost: string;
   }): PortMappingRow {
     const db = getDb();
     const id = `pm_${uuid().slice(0, 8)}`;
@@ -34,7 +33,7 @@ export class FrpService {
 
     // Auto-assign remote port if not specified
     const remotePort = params.remotePort ?? this.getNextAvailablePort();
-    const publicUrl = `${params.serverHost}:${remotePort}`;
+    const publicUrl = buildFrpPublicUrl(remotePort);
 
     db.run(
       `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, custom_domain, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'inactive', ?, ?, ?)`,
@@ -126,6 +125,18 @@ export class FrpService {
       updatedAt: mapping.updated_at,
     };
   }
+}
+
+/**
+ * Build the FRP connection info that gets passed to clients
+ * so they know which frps to connect to.
+ */
+export function getFrpsConnectionInfo() {
+  return {
+    serverAddr: resolveFrpsHost(),
+    serverPort: env.FRPS_PORT,
+    authToken: env.FRPS_TOKEN,
+  };
 }
 
 export const frpService = new FrpService();

@@ -11,11 +11,22 @@ import { frpRoutes } from './modules/frp/frp.routes.js';
 import { agentRoutes } from './modules/agent/agent.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
+import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
 
 async function main(): Promise<void> {
   // Initialize database
   await initDb();
   console.log('Database initialized');
+
+  // FRP mode
+  console.log(`FRP mode: ${env.FRP_MODE}`);
+  if (env.FRP_MODE === 'builtin') {
+    await startFrps();
+  } else if (env.FRP_MODE === 'remote') {
+    console.log(`  frps address: ${env.FRPS_HOST}:${env.FRPS_PORT}`);
+  } else {
+    console.log('  Using external frps (user-managed)');
+  }
 
   // Mark all clients as offline on startup
   const allClients = clientsService.listClients();
@@ -73,6 +84,7 @@ async function main(): Promise<void> {
   // Graceful shutdown
   const shutdown = async () => {
     console.log('Shutting down...');
+    stopFrps();
     saveDb();
     await app.close();
     process.exit(0);

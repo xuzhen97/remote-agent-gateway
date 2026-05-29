@@ -9,10 +9,10 @@ import { authMiddleware } from '../auth/auth.middleware.js';
 import { clientsService } from '../clients/clients.service.js';
 import { tasksService } from '../tasks/tasks.service.js';
 import { filesService } from '../files/files.service.js';
-import { frpService } from '../frp/frp.service.js';
+import { frpService, getFrpsConnectionInfo } from '../frp/frp.service.js';
 import { auditService } from '../audit/audit.service.js';
 import { connectionManager } from '../connections/connections.manager.js';
-import { env } from '../../config/env.js';
+
 
 export async function agentRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', authMiddleware);
@@ -117,6 +117,8 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(404).send({ error: 'Client not found' });
     }
 
+    const frpsInfo = getFrpsConnectionInfo();
+
     const mapping = frpService.createMapping({
       clientId,
       name,
@@ -124,20 +126,24 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       localIp: '127.0.0.1',
       localPort,
       remotePort,
-      serverHost: env.SERVER_HOST,
     });
+
+    const dispatchPayload = {
+      mappingId: mapping.id,
+      name,
+      proxyType: type,
+      localIp: '127.0.0.1',
+      localPort,
+      remotePort: mapping.remote_port,
+      serverAddr: frpsInfo.serverAddr,
+      serverPort: frpsInfo.serverPort,
+      authToken: frpsInfo.authToken,
+    };
 
     const task = tasksService.createTask({
       clientId,
       type: 'frp_create_proxy',
-      payload: {
-        mappingId: mapping.id,
-        name,
-        proxyType: type,
-        localIp: '127.0.0.1',
-        localPort,
-        remotePort: mapping.remote_port,
-      },
+      payload: dispatchPayload,
     });
 
     connectionManager.sendToClient(clientId, {
@@ -146,14 +152,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
       payload: {
         taskId: task.id,
         taskType: 'frp_create_proxy',
-        payload: {
-          mappingId: mapping.id,
-          name,
-          proxyType: type,
-          localIp: '127.0.0.1',
-          localPort,
-          remotePort: mapping.remote_port,
-        },
+        payload: dispatchPayload,
       },
     });
 

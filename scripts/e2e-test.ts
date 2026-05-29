@@ -115,7 +115,10 @@ async function main() {
   fs.writeFileSync(path.join(DIST, '.env'), [
     'SERVER_PORT=3000', 'SERVER_HOST=0.0.0.0',
     'ADMIN_TOKEN=test_admin_token', 'AGENT_API_TOKEN=test_agent_token',
-    'FRP_TOKEN=test_frp_token', 'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
+    'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
+    'FRP_MODE=remote', 'FRPS_HOST=', 'FRPS_PORT=7000',
+    'FRPS_TOKEN=test_frp_token', 'FRPS_DASHBOARD_PORT=7500',
+    'FRPS_BIN_PATH=./bin/frps',
     'FRP_PORT_RANGE_START=20000', 'FRP_PORT_RANGE_END=25000',
   ].join('\n'));
 

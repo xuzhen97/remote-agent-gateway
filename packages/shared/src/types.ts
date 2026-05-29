@@ -68,6 +68,12 @@ export interface FrpCreateProxyPayload {
   localPort: number;
   remotePort: number;
   customDomain?: string;
+  /** frps server address (IP or hostname) */
+  serverAddr: string;
+  /** frps bind port (default 7000) */
+  serverPort: number;
+  /** frps auth token */
+  authToken: string;
 }
 
 export interface FrpRemoveProxyPayload {

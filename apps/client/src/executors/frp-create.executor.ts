@@ -22,14 +22,20 @@ export async function executeFrpCreate(
     throw new Error('frpcPath not configured');
   }
 
-  const { mappingId, name, proxyType, localIp, localPort, remotePort, customDomain } = payload;
+  const { mappingId, name, proxyType, localIp, localPort, remotePort, customDomain, serverAddr, serverPort, authToken } = payload;
   const frpcWorkDir = config.frpcWorkDir ?? path.join(config.workspaceDir, 'frp');
+
+  // Use frps connection info from the server (supports builtin/external/remote modes)
+  // Fall back to config values for backward compatibility
+  const frpsAddr = serverAddr || new URL(config.apiBaseUrl).hostname;
+  const frpsPort = serverPort || 7000;
+  const frpsToken = authToken || config.token;
 
   // Generate frpc config
   const configContent = generateFrpcConfig({
-    serverAddr: new URL(config.apiBaseUrl).hostname,
-    serverPort: 7000,
-    authToken: config.token,
+    serverAddr: frpsAddr,
+    serverPort: frpsPort,
+    authToken: frpsToken,
     name,
     proxyType,
     localIp,
