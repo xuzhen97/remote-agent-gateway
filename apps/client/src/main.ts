@@ -3,7 +3,7 @@ import { ConnectionManager } from './core/connection.js';
 import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
 import { dispatchTask } from './core/task-dispatcher.js';
-import { startFrpcDaemon, stopFrpcDaemon, isFrpcRunning, setFrpsInfo } from './runtime/frpc-daemon.js';
+import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-daemon.js';
 
 async function main(): Promise<void> {
   console.log('Remote Agent Gateway - Client Agent v0.1.0');
