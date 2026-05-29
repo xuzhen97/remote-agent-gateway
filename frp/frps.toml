@@ -1,0 +1,31 @@
+# FRP Server (frps) Configuration
+# =================================
+# Place this file on your public server alongside the frps binary.
+# Download frp: https://github.com/fatedier/frp/releases
+#
+# Start: ./frps -c frps.toml
+
+# ── Basic ────────────────────────────────────────────────────────────
+bindPort = 7000
+
+# ── Authentication ───────────────────────────────────────────────────
+# IMPORTANT: Change this token! It must match the client's auth.token.
+auth.method = "token"
+auth.token = "change_me_strong_token"
+
+# ── Dashboard (optional, restrict IP in production) ──────────────────
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "change_me_admin_password"
+
+# ── Port range for TCP mappings ──────────────────────────────────────
+# These ports must be open in your firewall / security group.
+allowPorts = [
+  { start = 20000, end = 25000 }
+]
+
+# ── Logging ──────────────────────────────────────────────────────────
+log.to = "./frps.log"
+log.level = "info"
+log.maxDays = 7

@@ -1,0 +1,21 @@
+# FRP Client (frpc) Example Configuration
+# =======================================
+# This is a REFERENCE example. In normal operation, the Client Agent
+# generates these files dynamically in frpcWorkDir/mappings/.
+#
+# If you want to test FRP manually without the Agent, use this template:
+#
+#   ./frpc -c frpc-example.toml
+
+serverAddr = "127.0.0.1"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "change_me_strong_token"
+
+[[proxies]]
+name = "example-web"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3000
+remotePort = 23000

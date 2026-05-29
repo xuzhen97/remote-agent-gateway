@@ -466,6 +466,48 @@ pnpm build:dist:client  # 只构建客户端
 
 ---
 
+## FRP 内网穿透
+
+项目内置了 FRP 端口映射功能，可将客户端本地端口暴露到公网。
+
+### 快速开始
+
+```bash
+# 1. 下载 FRP 二进制（frps + frpc）
+pnpm download:frp
+# → 下载到 bin/frps 和 bin/frpc
+
+# 2. 在公网服务器上启动 frps
+./bin/frps -c frp/frps.toml
+
+# 3. 在客户端 config.json 中配置 frpc 路径
+# "frpcPath": "./bin/frpc",
+# "frpcWorkDir": "./frp"
+
+# 4. 通过 API 创建端口映射
+curl -X POST http://server:3000/api/agent/open-port \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"clientId":"my-client","name":"web","localPort":3000,"type":"tcp"}'
+```
+
+### 架构
+
+```
+外部用户 → frps(公网:23000) → frpc(客户端) → localhost:3000
+```
+
+### 服务器防火墙要求
+
+| 端口 | 协议 | 用途 |
+|------|------|------|
+| 7000 | TCP | frpc ↔ frps 控制连接 |
+| 20000-25000 | TCP | 用户映射端口范围 |
+
+详细文档：`frp/frps.toml`（服务端配置模板）、`frp/frpc-example.toml`（客户端配置参考）
+
+---
+
 ## License
 
 MIT
