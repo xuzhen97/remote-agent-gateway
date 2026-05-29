@@ -3,22 +3,40 @@ import { config } from 'dotenv';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-// Find .env by walking up from the module's directory (handles monorepo CWD issues)
-function findEnvFile(startDir: string): string | null {
-  let dir = startDir;
-  for (let i = 0; i < 6; i++) {
+// Find .env by walking up from CWD or the source file directory.
+// Handles monorepo CWD issues (pnpm --filter changes CWD to app dir).
+function findEnvFile(): string | null {
+  // Try exact file path resolution first (works in bundled dist mode)
+  const bundledPath = path.join(process.cwd(), '.env');
+  if (fs.existsSync(bundledPath)) return bundledPath;
+
+  // Walk up from CWD (works when CWD is the project root)
+  let dir = process.cwd();
+  for (let i = 0; i < 8; i++) {
     const envPath = path.join(dir, '.env');
     if (fs.existsSync(envPath)) return envPath;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
+
+  // Try walking up from this source file's location
+  try {
+    const srcDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:\/)/, '$1'));
+    let d = srcDir;
+    for (let i = 0; i < 8; i++) {
+      const envPath = path.join(d, '.env');
+      if (fs.existsSync(envPath)) return envPath;
+      const p = path.dirname(d);
+      if (p === d) break;
+      d = p;
+    }
+  } catch { /* ignore */ }
+
   return null;
 }
 
-const envFile = findEnvFile(
-  typeof __dirname !== 'undefined' ? __dirname : path.dirname(new URL(import.meta.url).pathname),
-);
+const envFile = findEnvFile();
 if (envFile) {
   config({ path: envFile });
 } else {
