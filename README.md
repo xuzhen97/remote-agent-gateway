@@ -259,13 +259,37 @@ pnpm typecheck     # 类型检查
 
 ## 分发部署
 
-### 构建分发包
+### 一键打包
+
+```bash
+pnpm package        # 构建 + 打包 Windows .zip
+pnpm package:linux  # 构建 + 打包 Linux .tar.gz
+pnpm package:all    # 两者都打
+```
+
+产出 `release/` 目录，包含可直接分发的压缩包（约 0.7 MB）。
+
+### 包内容
+
+```
+rag-v0.1.0-win.zip / rag-v0.1.0-linux.tar.gz
+├── server.bundle.cjs      # 服务端（~1.9 MB 原始）
+├── client.bundle.cjs      # 客户端（~260 KB）
+├── sql-wasm.wasm          # SQLite 运行时（~644 KB）
+├── .env.example           # 服务端配置模板
+├── config.example.json    # 客户端配置模板
+├── DEPLOY.txt             # 部署说明
+├── start-server.bat / .sh # 服务端启动脚本
+└── start-client.bat / .sh # 客户端启动脚本
+```
+
+### 手动构建（仅 dist）
 
 ```bash
 pnpm build:dist
 ```
 
-产出 `dist/` 目录（约 2.8 MB），包含：
+产出 `dist/` 目录（约 2.8 MB），包含同上内容。
 
 ```
 dist/
@@ -464,6 +488,10 @@ pnpm build:dist        # 构建分发包
 pnpm build:dist:server # 只构建服务端
 pnpm build:dist:client # 只构建客户端
 pnpm download:frp      # 下载 FRP 二进制（frps + frpc）
+pnpm package           # 一键打包当前平台
+pnpm package:all       # 打包 Windows + Linux
+pnpm package:win       # 打包 Windows .zip
+pnpm package:linux     # 打包 Linux .tar.gz
 ```
 
 ---

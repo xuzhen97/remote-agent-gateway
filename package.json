@@ -1,5 +1,6 @@
 {
   "name": "remote-agent-gateway",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,7 +18,11 @@
     "download:frp": "tsx scripts/download-frp.ts",
     "test:frp": "tsx scripts/test-frp.ts",
     "test:frp:keep": "tsx scripts/test-frp.ts --no-start",
-    "test:frp:verbose": "tsx scripts/test-frp.ts --verbose"
+    "test:frp:verbose": "tsx scripts/test-frp.ts --verbose",
+    "package": "tsx scripts/package.ts",
+    "package:win": "tsx scripts/package.ts --win",
+    "package:linux": "tsx scripts/package.ts --linux",
+    "package:all": "tsx scripts/package.ts --all"
   },
   "engines": {
     "node": ">=22"
