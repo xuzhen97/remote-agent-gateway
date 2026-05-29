@@ -25,20 +25,24 @@ async function main(): Promise<void> {
   saveDb();
 
   // Create Fastify instance
-  // In bundled mode, pino-pretty may not be resolvable — fall back to basic logger
+  // In bundled mode, pino worker threads can't resolve internal modules.
+  // Detect bundled mode: running from a .cjs file that's not in node_modules.
+  const isBundled = typeof __dirname !== 'undefined'
+    && !__dirname.includes('node_modules')
+    && (process.argv[1] ?? '').endsWith('.cjs');
+
   let loggerConfig: Record<string, unknown>;
-  try {
-    // Test if pino-pretty is available
-    require.resolve('pino-pretty');
-    loggerConfig = {
-      transport: {
-        target: 'pino-pretty',
-        options: { colorize: true },
-      },
-    };
-  } catch {
+  if (!isBundled) {
+    try {
+      require.resolve('pino-pretty');
+      loggerConfig = {
+        transport: { target: 'pino-pretty', options: { colorize: true } },
+      };
+    } catch {
+      loggerConfig = { level: 'info' };
+    }
+  } else {
     loggerConfig = { level: 'info' };
-    console.log('pino-pretty not available, using basic logger');
   }
 
   const app = Fastify({ logger: loggerConfig });

@@ -1,6 +1,5 @@
 import type { ConnectionManager } from './connection.js';
 import type { ClientConfig } from '../config/client.config.js';
-import * as si from 'systeminformation';
 
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -21,6 +20,7 @@ export function startHeartbeat(
     let uptime = 0;
 
     try {
+      const si = await import('systeminformation');
       const load = await si.currentLoad();
       cpu = load.currentLoad ?? 0;
 

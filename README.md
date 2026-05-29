@@ -453,7 +453,10 @@ await app.register(myRoutes);
 ```bash
 pnpm dev:server      # 启动服务端（热重载）
 pnpm dev:client      # 启动客户端（热重载）
-pnpm test            # 运行全部测试
+pnpm test            # 单元测试（26 个）
+pnpm test:e2e        # E2E 全链路测试（自动启停服务端/客户端）
+pnpm test:e2e:keep   # E2E 测试后保持服务运行
+pnpm test:e2e:verbose # E2E 测试详细输出
 pnpm typecheck       # 类型检查
 pnpm build           # 编译所有包
 pnpm build:dist      # 构建分发包

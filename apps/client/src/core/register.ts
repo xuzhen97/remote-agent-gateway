@@ -1,6 +1,5 @@
 import type { ConnectionManager } from './connection.js';
 import type { ClientConfig } from '../config/client.config.js';
-import * as si from 'systeminformation';
 
 export async function sendRegister(
   conn: ConnectionManager,
@@ -11,6 +10,7 @@ export async function sendRegister(
   let hostname = 'unknown';
 
   try {
+    const si = await import('systeminformation');
     const osInfo = await si.osInfo();
     os = osInfo.platform;
     arch = osInfo.arch;
