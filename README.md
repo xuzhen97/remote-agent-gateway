@@ -442,7 +442,7 @@ await app.register(myRoutes);
 | 数据库 | sql.js (SQLite WASM) | 零依赖、纯 JS |
 | 校验 | Zod | 类型安全 + 运行时校验 |
 | 日志 | Pino | 开发模式彩色输出 |
-| 测试 | Vitest | 26 个测试、TDD 开发 |
+| 测试 | Vitest | 26 单元 + 17 E2E + 10 FRP 隧道测试 |
 | 构建 | esbuild + tsx | 单文件分发 |
 | 包管理 | pnpm | Monorepo workspace |
 
@@ -451,60 +451,104 @@ await app.register(myRoutes);
 ## 开发命令
 
 ```bash
-pnpm dev:server      # 启动服务端（热重载）
-pnpm dev:client      # 启动客户端（热重载）
-pnpm test            # 单元测试（26 个）
-pnpm test:e2e        # E2E 全链路测试（自动启停服务端/客户端）
-pnpm test:e2e:keep   # E2E 测试后保持服务运行
-pnpm test:e2e:verbose # E2E 测试详细输出
-pnpm typecheck       # 类型检查
-pnpm build           # 编译所有包
-pnpm build:dist      # 构建分发包
-pnpm build:dist:server  # 只构建服务端
-pnpm build:dist:client  # 只构建客户端
+pnpm dev:server        # 启动服务端（热重载）
+pnpm dev:client        # 启动客户端（热重载）
+pnpm test              # 单元测试（26 个）
+pnpm test:e2e          # E2E 全链路测试（自动启停）
+pnpm test:e2e:verbose  # E2E 详细输出
+pnpm test:frp          # FRP 隧道穿透测试（自动启停）
+pnpm test:frp:verbose  # FRP 测试详细输出
+pnpm typecheck         # 类型检查
+pnpm build             # 编译所有包
+pnpm build:dist        # 构建分发包
+pnpm build:dist:server # 只构建服务端
+pnpm build:dist:client # 只构建客户端
+pnpm download:frp      # 下载 FRP 二进制（frps + frpc）
 ```
 
 ---
 
 ## FRP 内网穿透
 
-项目内置了 FRP 端口映射功能，可将客户端本地端口暴露到公网。
+项目内置了 FRP 端口映射功能，可将客户端本地端口暴露到公网。支持三种 frps 部署模式。
+
+### 部署模式
+
+| 模式 | `.env` 配置 | frps 位置 | 谁管理 |
+|------|------------|-----------|--------|
+| **`builtin`** | `FRP_MODE=builtin` | 与服务端同机 | 服务端自动下载并管理 frps 进程 |
+| **`external`** | `FRP_MODE=external` | 与服务端同机 | 用户手动启动 frps |
+| **`remote`**（默认） | `FRP_MODE=remote` `FRPS_HOST=1.2.3.4` | 独立公网机器 | 用户部署和管理 |
+
+```env
+# .env 中的 FRP 配置段
+FRP_MODE=remote              # builtin | external | remote
+FRPS_HOST=your-server-ip      # remote 模式必填
+FRPS_PORT=7000
+FRPS_TOKEN=change_me_token   # 必须与 frps.toml 中一致
+FRP_PORT_RANGE_START=20000
+FRP_PORT_RANGE_END=25000
+```
 
 ### 快速开始
 
 ```bash
-# 1. 下载 FRP 二进制（frps + frpc）
+# 1. 下载 FRP 二进制
 pnpm download:frp
-# → 下载到 bin/frps 和 bin/frpc
+# → bin/frps + bin/frpc
 
-# 2. 在公网服务器上启动 frps
+# 2. 服务端：编辑 frp/frps.toml 修改 auth.token，启动 frps
 ./bin/frps -c frp/frps.toml
+# 或设置 FRP_MODE=builtin 让服务端自动管理
 
-# 3. 在客户端 config.json 中配置 frpc 路径
+# 3. 客户端 config.json 配置 frpc 路径
 # "frpcPath": "./bin/frpc",
 # "frpcWorkDir": "./frp"
 
-# 4. 通过 API 创建端口映射
+# 4. 通过 API 创建映射
 curl -X POST http://server:3000/api/agent/open-port \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"clientId":"my-client","name":"web","localPort":3000,"type":"tcp"}'
+
+# 5. 访问公网地址
+curl http://your-server-ip:20000
+```
+
+### 穿透测试
+
+```bash
+# 自动启动服务端+客户端，创建映射，验证隧道连通
+pnpm test:frp
+pnpm test:frp:verbose
 ```
 
 ### 架构
 
 ```
-外部用户 → frps(公网:23000) → frpc(客户端) → localhost:3000
+外部用户 → frps(公网:20000) → frpc(客户端) → localhost:3000
+            ▲                       ▲
+            │ 独立部署               │ Agent 自动管理
+            │ 或 builtin 模式       │ 一个映射一个进程
 ```
 
-### 服务器防火墙要求
+### 防火墙要求
 
 | 端口 | 协议 | 用途 |
 |------|------|------|
+| 3000 | TCP | RAG Server HTTP + WebSocket |
 | 7000 | TCP | frpc ↔ frps 控制连接 |
-| 20000-25000 | TCP | 用户映射端口范围 |
+| 20000-25000 | TCP | FRP 用户映射端口范围 |
 
-详细文档：`frp/frps.toml`（服务端配置模板）、`frp/frpc-example.toml`（客户端配置参考）
+### 相关文件
+
+| 文件 | 说明 |
+|------|------|
+| `frp/frps.toml` | frps 配置模板（修改 auth.token） |
+| `frp/frpc-example.toml` | frpc 手动测试参考 |
+| `scripts/download-frp.ts` | FRP 二进制下载脚本 |
+| `scripts/test-frp.ts` | FRP 隧道自动化测试 |
+| `apps/server/src/modules/frp/frps-manager.ts` | 内置 frps 管理器 |
 
 ---
 
