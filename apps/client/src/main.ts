@@ -3,7 +3,7 @@ import { ConnectionManager } from './core/connection.js';
 import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
 import { dispatchTask } from './core/task-dispatcher.js';
-import { startFrpcDaemon, stopFrpcDaemon, isFrpcRunning } from './runtime/frpc-daemon.js';
+import { startFrpcDaemon, stopFrpcDaemon, isFrpcRunning, setFrpsInfo } from './runtime/frpc-daemon.js';
 
 async function main(): Promise<void> {
   console.log('Remote Agent Gateway - Client Agent v0.1.0');
@@ -33,9 +33,19 @@ async function main(): Promise<void> {
     }
 
     switch (message.type) {
-      case 'server.ack':
-        // Server acknowledged our message
+      case 'server.ack': {
+        // Extract FRP config if provided
+        const ackPayload = message.payload as Record<string, unknown>;
+        if (ackPayload.frp && config.frpcPath) {
+          const frp = ackPayload.frp as { serverAddr: string; serverPort: number; authToken: string };
+          console.log(`frps config received: ${frp.serverAddr}:${frp.serverPort}`);
+          setFrpsInfo({ serverAddr: frp.serverAddr, serverPort: frp.serverPort, authToken: frp.authToken });
+          // Auto-start frpc daemon now that we know where frps is
+          console.log(`Starting frpc daemon...`);
+          startFrpcDaemon(config);
+        }
         break;
+      }
 
       case 'server.error':
         console.error('Server error:', (message.payload as Record<string, unknown>)?.message);
@@ -78,10 +88,10 @@ async function main(): Promise<void> {
 
   console.log('Client agent ready. Waiting for tasks...');
 
-  // Auto-start frpc daemon if frpcPath is configured
+  // frpc daemon is started on-demand via the web console or API.
+  // The client reports frpc availability on registration.
   if (config.frpcPath) {
-    console.log(`Starting frpc daemon: ${config.frpcPath}`);
-    startFrpcDaemon(config);
+    console.log(`frpc available: ${config.frpcPath}`);
   }
 
   // Graceful shutdown

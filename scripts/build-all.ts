@@ -57,8 +57,13 @@ if (wasmPath) {
   console.warn('  WARNING: sql-wasm.wasm not found');
 }
 
+// Copy .env.example as template (always overwrite)
 fs.existsSync(path.join(ROOT, '.env.example')) &&
   fs.copyFileSync(path.join(ROOT, '.env.example'), path.join(DIST, '.env.example'));
+// Copy .env but only if dist doesn't have one yet (preserve user config)
+if (!fs.existsSync(path.join(DIST, '.env')) && fs.existsSync(path.join(ROOT, '.env'))) {
+  fs.copyFileSync(path.join(ROOT, '.env'), path.join(DIST, '.env'));
+}
 
 // Copy web console
 const webSrc = path.join(ROOT, 'apps', 'server', 'src', 'web');

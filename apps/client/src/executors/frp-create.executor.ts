@@ -4,6 +4,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import type { ConnectionManager } from '../core/connection.js';
 import type { ClientConfig } from '../config/client.config.js';
 import type { FrpCreateProxyPayload } from '@rag/shared';
+import { setFrpsInfo } from '../runtime/frpc-daemon.js';
 
 interface FrpProcess {
   pid: number;
@@ -30,6 +31,9 @@ export async function executeFrpCreate(
   const frpsAddr = serverAddr || new URL(config.apiBaseUrl).hostname;
   const frpsPort = serverPort || 7000;
   const frpsToken = authToken || config.token;
+
+  // Store for frpc daemon to use
+  setFrpsInfo({ serverAddr: frpsAddr, serverPort: frpsPort, authToken: frpsToken });
 
   // Generate frpc config
   const configContent = generateFrpcConfig({

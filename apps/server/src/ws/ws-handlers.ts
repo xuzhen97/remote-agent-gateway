@@ -4,7 +4,7 @@ import { clientsService } from '../modules/clients/clients.service.js';
 import { tasksService } from '../modules/tasks/tasks.service.js';
 import { connectionManager } from '../modules/connections/connections.manager.js';
 import { auditService } from '../modules/audit/audit.service.js';
-import { frpService } from '../modules/frp/frp.service.js';
+import { frpService, getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
 import { saveDb } from '../db/index.js';
 
 export function handleWsMessage(ws: WebSocket, rawData: string): void {
@@ -36,7 +36,20 @@ export function handleWsMessage(ws: WebSocket, rawData: string): void {
         detail: `Client ${info.name} registered`,
       });
 
-      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: `Registered as ${info.clientId}` } }));
+      // Send FRP config so client knows where frps is
+      const frpsInfo = getFrpsConnectionInfo();
+      ws.send(JSON.stringify({
+        type: 'server.ack',
+        requestId: message.requestId,
+        payload: {
+          message: `Registered as ${info.clientId}`,
+          frp: {
+            serverAddr: frpsInfo.serverAddr,
+            serverPort: frpsInfo.serverPort,
+            authToken: frpsInfo.authToken,
+          },
+        },
+      }));
       break;
     }
 
