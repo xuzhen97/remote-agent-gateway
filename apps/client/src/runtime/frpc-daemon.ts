@@ -53,15 +53,37 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
 
   // Collect all mapping configs
   const mappingsDir = path.join(workDir, 'mappings');
+  fs.mkdirSync(mappingsDir, { recursive: true });
   const proxies: string[] = [];
+
+  // Clean up old-format full-config files on each rebuild
+  if (fs.existsSync(mappingsDir)) {
+    for (const file of fs.readdirSync(mappingsDir)) {
+      if (!file.endsWith('.toml')) continue;
+      const content = fs.readFileSync(path.join(mappingsDir, file), 'utf-8');
+      if (content.includes('serverAddr')) {
+        console.log(`[frpc-daemon] removing old-format config: ${file}`);
+        try { fs.unlinkSync(path.join(mappingsDir, file)); } catch { /* ok */ }
+      }
+    }
+  }
 
   if (fs.existsSync(mappingsDir)) {
     for (const file of fs.readdirSync(mappingsDir)) {
       if (!file.endsWith('.toml')) continue;
       const content = fs.readFileSync(path.join(mappingsDir, file), 'utf-8').trim();
-      if (content) {
-        proxies.push(`[[proxies]]\n${content}`);
+      if (!content) continue;
+      // Skip old-format files that already contain full frpc config headers
+      if (content.includes('serverAddr') || content.includes('auth.token')) {
+        console.log(`[frpc-daemon] skipping old-format config: ${file}`);
+        // Extract just the [[proxies]] section if present
+        const proxyMatch = content.match(/\[\[proxies\]\]\s*\n([\s\S]*)/);
+        if (proxyMatch) {
+          proxies.push(`[[proxies]]\n${proxyMatch[1].trim()}`);
+        }
+        continue;
       }
+      proxies.push(`[[proxies]]\n${content}`);
     }
   }
 
