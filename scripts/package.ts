@@ -59,6 +59,7 @@ function cleanDist() {
     /^config\.example\.json$/,
     /^start-server\.(bat|sh)$/,
     /^start-client\.(bat|sh)$/,
+    /^web$/,
   ];
 
   for (const f of fs.readdirSync(DIST)) {

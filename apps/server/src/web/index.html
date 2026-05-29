@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Remote Agent Gateway — Console</title>
+<style>
+:root {
+  --bg: #0f1117; --panel: #161822; --border: #252836;
+  --text: #c9d1d9; --dim: #6e7681; --accent: #58a6ff;
+  --green: #3fb950; --red: #f85149; --yellow: #d2991d;
+  --input-bg: #1c1f2b; --hover: #212434;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); display:flex; height:100vh; }
+
+/* Login */
+#login-overlay { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; }
+#login-box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:32px; width:400px; text-align:center; }
+#login-box h1 { font-size:24px; margin-bottom:8px; }
+#login-box p { color:var(--dim); margin-bottom:24px; font-size:13px; }
+#login-box input { width:100%; padding:10px 14px; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:14px; }
+#login-box button { margin-top:12px; width:100%; padding:10px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; }
+#login-box button:hover { opacity:0.9; }
+#login-error { color:var(--red); margin-top:8px; font-size:13px; display:none; }
+
+/* Sidebar */
+#sidebar { width:220px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+#sidebar .logo { padding:20px 16px; font-size:16px; font-weight:700; border-bottom:1px solid var(--border); }
+#sidebar nav { flex:1; padding:8px; }
+#sidebar nav a { display:block; padding:10px 12px; color:var(--dim); text-decoration:none; border-radius:6px; margin-bottom:2px; cursor:pointer; transition:.15s; }
+#sidebar nav a:hover, #sidebar nav a.active { color:var(--text); background:var(--hover); }
+#sidebar nav a .icon { margin-right:8px; }
+
+/* Main */
+#main { flex:1; overflow-y:auto; padding:24px 32px; }
+#main h2 { font-size:20px; margin-bottom:20px; }
+
+/* Cards */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:20px; }
+.card .label { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
+.card .value { font-size:28px; font-weight:700; margin:4px 0; }
+
+/* Table */
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+th { color:var(--dim); font-weight:600; font-size:12px; text-transform:uppercase; }
+tr:hover { background:var(--hover); }
+
+/* Badge */
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+.badge-online { background:var(--green); color:#000; }
+.badge-offline { background:var(--red); color:#fff; }
+.badge-success { background:var(--green); color:#000; }
+.badge-failed { background:var(--red); color:#fff; }
+.badge-pending { background:var(--yellow); color:#000; }
+.badge-running { background:var(--accent); color:#fff; }
+.badge-active { background:var(--green); color:#000; }
+
+/* Buttons & Forms */
+.btn { padding:7px 14px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:var(--text); cursor:pointer; font-size:13px; transition:.15s; }
+.btn:hover { background:var(--hover); }
+.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-danger { color:var(--red); border-color:var(--red); }
+.btn-sm { padding:4px 10px; font-size:12px; }
+.btn-group { display:flex; gap:8px; margin-bottom:16px; }
+
+input, select, textarea { padding:8px 12px; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; }
+textarea { font-family:monospace; resize:vertical; }
+.form-group { margin-bottom:12px; }
+.form-group label { display:block; color:var(--dim); font-size:12px; margin-bottom:4px; }
+.form-row { display:flex; gap:12px; }
+.form-row .form-group { flex:1; }
+
+/* Modal */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:200; }
+.modal { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; }
+.modal h3 { margin-bottom:16px; }
+.modal-close { float:right; background:none; border:none; color:var(--dim); font-size:20px; cursor:pointer; }
+
+/* Logs */
+.logs { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:12px; font-family:monospace; font-size:12px; max-height:300px; overflow-y:auto; white-space:pre-wrap; }
+.log-stdout { color:var(--text); }
+.log-stderr { color:var(--red); }
+
+/* Section visibility */
+.section { display:none; }
+.section.active { display:block; }
+
+/* Toast */
+#toast { position:fixed; top:16px; right:16px; z-index:300; }
+.toast-msg { background:var(--panel); border:1px solid var(--border); padding:10px 16px; border-radius:8px; margin-bottom:8px; animation:fade .3s; }
+@keyframes fade { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-overlay">
+  <div id="login-box">
+    <h1>🖥 Remote Agent Gateway</h1>
+    <p>输入 API Token 登录管理控制台</p>
+    <input type="password" id="login-input" placeholder="Admin Token">
+    <button onclick="doLogin()">登 录</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- Sidebar -->
+<div id="sidebar" style="display:none">
+  <div class="logo">🖥 RAG Console</div>
+  <nav>
+    <a data-section="dashboard" class="active" onclick="showSection('dashboard')"><span class="icon">📊</span>Dashboard</a>
+    <a data-section="clients" onclick="showSection('clients')"><span class="icon">🖥</span>Clients</a>
+    <a data-section="tasks" onclick="showSection('tasks')"><span class="icon">📋</span>Tasks</a>
+    <a data-section="files" onclick="showSection('files')"><span class="icon">📁</span>Files</a>
+    <a data-section="mappings" onclick="showSection('mappings')"><span class="icon">🔗</span>Port Mappings</a>
+  </nav>
+</div>
+
+<!-- Main Content -->
+<div id="main" style="display:none"></div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ───────────────────────────────────────────────────────────
+const API = window.location.origin;
+let TOKEN = localStorage.getItem('rag_token') || '';
+
+if (TOKEN) {
+  document.getElementById('login-overlay').style.display = 'none';
+  document.getElementById('sidebar').style.display = 'flex';
+  document.getElementById('main').style.display = 'block';
+  init();
+}
+
+// ── Login ───────────────────────────────────────────────────────────
+async function doLogin() {
+  const token = document.getElementById('login-input').value.trim();
+  if (!token) return;
+  try {
+    const r = await fetch(API + '/api/health');
+    if (!r.ok) throw new Error('Server not reachable');
+    const r2 = await fetch(API + '/api/clients', { headers: { Authorization: 'Bearer ' + token } });
+    if (r2.status === 401) { throw new Error('Invalid token'); }
+    TOKEN = token;
+    localStorage.setItem('rag_token', token);
+    document.getElementById('login-overlay').style.display = 'none';
+    document.getElementById('sidebar').style.display = 'flex';
+    document.getElementById('main').style.display = 'block';
+    init();
+  } catch (e) {
+    const el = document.getElementById('login-error');
+    el.textContent = e instanceof Error ? e.message : 'Connection failed';
+    el.style.display = 'block';
+  }
+}
+document.getElementById('login-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+// ── API Helper ──────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = { method, headers: { Authorization: 'Bearer ' + TOKEN } };
+  if (body && !(body instanceof FormData)) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  if (body instanceof FormData) opts.body = body;
+  const r = await fetch(API + path, opts);
+  const text = await r.text();
+  try { return { status: r.status, data: JSON.parse(text) }; } catch { return { status: r.status, data: text }; }
+}
+
+// ── Navigation ──────────────────────────────────────────────────────
+function showSection(name) {
+  document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
+  document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('section-' + name)?.classList.add('active');
+  if (name === 'dashboard') loadDashboard();
+  else if (name === 'clients') loadClients();
+  else if (name === 'tasks') loadTasks();
+  else if (name === 'files') loadFiles();
+  else if (name === 'mappings') loadMappings();
+}
+
+// ── Init ────────────────────────────────────────────────────────────
+function init() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="section active" id="section-dashboard"></div>
+    <div class="section" id="section-clients"></div>
+    <div class="section" id="section-tasks"></div>
+    <div class="section" id="section-files"></div>
+    <div class="section" id="section-mappings"></div>
+  `;
+  loadDashboard();
+}
+
+// ── Toast ───────────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ── Dashboard ───────────────────────────────────────────────────────
+async function loadDashboard() {
+  const el = document.getElementById('section-dashboard');
+  el.innerHTML = '<p style="color:var(--dim)">Loading...</p>';
+  const [clients, tasks, mappings] = await Promise.all([
+    api('GET', '/api/clients'),
+    api('GET', '/api/tasks?limit=50'),
+    api('GET', '/api/port-mappings'),
+  ]);
+  const online = clients.data?.filter(c => c.online)?.length || 0;
+  const total = clients.data?.length || 0;
+  const activeTasks = tasks.data?.filter(t => t.status === 'running' || t.status === 'pending')?.length || 0;
+  const activeMappings = mappings.data?.filter(m => m.status === 'active')?.length || 0;
+  el.innerHTML = `
+    <h2>📊 Dashboard</h2>
+    <div class="cards">
+      <div class="card"><div class="label">Online Clients</div><div class="value" style="color:var(--green)">${online}</div><div style="color:var(--dim);font-size:12px">/ ${total} total</div></div>
+      <div class="card"><div class="label">Active Tasks</div><div class="value" style="color:var(--yellow)">${activeTasks}</div></div>
+      <div class="card"><div class="label">Port Mappings</div><div class="value" style="color:var(--accent)">${activeMappings}</div></div>
+      <div class="card"><div class="label">Files</div><div class="value" style="color:var(--dim)">${(await api('GET', '/api/files')).data?.length || 0}</div></div>
+    </div>
+    <h3 style="margin-bottom:12px;color:var(--dim)">Recent Tasks</h3>
+    <table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Status</th><th>Created</th></tr></thead><tbody>
+    ${(tasks.data||[]).slice(0,10).map(t => `<tr>
+      <td style="font-family:monospace;font-size:12px">${t.id}</td><td>${t.clientId}</td><td>${t.type}</td>
+      <td><span class="badge badge-${t.status}">${t.status}</span></td>
+      <td style="color:var(--dim)">${new Date(t.createdAt).toLocaleTimeString()}</td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+}
+
+// ── Clients ─────────────────────────────────────────────────────────
+async function loadClients() {
+  const el = document.getElementById('section-clients');
+  const { data: clients } = await api('GET', '/api/clients');
+  el.innerHTML = `
+    <h2>🖥 Clients (${clients?.length || 0})</h2>
+    <table><thead><tr><th>ID</th><th>Name</th><th>OS</th><th>Tags</th><th>Status</th><th>Last Seen</th></tr></thead><tbody>
+    ${(clients||[]).map(c => `<tr>
+      <td style="font-family:monospace">${c.id}</td><td>${c.name}</td><td>${c.os||'?'} ${c.arch||''}</td>
+      <td>${(c.tags||[]).map(t=>'<span style="background:var(--hover);padding:1px 6px;border-radius:4px;font-size:11px;margin:1px">'+t+'</span>').join('')}</td>
+      <td><span class="badge ${c.online?'badge-online':'badge-offline'}">${c.online?'online':'offline'}</span></td>
+      <td style="color:var(--dim)">${c.lastSeenAt?new Date(c.lastSeenAt).toLocaleString():'-'}</td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+}
+
+// ── Tasks ───────────────────────────────────────────────────────────
+async function loadTasks() {
+  const el = document.getElementById('section-tasks');
+  const [cl, tsk] = await Promise.all([api('GET','/api/clients'), api('GET','/api/tasks?limit=50')]);
+  const clients = cl.data || [];
+  const tasks = tsk.data || [];
+  el.innerHTML = `
+    <h2>📋 Tasks</h2>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="showCreateTask()">+ New Task</button>
+      <button class="btn" onclick="loadTasks()">🔄 Refresh</button>
+    </div>
+    <div id="create-task-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div>
+    <table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Status</th><th>Result</th><th>Actions</th></tr></thead><tbody>
+    ${tasks.map(t => `<tr>
+      <td style="font-family:monospace;font-size:12px">${t.id.slice(0,12)}...</td>
+      <td>${t.clientId}</td><td>${t.type}</td>
+      <td><span class="badge badge-${t.status}">${t.status}</span></td>
+      <td style="font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.error||JSON.stringify(t.result)?.slice(0,50)||'-'}</td>
+      <td><button class="btn btn-sm" onclick="viewLogs('${t.id}')">Logs</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+  // Store clients for create form
+  window._clients = clients;
+}
+
+function showCreateTask() {
+  const div = document.getElementById('create-task-form');
+  const clientOpts = (window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('');
+  div.style.display = 'block';
+  div.innerHTML = `
+    <h3 style="margin-bottom:12px">Create Task</h3>
+    <div class="form-row"><div class="form-group"><label>Client</label><select id="t-client">${clientOpts}</select></div>
+    <div class="form-group"><label>Type</label><select id="t-type" onchange="onTaskTypeChange()"><option value="exec_script">exec_script</option><option value="exec_command">exec_command</option><option value="push_file">push_file</option><option value="health_check">health_check</option></select></div></div>
+    <div class="form-group"><label>Payload (JSON)</label><textarea id="t-payload" rows="6">{"runtime":"node","script":"console.log('hello')","timeoutMs":10000}</textarea></div>
+    <div class="btn-group"><button class="btn btn-primary" onclick="doCreateTask()">Create</button><button class="btn" onclick="document.getElementById('create-task-form').style.display='none'">Cancel</button></div>
+  `;
+}
+
+function onTaskTypeChange() {
+  const type = document.getElementById('t-type').value;
+  const payloads = {
+    exec_script: '{"runtime":"node","script":"console.log(\'hello\')","timeoutMs":10000}',
+    exec_command: '{"command":"echo hello","timeoutMs":10000}',
+    push_file: '{"fileId":"file_xxx","targetPath":"downloads","fileName":"test.txt"}',
+    health_check: '{}',
+  };
+  document.getElementById('t-payload').value = payloads[type] || '{}';
+}
+
+async function doCreateTask() {
+  const clientId = document.getElementById('t-client').value;
+  const type = document.getElementById('t-type').value;
+  let payload;
+  try { payload = JSON.parse(document.getElementById('t-payload').value); } catch { return toast('Invalid JSON'); }
+  const { status, data } = await api('POST', '/api/tasks', { clientId, type, payload });
+  if (status === 201) { toast('Task created: ' + data.id); loadTasks(); }
+  else toast('Failed: ' + JSON.stringify(data));
+}
+
+async function viewLogs(taskId) {
+  const { data: task } = await api('GET', '/api/tasks/' + taskId);
+  const { data: logs } = await api('GET', '/api/tasks/' + taskId + '/logs');
+  const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal">
+    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
+    <h3>Task: ${taskId}</h3>
+    <p style="color:var(--dim);margin-bottom:12px">Type: ${task?.type} | Status: <span class="badge badge-${task?.status}">${task?.status}</span> | Result: ${JSON.stringify(task?.result)}</p>
+    <div class="logs">${(logs||[]).map(l => `<span class="log-${l.stream}">[${new Date(l.createdAt).toLocaleTimeString()}] ${l.content}</span>`).join('\n') || '<span style="color:var(--dim)">No logs</span>'}</div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+// ── Files ───────────────────────────────────────────────────────────
+async function loadFiles() {
+  const { data: files } = await api('GET', '/api/files');
+  const el = document.getElementById('section-files');
+  el.innerHTML = `
+    <h2>📁 Files</h2>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="document.getElementById('file-upload-input').click()">+ Upload</button>
+      <button class="btn" onclick="loadFiles()">🔄 Refresh</button>
+    </div>
+    <input type="file" id="file-upload-input" style="display:none" onchange="doUploadFile(this)">
+    <table><thead><tr><th>ID</th><th>Name</th><th>Size</th><th>SHA256</th><th>Actions</th></tr></thead><tbody>
+    ${(files||[]).map(f => `<tr>
+      <td style="font-family:monospace;font-size:12px">${f.id}</td><td>${f.originalName}</td>
+      <td>${f.size ? (f.size/1024).toFixed(1)+' KB' : '-'}</td>
+      <td style="font-family:monospace;font-size:11px">${f.sha256?.slice(0,16)}...</td>
+      <td><a href="${API}/api/files/${f.id}/download" class="btn btn-sm" style="text-decoration:none" download>⬇ Download</a></td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+}
+
+async function doUploadFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file);
+  const { status, data } = await api('POST', '/api/files', form);
+  if (status === 201) { toast('Uploaded: ' + data.id); loadFiles(); }
+  else toast('Upload failed');
+  input.value = '';
+}
+
+// ── Port Mappings ───────────────────────────────────────────────────
+async function loadMappings() {
+  const el = document.getElementById('section-mappings');
+  const [cl, mp] = await Promise.all([api('GET','/api/clients'), api('GET','/api/port-mappings')]);
+  const clients = cl.data || [];
+  const mappings = mp.data || [];
+  window._clients = clients;
+  el.innerHTML = `
+    <h2>🔗 Port Mappings</h2>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="showCreateMapping()">+ New Mapping</button>
+      <button class="btn" onclick="loadMappings()">🔄 Refresh</button>
+    </div>
+    <div id="create-mapping-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div>
+    <table><thead><tr><th>ID</th><th>Client</th><th>Name</th><th>Local</th><th>Remote</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+    ${mappings.map(m => `<tr>
+      <td style="font-family:monospace;font-size:12px">${m.id}</td><td>${m.clientId}</td><td>${m.name}</td>
+      <td>${m.localIp}:${m.localPort}</td><td>${m.publicUrl||(m.remotePort?':'+m.remotePort:'auto')}</td>
+      <td><span class="badge badge-${m.status==='active'?'active':m.status==='inactive'?'offline':'failed'}">${m.status}</span></td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteMapping('${m.id}')">🗑 Delete</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+  `;
+}
+
+function showCreateMapping() {
+  const div = document.getElementById('create-mapping-form');
+  const opts = (window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('');
+  div.style.display = 'block';
+  div.innerHTML = `
+    <h3 style="margin-bottom:12px">Create Port Mapping</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Client</label><select id="m-client">${opts}</select></div>
+      <div class="form-group"><label>Name</label><input id="m-name" value="web-preview"></div>
+      <div class="form-group"><label>Type</label><select id="m-type"><option>tcp</option><option>http</option><option>https</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Local Port</label><input id="m-localPort" type="number" value="3000"></div>
+      <div class="form-group"><label>Remote Port (optional)</label><input id="m-remotePort" type="number" placeholder="auto"></div>
+    </div>
+    <div class="btn-group"><button class="btn btn-primary" onclick="doCreateMapping()">Create</button><button class="btn" onclick="document.getElementById('create-mapping-form').style.display='none'">Cancel</button></div>
+  `;
+}
+
+async function doCreateMapping() {
+  const body = {
+    clientId: document.getElementById('m-client').value,
+    name: document.getElementById('m-name').value,
+    proxyType: document.getElementById('m-type').value,
+    localIp: '127.0.0.1',
+    localPort: parseInt(document.getElementById('m-localPort').value),
+  };
+  const rp = document.getElementById('m-remotePort').value;
+  if (rp) body.remotePort = parseInt(rp);
+  const { status, data } = await api('POST', '/api/port-mappings', body);
+  if (status === 201) { toast('Mapping created'); loadMappings(); }
+  else toast('Failed: ' + JSON.stringify(data));
+}
+
+async function deleteMapping(id) {
+  if (!confirm('Delete mapping ' + id + '?')) return;
+  const { status } = await api('DELETE', '/api/port-mappings/' + id);
+  if (status === 200) { toast('Deleted'); loadMappings(); }
+  else toast('Failed');
+}
+</script>
+</body>
+</html>

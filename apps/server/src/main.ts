@@ -12,6 +12,8 @@ import { agentRoutes } from './modules/agent/agent.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 async function main(): Promise<void> {
   // Initialize database
@@ -72,6 +74,24 @@ async function main(): Promise<void> {
 
   // Register WebSocket
   await registerWsRoutes(app);
+
+  // Web console — serve index.html
+  const webDir = path.resolve(
+    typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname,
+    'web',
+  );
+  // Bundled mode: web files are embedded; use inline fallback
+  const webIndexPath = path.join(webDir, 'index.html');
+  const hasWeb = fs.existsSync(webIndexPath);
+
+  app.get('/', async (_req, reply) => {
+    if (hasWeb) {
+      reply.header('Content-Type', 'text/html; charset=utf-8');
+      return reply.send(fs.readFileSync(webIndexPath, 'utf-8'));
+    }
+    return reply.redirect('/api/health');
+  });
+  app.get('/admin', async (_req, reply) => reply.redirect('/'));
 
   // Health check
   app.get('/api/health', async () => ({ status: 'ok', timestamp: Date.now() }));

@@ -60,6 +60,14 @@ if (wasmPath) {
 fs.existsSync(path.join(ROOT, '.env.example')) &&
   fs.copyFileSync(path.join(ROOT, '.env.example'), path.join(DIST, '.env.example'));
 
+// Copy web console
+const webSrc = path.join(ROOT, 'apps', 'server', 'src', 'web');
+const webDst = path.join(DIST, 'web');
+if (fs.existsSync(webSrc)) {
+  fs.cpSync(webSrc, webDst, { recursive: true });
+  console.log('  Copied web console');
+}
+
 console.log('  server.bundle.js ready');
 
 // ── Build Client (CJS) ──────────────────────────────────────────────
