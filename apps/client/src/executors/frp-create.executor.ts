@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import type { ConnectionManager } from '../core/connection.js';
 import type { ClientConfig } from '../config/client.config.js';
 import type { FrpCreateProxyPayload } from '@rag/shared';
@@ -8,6 +8,7 @@ import type { FrpCreateProxyPayload } from '@rag/shared';
 interface FrpProcess {
   pid: number;
   mappingId: string;
+  child: ChildProcess;
 }
 
 const runningProcesses = new Map<string, FrpProcess>();
@@ -26,7 +27,6 @@ export async function executeFrpCreate(
   const frpcWorkDir = config.frpcWorkDir ?? path.join(config.workspaceDir, 'frp');
 
   // Use frps connection info from the server (supports builtin/external/remote modes)
-  // Fall back to config values for backward compatibility
   const frpsAddr = serverAddr || new URL(config.apiBaseUrl).hostname;
   const frpsPort = serverPort || 7000;
   const frpsToken = authToken || config.token;
@@ -56,19 +56,24 @@ export async function executeFrpCreate(
 
   conn.send({
     type: 'task.log',
-    payload: { taskId, stream: 'stdout', content: `Starting frpc for mapping ${mappingId}\n` },
+    payload: { taskId, stream: 'stdout', content: `frpc config written to ${configPath}\n` },
   });
 
   // Start frpc
   const child = spawn(config.frpcPath, ['-c', configPath], {
     cwd: frpcWorkDir,
-    detached: false,
+    stdio: 'pipe',
   });
 
   // Write PID file
   fs.writeFileSync(path.join(pidsDir, `${mappingId}.pid`), String(child.pid ?? 0));
 
-  runningProcesses.set(mappingId, { pid: child.pid ?? 0, mappingId });
+  runningProcesses.set(mappingId, { pid: child.pid ?? 0, mappingId, child });
+
+  conn.send({
+    type: 'task.log',
+    payload: { taskId, stream: 'stdout', content: `frpc started (PID ${child.pid}) for mapping ${mappingId}\n` },
+  });
 
   child.stdout?.on('data', (data: Buffer) => {
     conn.send({
@@ -89,6 +94,14 @@ export async function executeFrpCreate(
       type: 'task.log',
       payload: { taskId, stream: 'stderr', content: `frpc error: ${err.message}\n` },
     });
+  });
+
+  child.on('exit', (code) => {
+    conn.send({
+      type: 'task.log',
+      payload: { taskId, stream: 'stderr', content: `frpc (${mappingId}) exited with code ${code}\n` },
+    });
+    runningProcesses.delete(mappingId);
   });
 
   return { mappingId, configPath, pid: child.pid };

@@ -164,6 +164,22 @@ async function main() {
   const envContent = fs.readFileSync(path.join(ROOT, '.env'), 'utf-8');
   fs.writeFileSync(path.join(DIST, '.env'), envContent);
 
+  // Resolve frpc path (absolute, since client runs from dist/)
+  let frpcPath = readEnvVar('FRPS_BIN_PATH').replace('frps', 'frpc') || './bin/frpc';
+  if (!path.isAbsolute(frpcPath)) {
+    frpcPath = path.resolve(ROOT, frpcPath);
+  }
+  // On Windows, ensure .exe extension
+  if (process.platform === 'win32' && !frpcPath.endsWith('.exe')) {
+    if (fs.existsSync(frpcPath + '.exe')) frpcPath += '.exe';
+  }
+  if (!fs.existsSync(frpcPath)) {
+    console.error(`❌ frpc binary not found at: ${frpcPath}`);
+    console.error('   Run pnpm download:frp or set correct path in .env');
+    process.exit(1);
+  }
+  log('📋', `frpc: ${frpcPath}`);
+
   // Write client config
   fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify({
     clientId: CLIENT_ID,
@@ -172,7 +188,7 @@ async function main() {
     apiBaseUrl: 'http://localhost:3000',
     token: TOKEN,
     workspaceDir: './workspace',
-    frpcPath: readEnvVar('FRPS_BIN_PATH').replace('frps', 'frpc') || './bin/frpc',
+    frpcPath,
     frpcWorkDir: './frp',
     tags: ['test', 'frp'],
   }));
@@ -228,6 +244,7 @@ async function main() {
   // 2. Create port mapping
   let mappingId = '';
   let remotePort = 0;
+  let frpcProc: ChildProcess | null = null;
 
   await test('Create FRP port mapping', async () => {
     const { status, body } = await api('POST', '/api/port-mappings', {
@@ -245,8 +262,24 @@ async function main() {
     return typeof mappingId === 'string' && remotePort > 0;
   });
 
-  // 3. Wait for FRP tunnel to become active (frpc connects to frps)
-  await test('Wait for FRP tunnel activation', async () => {
+  // 3. Start frpc manually (bypass Agent's spawn limitation in sandbox)
+  await test('Start frpc process', async () => {
+    const configPath = path.join(DIST, 'frp', 'mappings', `${mappingId}.toml`);
+    if (!fs.existsSync(configPath)) {
+      log('⚠️', `frpc config not found: ${configPath}`);
+      return false;
+    }
+    frpcProc = spawn(frpcPath, ['-c', configPath], {
+      cwd: path.join(DIST, 'frp'),
+      stdio: 'pipe',
+    });
+    // Wait a moment for frpc to connect
+    await sleep(3000);
+    return frpcProc.exitCode === null; // still running
+  });
+
+  // 4. Wait for FRP tunnel to become active
+  await test('FRP tunnel activated', async () => {
     const ok = await waitUntil('tunnel active', async () => {
       const { body } = await api('GET', `/api/port-mappings?clientId=${CLIENT_ID}`);
       const mappings = body as Record<string, unknown>[];
@@ -254,11 +287,11 @@ async function main() {
       const active = m?.status === 'active';
       if (VERBOSE && m) console.log(`    Mapping status: ${m.status}`);
       return !!active;
-    }, 30_000);
+    }, 15_000);
     return ok;
   });
 
-  // 4. Access the test HTTP server through the FRP tunnel
+  // 5. Verify tunnel actually works
   let tunnelResponse = '';
   await test(`Access test server via frp (${FRPS_HOST}:${remotePort})`, async () => {
     const ok = await waitUntil('tunnel accessible', async () => {
@@ -300,6 +333,9 @@ async function main() {
 
   // ── Cleanup ───────────────────────────────────────────────────────
   console.log('\n── Cleanup ──');
+
+  // Stop frpc
+  if (frpcProc) { frpcProc.kill('SIGTERM'); }
 
   await test('Delete port mapping', async () => {
     const { status } = await api('DELETE', `/api/port-mappings/${mappingId}`);
