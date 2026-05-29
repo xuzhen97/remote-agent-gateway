@@ -1,522 +1,130 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Remote Agent Gateway — Console</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Remote Agent Gateway — 管理控制台</title>
 <style>
-:root {
-  --bg: #0f1117; --panel: #161822; --border: #252836;
-  --text: #c9d1d9; --dim: #6e7681; --accent: #58a6ff;
-  --green: #3fb950; --red: #f85149; --yellow: #d2991d;
-  --input-bg: #1c1f2b; --hover: #212434;
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); display:flex; height:100vh; }
-
-/* Login */
-#login-overlay { position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:100; }
-#login-box { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:32px; width:400px; text-align:center; }
-#login-box h1 { font-size:24px; margin-bottom:8px; }
-#login-box p { color:var(--dim); margin-bottom:24px; font-size:13px; }
-#login-box input { width:100%; padding:10px 14px; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:14px; }
-#login-box button { margin-top:12px; width:100%; padding:10px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:14px; font-weight:600; }
-#login-box button:hover { opacity:0.9; }
-#login-error { color:var(--red); margin-top:8px; font-size:13px; display:none; }
-
-/* Sidebar */
-#sidebar { width:220px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
-#sidebar .logo { padding:20px 16px; font-size:16px; font-weight:700; border-bottom:1px solid var(--border); }
-#sidebar nav { flex:1; padding:8px; }
-#sidebar nav a { display:block; padding:10px 12px; color:var(--dim); text-decoration:none; border-radius:6px; margin-bottom:2px; cursor:pointer; transition:.15s; }
-#sidebar nav a:hover, #sidebar nav a.active { color:var(--text); background:var(--hover); }
-#sidebar nav a .icon { margin-right:8px; }
-
-/* Main */
-#main { flex:1; overflow-y:auto; padding:24px 32px; }
-#main h2 { font-size:20px; margin-bottom:20px; }
-
-/* Cards */
-.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
-.card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:20px; }
-.card .label { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; }
-.card .value { font-size:28px; font-weight:700; margin:4px 0; }
-
-/* Table */
-table { width:100%; border-collapse:collapse; }
-th, td { text-align:left; padding:10px 14px; border-bottom:1px solid var(--border); font-size:13px; }
-th { color:var(--dim); font-weight:600; font-size:12px; text-transform:uppercase; }
-tr:hover { background:var(--hover); }
-
-/* Badge */
-.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
-.badge-online { background:var(--green); color:#000; }
-.badge-offline { background:var(--red); color:#fff; }
-.badge-success { background:var(--green); color:#000; }
-.badge-failed { background:var(--red); color:#fff; }
-.badge-pending { background:var(--yellow); color:#000; }
-.badge-running { background:var(--accent); color:#fff; }
-.badge-active { background:var(--green); color:#000; }
-
-/* Buttons & Forms */
-.btn { padding:7px 14px; border-radius:6px; border:1px solid var(--border); background:var(--panel); color:var(--text); cursor:pointer; font-size:13px; transition:.15s; }
-.btn:hover { background:var(--hover); }
-.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-.btn-danger { color:var(--red); border-color:var(--red); }
-.btn-sm { padding:4px 10px; font-size:12px; }
-.btn-group { display:flex; gap:8px; margin-bottom:16px; }
-
-input, select, textarea { padding:8px 12px; background:var(--input-bg); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:13px; }
-textarea { font-family:monospace; resize:vertical; }
-.form-group { margin-bottom:12px; }
-.form-group label { display:block; color:var(--dim); font-size:12px; margin-bottom:4px; }
-.form-row { display:flex; gap:12px; }
-.form-row .form-group { flex:1; }
-
-/* Modal */
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:200; }
-.modal { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:24px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; }
-.modal h3 { margin-bottom:16px; }
-.modal-close { float:right; background:none; border:none; color:var(--dim); font-size:20px; cursor:pointer; }
-
-/* Logs */
-.logs { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:12px; font-family:monospace; font-size:12px; max-height:300px; overflow-y:auto; white-space:pre-wrap; }
-.log-stdout { color:var(--text); }
-.log-stderr { color:var(--red); }
-
-/* Section visibility */
-.section { display:none; }
-.section.active { display:block; }
-
-/* Toast */
-#toast { position:fixed; top:16px; right:16px; z-index:300; }
-.toast-msg { background:var(--panel); border:1px solid var(--border); padding:10px 16px; border-radius:8px; margin-bottom:8px; animation:fade .3s; }
-@keyframes fade { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+:root{--bg:#0f1117;--panel:#161822;--border:#252836;--text:#c9d1d9;--dim:#6e7681;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d2991d;--input-bg:#1c1f2b;--hover:#212434}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Microsoft YaHei","Segoe UI",sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh}
+#login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+#login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:32px;width:400px;text-align:center}
+#login-box h1{font-size:22px;margin-bottom:8px}
+#login-box p{color:var(--dim);margin-bottom:24px;font-size:13px}
+#login-box input{width:100%;padding:10px 14px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px}
+#login-box button{margin-top:12px;width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600}
+#login-error{color:var(--red);margin-top:8px;font-size:13px;display:none}
+#sidebar{width:220px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+#sidebar .logo{padding:20px 16px;font-size:16px;font-weight:700;border-bottom:1px solid var(--border)}
+#sidebar nav{flex:1;padding:8px}
+#sidebar nav a{display:block;padding:10px 12px;color:var(--dim);text-decoration:none;border-radius:6px;margin-bottom:2px;cursor:pointer;transition:.15s}
+#sidebar nav a:hover,#sidebar nav a.active{color:var(--text);background:var(--hover)}
+#sidebar nav a .icon{margin-right:8px}
+#main{flex:1;overflow-y:auto;padding:24px 32px}
+#main h2{font-size:20px;margin-bottom:20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:20px}
+.card .label{font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px}
+.card .value{font-size:28px;font-weight:700;margin:4px 0}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);font-size:13px}
+th{color:var(--dim);font-weight:600;font-size:12px;text-transform:uppercase}
+tr:hover{background:var(--hover)}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-online{background:var(--green);color:#000}
+.badge-offline{background:var(--red);color:#fff}
+.badge-success{background:var(--green);color:#000}
+.badge-failed{background:var(--red);color:#fff}
+.badge-pending{background:var(--yellow);color:#000}
+.badge-running{background:var(--accent);color:#fff}
+.badge-active{background:var(--green);color:#000}
+.badge-inactive{background:var(--dim);color:#fff}
+.btn{padding:7px 14px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;font-size:13px;transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-danger{color:var(--red);border-color:var(--red)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-group{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+input,select,textarea{padding:8px 12px;background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px}
+textarea{font-family:Consolas,monospace;resize:vertical}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;color:var(--dim);font-size:12px;margin-bottom:4px}
+.form-row{display:flex;gap:12px}
+.form-row .form-group{flex:1}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:200}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;max-width:700px;width:90%;max-height:80vh;overflow-y:auto}
+.modal h3{margin-bottom:16px}
+.modal-close{float:right;background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer}
+.logs{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-family:Consolas,monospace;font-size:12px;max-height:300px;overflow-y:auto;white-space:pre-wrap}
+.log-stdout{color:var(--text)}.log-stderr{color:var(--red)}
+.section{display:none}.section.active{display:block}
+#toast{position:fixed;top:16px;right:16px;z-index:300}
+.toast-msg{background:var(--panel);border:1px solid var(--border);padding:10px 16px;border-radius:8px;margin-bottom:8px;animation:fade .3s}
+@keyframes fade{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.filter-select{min-width:160px}
 </style>
 </head>
 <body>
-
-<!-- Login -->
-<div id="login-overlay">
-  <div id="login-box">
-    <h1>🖥 Remote Agent Gateway</h1>
-    <p>输入 API Token 登录管理控制台</p>
-    <input type="password" id="login-input" placeholder="Admin Token">
-    <button onclick="doLogin()">登 录</button>
-    <div id="login-error"></div>
-  </div>
-</div>
-
-<!-- Sidebar -->
+<div id="login-overlay"><div id="login-box">
+<h1>🖥 Remote Agent Gateway</h1><p>输入 API Token 登录管理控制台</p>
+<input type="password" id="login-input" placeholder="管理员令牌"><button onclick="doLogin()">登 录</button><div id="login-error"></div>
+</div></div>
 <div id="sidebar" style="display:none">
-  <div class="logo">🖥 RAG Console</div>
-  <nav>
-    <a data-section="dashboard" class="active" onclick="showSection('dashboard')"><span class="icon">📊</span>Dashboard</a>
-    <a data-section="clients" onclick="showSection('clients')"><span class="icon">🖥</span>Clients</a>
-    <a data-section="tasks" onclick="showSection('tasks')"><span class="icon">📋</span>Tasks</a>
-    <a data-section="files" onclick="showSection('files')"><span class="icon">📁</span>Files</a>
-    <a data-section="mappings" onclick="showSection('mappings')"><span class="icon">🔗</span>Port Mappings</a>
-  </nav>
+<div class="logo">🖥 RAG 控制台</div>
+<nav>
+<a data-section="dashboard" class="active" onclick="showSection('dashboard')"><span class="icon">📊</span>仪表盘</a>
+<a data-section="clients" onclick="showSection('clients')"><span class="icon">🖥</span>客户端</a>
+<a data-section="tasks" onclick="showSection('tasks')"><span class="icon">📋</span>任务</a>
+<a data-section="files" onclick="showSection('files')"><span class="icon">📁</span>文件</a>
+<a data-section="mappings" onclick="showSection('mappings')"><span class="icon">🔗</span>端口映射</a>
+</nav>
 </div>
-
-<!-- Main Content -->
 <div id="main" style="display:none"></div>
-
-<!-- Toast -->
 <div id="toast"></div>
-
 <script>
-// ── State ───────────────────────────────────────────────────────────
-const API = window.location.origin;
-let TOKEN = localStorage.getItem('rag_token') || '';
+const API=window.location.origin;let TOKEN=localStorage.getItem('rag_token')||'';
+if(TOKEN){document.getElementById('login-overlay').style.display='none';document.getElementById('sidebar').style.display='flex';document.getElementById('main').style.display='block';init()}
+async function doLogin(){const t=document.getElementById('login-input').value.trim();if(!t)return;try{const r=await fetch(API+'/api/health');if(!r.ok)throw new Error('无法连接服务器');const r2=await fetch(API+'/api/clients',{headers:{Authorization:'Bearer '+t}});if(r2.status===401)throw new Error('令牌无效');TOKEN=t;localStorage.setItem('rag_token',t);document.getElementById('login-overlay').style.display='none';document.getElementById('sidebar').style.display='flex';document.getElementById('main').style.display='block';init()}catch(e){const el=document.getElementById('login-error');el.textContent=e instanceof Error?e.message:'连接失败';el.style.display='block'}}
+document.getElementById('login-input').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+async function api(method,path,body){const opts={method,headers:{Authorization:'Bearer '+TOKEN}};if(body&&!(body instanceof FormData)){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body)}if(body instanceof FormData)opts.body=body;const r=await fetch(API+path,opts);const text=await r.text();try{return{status:r.status,data:JSON.parse(text)}}catch{return{status:r.status,data:text}}}
+function showSection(n){document.querySelectorAll('#sidebar nav a').forEach(a=>a.classList.remove('active'));document.querySelector(`[data-section="${n}"]`)?.classList.add('active');document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));document.getElementById('section-'+n)?.classList.add('active');if(n==='dashboard')loadDashboard();else if(n==='clients')loadClients();else if(n==='tasks')loadTasks();else if(n==='files')loadFiles();else if(n==='mappings')loadMappings()}
+function init(){document.getElementById('main').innerHTML='<div class="section active" id="section-dashboard"></div><div class="section" id="section-clients"></div><div class="section" id="section-tasks"></div><div class="section" id="section-files"></div><div class="section" id="section-mappings"></div>';loadDashboard()}
+function toast(m){const el=document.createElement('div');el.className='toast-msg';el.textContent=m;document.getElementById('toast').appendChild(el);setTimeout(()=>el.remove(),3000)}
+function badge(s){const map={online:'badge-online',offline:'badge-offline',success:'badge-success',failed:'badge-failed',pending:'badge-pending',running:'badge-running',dispatched:'badge-running',active:'badge-active',inactive:'badge-inactive',error:'badge-failed',cancelled:'badge-offline'};return`<span class="badge ${map[s]||''}">${s}</span>`}
+function timeStr(ts){if(!ts)return'-';const d=new Date(ts);return d.toLocaleString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 
-if (TOKEN) {
-  document.getElementById('login-overlay').style.display = 'none';
-  document.getElementById('sidebar').style.display = 'flex';
-  document.getElementById('main').style.display = 'block';
-  init();
-}
+// ═══ 仪表盘 ═══════════════════════════════════════════
+async function loadDashboard(){const el=document.getElementById('section-dashboard');el.innerHTML='<p style="color:var(--dim)">加载中...</p>';const[clients,tasks,mappings,files]=await Promise.all([api('GET','/api/clients'),api('GET','/api/tasks?limit=50'),api('GET','/api/port-mappings'),api('GET','/api/files')]);const online=(clients.data||[]).filter(c=>c.online).length;const total=(clients.data||[]).length;const activeTasks=(tasks.data||[]).filter(t=>t.status==='running'||t.status==='pending'||t.status==='dispatched').length;const activeMappings=(mappings.data||[]).filter(m=>m.status==='active').length;const fileCount=(files.data||[]).length;el.innerHTML=`<h2>📊 仪表盘</h2><div class="cards"><div class="card"><div class="label">在线客户端</div><div class="value" style="color:var(--green)">${online}</div><div style="color:var(--dim);font-size:12px">共 ${total} 台</div></div><div class="card"><div class="label">活跃任务</div><div class="value" style="color:var(--yellow)">${activeTasks}</div></div><div class="card"><div class="label">端口映射</div><div class="value" style="color:var(--accent)">${activeMappings}</div></div><div class="card"><div class="label">文件数</div><div class="value" style="color:var(--dim)">${fileCount}</div></div></div><h3 style="margin-bottom:12px;color:var(--dim)">最近任务</h3><table><thead><tr><th>ID</th><th>客户端</th><th>类型</th><th>状态</th><th>时间</th></tr></thead><tbody>${(tasks.data||[]).slice(0,10).map(t=>`<tr><td style="font-family:monospace;font-size:12px">${t.id.slice(0,14)}</td><td>${t.clientId}</td><td>${t.type}</td><td>${badge(t.status)}</td><td style="color:var(--dim)">${timeStr(t.createdAt)}</td></tr>`).join('')||'<tr><td colspan="5" style="color:var(--dim)">暂无任务</td></tr>'}</tbody></table>`}
 
-// ── Login ───────────────────────────────────────────────────────────
-async function doLogin() {
-  const token = document.getElementById('login-input').value.trim();
-  if (!token) return;
-  try {
-    const r = await fetch(API + '/api/health');
-    if (!r.ok) throw new Error('Server not reachable');
-    const r2 = await fetch(API + '/api/clients', { headers: { Authorization: 'Bearer ' + token } });
-    if (r2.status === 401) { throw new Error('Invalid token'); }
-    TOKEN = token;
-    localStorage.setItem('rag_token', token);
-    document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('sidebar').style.display = 'flex';
-    document.getElementById('main').style.display = 'block';
-    init();
-  } catch (e) {
-    const el = document.getElementById('login-error');
-    el.textContent = e instanceof Error ? e.message : 'Connection failed';
-    el.style.display = 'block';
-  }
-}
-document.getElementById('login-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+// ═══ 客户端 ═══════════════════════════════════════════
+async function loadClients(){const el=document.getElementById('section-clients');const{data:clients}=await api('GET','/api/clients');window._clients=clients||[];el.innerHTML=`<h2>🖥 客户端 (${clients?.length||0})</h2><button class="btn" onclick="loadClients()" style="margin-bottom:12px">🔄 刷新</button><table><thead><tr><th>ID</th><th>名称</th><th>系统</th><th>标签</th><th>在线状态</th><th>最后心跳</th><th>操作</th></tr></thead><tbody>${(clients||[]).map(c=>`<tr><td style="font-family:monospace">${c.id}</td><td>${c.name}</td><td>${c.os||'?'} ${c.arch||''}</td><td>${(c.tags||[]).map(t=>'<span style="background:var(--hover);padding:1px 6px;border-radius:4px;font-size:11px;margin:1px">'+t+'</span>').join('')}</td><td>${badge(c.online?'online':'offline')}</td><td style="color:var(--dim)">${c.lastSeenAt?new Date(c.lastSeenAt).toLocaleString('zh-CN'):'-'}</td><td><button class="btn btn-sm" onclick="quickScript('${c.id}')">▶ 执行脚本</button></td></tr>`).join('')||'<tr><td colspan="7" style="color:var(--dim)">暂无客户端</td></tr>'}</tbody></table>`}
+async function quickScript(clientId){const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.innerHTML=`<div class="modal"><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button><h3>快速执行脚本 — ${clientId}</h3><div class="form-group"><label>脚本代码 (Node.js)</label><textarea id="qs-script" rows="8">console.log('Hello from ${clientId}!');\nconsole.log('Platform:',process.platform);</textarea></div><div class="btn-group"><button class="btn btn-primary" onclick="doQuickScript('${clientId}')">执行</button><button class="btn" onclick="this.closest('.modal-overlay').remove()">取消</button></div><div id="qs-result" style="margin-top:12px"></div></div>`;document.body.appendChild(overlay);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()})}
+async function doQuickScript(clientId){const script=document.getElementById('qs-script').value;const{status,data}=await api('POST','/api/tasks',{clientId,type:'exec_script',payload:{runtime:'node',script,timeoutMs:30000}});if(status===201){const el=document.getElementById('qs-result');el.innerHTML='<p style="color:var(--dim)">任务已下发: '+data.id+'，等待结果...</p>';setTimeout(async()=>{const{data:t}=await api('GET','/api/tasks/'+data.id);const{data:logs}=await api('GET','/api/tasks/'+data.id+'/logs');el.innerHTML=`<p>状态: ${badge(t?.status||'?')} 结果: ${JSON.stringify(t?.result)}</p><div class="logs">${(logs||[]).map(l=>`<span class="log-${l.stream}">[${timeStr(l.createdAt)}] ${l.content}</span>`).join('\n')||'无日志'}</div>`},1500)}else toast('执行失败: '+JSON.stringify(data))}
 
-// ── API Helper ──────────────────────────────────────────────────────
-async function api(method, path, body) {
-  const opts = { method, headers: { Authorization: 'Bearer ' + TOKEN } };
-  if (body && !(body instanceof FormData)) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  if (body instanceof FormData) opts.body = body;
-  const r = await fetch(API + path, opts);
-  const text = await r.text();
-  try { return { status: r.status, data: JSON.parse(text) }; } catch { return { status: r.status, data: text }; }
-}
+// ═══ 任务 ═══════════════════════════════════════════
+async function loadTasks(){const el=document.getElementById('section-tasks');const[cl,tsk]=await Promise.all([api('GET','/api/clients'),api('GET','/api/tasks?limit=50')]);const clients=cl.data||[];const tasks=tsk.data||[];window._clients=clients;el.innerHTML=`<h2>📋 任务</h2><div class="btn-group"><button class="btn btn-primary" onclick="showCreateTask()">+ 新建任务</button><button class="btn" onclick="loadTasks()">🔄 刷新</button></div><div id="create-task-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div><table><thead><tr><th>ID</th><th>客户端</th><th>类型</th><th>状态</th><th>结果</th><th>操作</th></tr></thead><tbody>${tasks.map(t=>`<tr><td style="font-family:monospace;font-size:12px">${t.id.slice(0,14)}</td><td>${t.clientId}</td><td>${t.type}</td><td>${badge(t.status)}</td><td style="font-family:monospace;font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.error||JSON.stringify(t.result)?.slice(0,40)||'-'}</td><td><button class="btn btn-sm" onclick="viewLogs('${t.id}')">日志</button></td></tr>`).join('')||'<tr><td colspan="6" style="color:var(--dim)">暂无任务</td></tr>'}</tbody></table>`}
+function showCreateTask(){const div=document.getElementById('create-task-form');const clientOpts=(window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('')||'<option value="">没有在线客户端</option>';div.style.display='block';div.innerHTML=`<h3 style="margin-bottom:12px">新建任务</h3><div class="form-row"><div class="form-group"><label>目标客户端</label><select id="t-client">${clientOpts}</select></div><div class="form-group"><label>任务类型</label><select id="t-type" onchange="onTaskTypeChange()"><option value="exec_script">exec_script - 执行脚本</option><option value="exec_command">exec_command - 执行命令</option><option value="push_file">push_file - 推送文件</option><option value="health_check">health_check - 健康检查</option></select></div></div><div class="form-group"><label>Payload (JSON)</label><textarea id="t-payload" rows="6">{"runtime":"node","script":"console.log('hello')","timeoutMs":10000}</textarea></div><div class="btn-group"><button class="btn btn-primary" onclick="doCreateTask()">创建任务</button><button class="btn" onclick="document.getElementById('create-task-form').style.display='none'">取消</button></div>`}
+function onTaskTypeChange(){const t=document.getElementById('t-type').value;const p={exec_script:'{"runtime":"node","script":"console.log(\'hello\')","timeoutMs":10000}',exec_command:'{"command":"echo hello","timeoutMs":10000}',push_file:'{"fileId":"填入文件ID","targetPath":"downloads","fileName":"test.txt"}',health_check:'{}'};document.getElementById('t-payload').value=p[t]||'{}'}
+async function doCreateTask(){const clientId=document.getElementById('t-client').value;const type=document.getElementById('t-type').value;let payload;try{payload=JSON.parse(document.getElementById('t-payload').value)}catch{return toast('JSON 格式错误')}const{status,data}=await api('POST','/api/tasks',{clientId,type,payload});if(status===201){toast('任务已创建: '+data.id);loadTasks()}else toast('创建失败: '+JSON.stringify(data))}
+async function viewLogs(taskId){const{data:task}=await api('GET','/api/tasks/'+taskId);const{data:logs}=await api('GET','/api/tasks/'+taskId+'/logs');const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.innerHTML=`<div class="modal"><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button><h3>任务: ${taskId}</h3><p style="color:var(--dim);margin-bottom:12px">类型: ${task?.type||'?'} | 状态: ${badge(task?.status||'?')} | 结果: ${JSON.stringify(task?.result)}</p><div class="logs">${(logs||[]).map(l=>`<span class="log-${l.stream}">[${timeStr(l.createdAt)}] ${l.content}</span>`).join('\n')||'<span style="color:var(--dim)">暂无日志</span>'}</div></div>`;document.body.appendChild(overlay);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()})}
 
-// ── Navigation ──────────────────────────────────────────────────────
-function showSection(name) {
-  document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.remove('active'));
-  document.querySelector(`[data-section="${name}"]`)?.classList.add('active');
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('section-' + name)?.classList.add('active');
-  if (name === 'dashboard') loadDashboard();
-  else if (name === 'clients') loadClients();
-  else if (name === 'tasks') loadTasks();
-  else if (name === 'files') loadFiles();
-  else if (name === 'mappings') loadMappings();
-}
+// ═══ 文件 ═══════════════════════════════════════════
+async function loadFiles(){const{data:files}=await api('GET','/api/files');const el=document.getElementById('section-files');el.innerHTML=`<h2>📁 文件 (${files?.length||0})</h2><div class="btn-group"><button class="btn btn-primary" onclick="document.getElementById('file-upload-input').click()">+ 上传文件</button><button class="btn" onclick="loadFiles()">🔄 刷新</button></div><input type="file" id="file-upload-input" style="display:none" onchange="doUploadFile(this)"><table><thead><tr><th>ID</th><th>文件名</th><th>大小</th><th>SHA256</th><th>操作</th></tr></thead><tbody>${(files||[]).map(f=>`<tr><td style="font-family:monospace;font-size:12px">${f.id}</td><td>${f.originalName}</td><td>${f.size?(f.size/1024).toFixed(1)+' KB':'-'}</td><td style="font-family:monospace;font-size:11px">${f.sha256?.slice(0,16)||'-'}</td><td><a href="${API}/api/files/${f.id}/download" class="btn btn-sm" style="text-decoration:none" download>⬇ 下载</a></td></tr>`).join('')||'<tr><td colspan="5" style="color:var(--dim)">暂无文件，点击"上传文件"添加</td></tr>'}</tbody></table>`}
+async function doUploadFile(input){const file=input.files[0];if(!file)return;const form=new FormData();form.append('file',file);const{status,data}=await api('POST','/api/files',form);if(status===201){toast('上传成功: '+data.id);loadFiles()}else toast('上传失败');input.value=''}
 
-// ── Init ────────────────────────────────────────────────────────────
-function init() {
-  const main = document.getElementById('main');
-  main.innerHTML = `
-    <div class="section active" id="section-dashboard"></div>
-    <div class="section" id="section-clients"></div>
-    <div class="section" id="section-tasks"></div>
-    <div class="section" id="section-files"></div>
-    <div class="section" id="section-mappings"></div>
-  `;
-  loadDashboard();
-}
+// ═══ 端口映射 ═══════════════════════════════════════
+let autoRefreshTimer=null;let mappingFilter='';
 
-// ── Toast ───────────────────────────────────────────────────────────
-function toast(msg) {
-  const el = document.createElement('div'); el.className = 'toast-msg'; el.textContent = msg;
-  document.getElementById('toast').appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
-
-// ── Dashboard ───────────────────────────────────────────────────────
-async function loadDashboard() {
-  const el = document.getElementById('section-dashboard');
-  el.innerHTML = '<p style="color:var(--dim)">Loading...</p>';
-  const [clients, tasks, mappings] = await Promise.all([
-    api('GET', '/api/clients'),
-    api('GET', '/api/tasks?limit=50'),
-    api('GET', '/api/port-mappings'),
-  ]);
-  const online = clients.data?.filter(c => c.online)?.length || 0;
-  const total = clients.data?.length || 0;
-  const activeTasks = tasks.data?.filter(t => t.status === 'running' || t.status === 'pending')?.length || 0;
-  const activeMappings = mappings.data?.filter(m => m.status === 'active')?.length || 0;
-  el.innerHTML = `
-    <h2>📊 Dashboard</h2>
-    <div class="cards">
-      <div class="card"><div class="label">Online Clients</div><div class="value" style="color:var(--green)">${online}</div><div style="color:var(--dim);font-size:12px">/ ${total} total</div></div>
-      <div class="card"><div class="label">Active Tasks</div><div class="value" style="color:var(--yellow)">${activeTasks}</div></div>
-      <div class="card"><div class="label">Port Mappings</div><div class="value" style="color:var(--accent)">${activeMappings}</div></div>
-      <div class="card"><div class="label">Files</div><div class="value" style="color:var(--dim)">${(await api('GET', '/api/files')).data?.length || 0}</div></div>
-    </div>
-    <h3 style="margin-bottom:12px;color:var(--dim)">Recent Tasks</h3>
-    <table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Status</th><th>Created</th></tr></thead><tbody>
-    ${(tasks.data||[]).slice(0,10).map(t => `<tr>
-      <td style="font-family:monospace;font-size:12px">${t.id}</td><td>${t.clientId}</td><td>${t.type}</td>
-      <td><span class="badge badge-${t.status}">${t.status}</span></td>
-      <td style="color:var(--dim)">${new Date(t.createdAt).toLocaleTimeString()}</td>
-    </tr>`).join('')}
-    </tbody></table>
-  `;
-}
-
-// ── Clients ─────────────────────────────────────────────────────────
-async function loadClients() {
-  const el = document.getElementById('section-clients');
-  const { data: clients } = await api('GET', '/api/clients');
-  el.innerHTML = `
-    <h2>🖥 Clients (${clients?.length || 0})</h2>
-    <table><thead><tr><th>ID</th><th>Name</th><th>OS</th><th>Tags</th><th>Status</th><th>Last Seen</th></tr></thead><tbody>
-    ${(clients||[]).map(c => `<tr>
-      <td style="font-family:monospace">${c.id}</td><td>${c.name}</td><td>${c.os||'?'} ${c.arch||''}</td>
-      <td>${(c.tags||[]).map(t=>'<span style="background:var(--hover);padding:1px 6px;border-radius:4px;font-size:11px;margin:1px">'+t+'</span>').join('')}</td>
-      <td><span class="badge ${c.online?'badge-online':'badge-offline'}">${c.online?'online':'offline'}</span></td>
-      <td style="color:var(--dim)">${c.lastSeenAt?new Date(c.lastSeenAt).toLocaleString():'-'}</td>
-    </tr>`).join('')}
-    </tbody></table>
-  `;
-}
-
-// ── Tasks ───────────────────────────────────────────────────────────
-async function loadTasks() {
-  const el = document.getElementById('section-tasks');
-  const [cl, tsk] = await Promise.all([api('GET','/api/clients'), api('GET','/api/tasks?limit=50')]);
-  const clients = cl.data || [];
-  const tasks = tsk.data || [];
-  el.innerHTML = `
-    <h2>📋 Tasks</h2>
-    <div class="btn-group">
-      <button class="btn btn-primary" onclick="showCreateTask()">+ New Task</button>
-      <button class="btn" onclick="loadTasks()">🔄 Refresh</button>
-    </div>
-    <div id="create-task-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div>
-    <table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Status</th><th>Result</th><th>Actions</th></tr></thead><tbody>
-    ${tasks.map(t => `<tr>
-      <td style="font-family:monospace;font-size:12px">${t.id.slice(0,12)}...</td>
-      <td>${t.clientId}</td><td>${t.type}</td>
-      <td><span class="badge badge-${t.status}">${t.status}</span></td>
-      <td style="font-family:monospace;font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.error||JSON.stringify(t.result)?.slice(0,50)||'-'}</td>
-      <td><button class="btn btn-sm" onclick="viewLogs('${t.id}')">Logs</button></td>
-    </tr>`).join('')}
-    </tbody></table>
-  `;
-  // Store clients for create form
-  window._clients = clients;
-}
-
-function showCreateTask() {
-  const div = document.getElementById('create-task-form');
-  const clientOpts = (window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('');
-  div.style.display = 'block';
-  div.innerHTML = `
-    <h3 style="margin-bottom:12px">Create Task</h3>
-    <div class="form-row"><div class="form-group"><label>Client</label><select id="t-client">${clientOpts}</select></div>
-    <div class="form-group"><label>Type</label><select id="t-type" onchange="onTaskTypeChange()"><option value="exec_script">exec_script</option><option value="exec_command">exec_command</option><option value="push_file">push_file</option><option value="health_check">health_check</option></select></div></div>
-    <div class="form-group"><label>Payload (JSON)</label><textarea id="t-payload" rows="6">{"runtime":"node","script":"console.log('hello')","timeoutMs":10000}</textarea></div>
-    <div class="btn-group"><button class="btn btn-primary" onclick="doCreateTask()">Create</button><button class="btn" onclick="document.getElementById('create-task-form').style.display='none'">Cancel</button></div>
-  `;
-}
-
-function onTaskTypeChange() {
-  const type = document.getElementById('t-type').value;
-  const payloads = {
-    exec_script: '{"runtime":"node","script":"console.log(\'hello\')","timeoutMs":10000}',
-    exec_command: '{"command":"echo hello","timeoutMs":10000}',
-    push_file: '{"fileId":"file_xxx","targetPath":"downloads","fileName":"test.txt"}',
-    health_check: '{}',
-  };
-  document.getElementById('t-payload').value = payloads[type] || '{}';
-}
-
-async function doCreateTask() {
-  const clientId = document.getElementById('t-client').value;
-  const type = document.getElementById('t-type').value;
-  let payload;
-  try { payload = JSON.parse(document.getElementById('t-payload').value); } catch { return toast('Invalid JSON'); }
-  const { status, data } = await api('POST', '/api/tasks', { clientId, type, payload });
-  if (status === 201) { toast('Task created: ' + data.id); loadTasks(); }
-  else toast('Failed: ' + JSON.stringify(data));
-}
-
-async function viewLogs(taskId) {
-  const { data: task } = await api('GET', '/api/tasks/' + taskId);
-  const { data: logs } = await api('GET', '/api/tasks/' + taskId + '/logs');
-  const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal">
-    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
-    <h3>Task: ${taskId}</h3>
-    <p style="color:var(--dim);margin-bottom:12px">Type: ${task?.type} | Status: <span class="badge badge-${task?.status}">${task?.status}</span> | Result: ${JSON.stringify(task?.result)}</p>
-    <div class="logs">${(logs||[]).map(l => `<span class="log-${l.stream}">[${new Date(l.createdAt).toLocaleTimeString()}] ${l.content}</span>`).join('\n') || '<span style="color:var(--dim)">No logs</span>'}</div>
-  </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-}
-
-// ── Files ───────────────────────────────────────────────────────────
-async function loadFiles() {
-  const { data: files } = await api('GET', '/api/files');
-  const el = document.getElementById('section-files');
-  el.innerHTML = `
-    <h2>📁 Files</h2>
-    <div class="btn-group">
-      <button class="btn btn-primary" onclick="document.getElementById('file-upload-input').click()">+ Upload</button>
-      <button class="btn" onclick="loadFiles()">🔄 Refresh</button>
-    </div>
-    <input type="file" id="file-upload-input" style="display:none" onchange="doUploadFile(this)">
-    <table><thead><tr><th>ID</th><th>Name</th><th>Size</th><th>SHA256</th><th>Actions</th></tr></thead><tbody>
-    ${(files||[]).map(f => `<tr>
-      <td style="font-family:monospace;font-size:12px">${f.id}</td><td>${f.originalName}</td>
-      <td>${f.size ? (f.size/1024).toFixed(1)+' KB' : '-'}</td>
-      <td style="font-family:monospace;font-size:11px">${f.sha256?.slice(0,16)}...</td>
-      <td><a href="${API}/api/files/${f.id}/download" class="btn btn-sm" style="text-decoration:none" download>⬇ Download</a></td>
-    </tr>`).join('')}
-    </tbody></table>
-  `;
-}
-
-async function doUploadFile(input) {
-  const file = input.files[0];
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  const { status, data } = await api('POST', '/api/files', form);
-  if (status === 201) { toast('Uploaded: ' + data.id); loadFiles(); }
-  else toast('Upload failed');
-  input.value = '';
-}
-
-// ── Port Mappings ───────────────────────────────────────────────────
-let autoRefreshTimer = null;
-
-async function loadMappings() {
-  const el = document.getElementById('section-mappings');
-  const [cl, mp] = await Promise.all([api('GET','/api/clients'), api('GET','/api/port-mappings')]);
-  const clients = cl.data || [];
-  const mappings = mp.data || [];
-  window._clients = clients;
-
-  el.innerHTML = `
-    <h2>🔗 Port Mappings (${mappings.length})</h2>
-    <div class="btn-group">
-      <button class="btn btn-primary" onclick="showCreateMapping()">+ New Mapping</button>
-      <button class="btn" onclick="loadMappings()">🔄 Refresh</button>
-      <button class="btn" id="auto-refresh-btn" onclick="toggleAutoRefresh()">⏱ Auto (off)</button>
-    </div>
-    <div id="create-mapping-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div>
-    ${mappings.length === 0 ? '<p style="color:var(--dim)">No port mappings. Create one to expose a client port.</p>' : `
-    <table><thead><tr><th>ID</th><th>Client</th><th>Name</th><th>Tunnel</th><th>Status</th><th style="min-width:240px">Actions</th></tr></thead><tbody>
-    ${mappings.map(m => `<tr id="row-${m.id}">
-      <td style="font-family:monospace;font-size:11px">${m.id}</td>
-      <td>${m.clientId}</td>
-      <td>${m.name}</td>
-      <td style="font-size:12px"><span style="color:var(--dim)">${m.localIp}:${m.localPort}</span> → <span style="color:var(--accent);font-family:monospace">${m.publicUrl||(m.remotePort?':'+m.remotePort:'auto')}</span></td>
-      <td id="status-${m.id}"><span class="badge badge-${m.status==='active'?'active':m.status==='inactive'?'offline':'failed'}">${m.status}</span></td>
-      <td>
-        <button class="btn btn-sm" onclick="checkTunnel('${m.id}','${m.publicUrl||''}')" title="Verify tunnel is accessible">🔍 Check</button>
-        <button class="btn btn-sm" onclick="viewMappingConfig('${m.id}','${m.clientId}','${m.name}','${m.localIp}','${m.localPort}','${m.remotePort||0}','${m.proxyType}')">📄 Config</button>
-        <button class="btn btn-sm" onclick="copyUrl('${m.publicUrl||''}')">📋 Copy</button>
-        <button class="btn btn-sm" onclick="recreateMapping('${m.id}','${m.clientId}','${m.name}','${m.localIp}','${m.localPort}','${m.remotePort||0}','${m.proxyType}')">🔄 Recreate</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteMapping('${m.id}')">🗑</button>
-      </td>
-    </tr>`).join('')}
-    </tbody></table>`}
-  `;
-}
-
-function toggleAutoRefresh() {
-  const btn = document.getElementById('auto-refresh-btn');
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-    btn.textContent = '⏱ Auto (off)';
-  } else {
-    autoRefreshTimer = setInterval(loadMappings, 5000);
-    btn.textContent = '⏱ Auto (on)';
-  }
-}
-
-async function checkTunnel(id, publicUrl) {
-  if (!publicUrl) { toast('No public URL'); return; }
-  const statusEl = document.getElementById('status-' + id);
-  statusEl.innerHTML = '<span class="badge badge-running">checking...</span>';
-  try {
-    const start = Date.now();
-    const r = await fetch('http://' + publicUrl, { signal: AbortSignal.timeout(5000) });
-    const ms = Date.now() - start;
-    if (r.ok) {
-      statusEl.innerHTML = `<span class="badge badge-active">active ✓ (${ms}ms)</span>`;
-      toast('Tunnel OK: ' + publicUrl + ' (' + ms + 'ms)');
-    } else {
-      statusEl.innerHTML = `<span class="badge badge-failed">error ${r.status}</span>`;
-      toast('Tunnel returned HTTP ' + r.status);
-    }
-  } catch (e) {
-    statusEl.innerHTML = '<span class="badge badge-failed">unreachable</span>';
-    toast('Tunnel unreachable: ' + publicUrl + ' — frpc may not be running');
-  }
-}
-
-function copyUrl(url) {
-  if (!url) { toast('No URL to copy'); return; }
-  navigator.clipboard?.writeText(url).then(() => toast('Copied: ' + url)).catch(() => toast('Copy failed: ' + url));
-}
-
-async function recreateMapping(id, clientId, name, localIp, localPort, remotePort, proxyType) {
-  if (!confirm('Delete and recreate mapping ' + name + '?')) return;
-  // Delete first
-  await api('DELETE', '/api/port-mappings/' + id);
-  // Recreate
-  const body = { clientId, name, proxyType, localIp, localPort };
-  if (remotePort > 0) body.remotePort = remotePort;
-  const { status, data } = await api('POST', '/api/port-mappings', body);
-  if (status === 201) { toast('Recreated: ' + data.id); loadMappings(); }
-  else toast('Recreate failed: ' + JSON.stringify(data));
-}
-
-function viewMappingConfig(id, clientId, name, localIp, localPort, remotePort, proxyType) {
-  const toml = [
-    'serverAddr = "<frps-host>"',
-    'serverPort = 7000',
-    '',
-    'auth.method = "token"',
-    'auth.token = "<frps-token>"',
-    '',
-    '[[proxies]]',
-    `name = "${name}"`,
-    `type = "${proxyType}"`,
-    `localIP = "${localIp}"`,
-    `localPort = ${localPort}`,
-    `remotePort = ${remotePort}`,
-  ].join('\\n');
-
-  const overlay = document.createElement('div'); overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal">
-    <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button>
-    <h3>frpc Config — ${name}</h3>
-    <p style="color:var(--dim);margin-bottom:8px">Mapping: ${id} | Client: ${clientId} | ${localIp}:${localPort} → :${remotePort}</p>
-    <div class="logs" style="white-space:pre;font-size:12px">${toml}</div>
-    <p style="color:var(--dim);margin-top:8px;font-size:12px">This config is auto-generated by the client agent. Copy it for manual frpc testing.</p>
-  </div>`;
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-}
-
-function showCreateMapping() {
-  const div = document.getElementById('create-mapping-form');
-  const opts = (window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('');
-  div.style.display = 'block';
-  div.innerHTML = `
-    <h3 style="margin-bottom:12px">Create Port Mapping</h3>
-    <div class="form-row">
-      <div class="form-group"><label>Client</label><select id="m-client">${opts}</select></div>
-      <div class="form-group"><label>Name</label><input id="m-name" value="web-preview"></div>
-      <div class="form-group"><label>Type</label><select id="m-type"><option>tcp</option><option>http</option><option>https</option></select></div>
-    </div>
-    <div class="form-row">
-      <div class="form-group"><label>Local Port</label><input id="m-localPort" type="number" value="3000"></div>
-      <div class="form-group"><label>Remote Port (optional)</label><input id="m-remotePort" type="number" placeholder="auto"></div>
-    </div>
-    <p style="color:var(--dim);font-size:12px;margin-bottom:12px">💡 The client agent will auto-start frpc when this mapping is created.</p>
-    <div class="btn-group"><button class="btn btn-primary" onclick="doCreateMapping()">Create</button><button class="btn" onclick="document.getElementById('create-mapping-form').style.display='none'">Cancel</button></div>
-  `;
-}
-
-async function doCreateMapping() {
-  const body = {
-    clientId: document.getElementById('m-client').value,
-    name: document.getElementById('m-name').value,
-    proxyType: document.getElementById('m-type').value,
-    localIp: '127.0.0.1',
-    localPort: parseInt(document.getElementById('m-localPort').value),
-  };
-  const rp = document.getElementById('m-remotePort').value;
-  if (rp) body.remotePort = parseInt(rp);
-  const { status, data } = await api('POST', '/api/port-mappings', body);
-  if (status === 201) { toast('Mapping created: ' + data.id); loadMappings(); }
-  else toast('Failed: ' + JSON.stringify(data));
-}
-
-async function deleteMapping(id) {
-  if (!confirm('Delete mapping ' + id + '? This will stop frpc on the client.')) return;
-  const { status } = await api('DELETE', '/api/port-mappings/' + id);
-  if (status === 200) { toast('Deleted'); loadMappings(); }
-  else toast('Failed');
-}
+async function loadMappings(filterClientId){if(filterClientId!==undefined)mappingFilter=filterClientId;const el=document.getElementById('section-mappings');const[cl,mp]=await Promise.all([api('GET','/api/clients'),api('GET','/api/port-mappings'+(mappingFilter?`?clientId=${mappingFilter}`:''))]);const clients=cl.data||[];const mappings=mp.data||[];window._clients=clients;const clientOpts=clients.map(c=>`<option value="${c.id}" ${mappingFilter===c.id?'selected':''}>${c.id} (${c.name})</option>`).join('');
+el.innerHTML=`<h2>🔗 端口映射 (${mappings.length})</h2><div class="btn-group"><button class="btn btn-primary" onclick="showCreateMapping()">+ 新建映射</button><button class="btn" onclick="loadMappings()">🔄 刷新</button><button class="btn" id="auto-refresh-btn" onclick="toggleAutoRefresh()">⏱ 自动刷新(关)</button><select class="filter-select" onchange="loadMappings(this.value||undefined)" style="margin-left:8px"><option value="">全部客户端</option>${clientOpts}</select></div><div id="create-mapping-form" style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;display:none"></div>${mappings.length===0?'<p style="color:var(--dim)">暂无端口映射。点击"新建映射"暴露客户端端口到公网。</p>':`<table><thead><tr><th>ID</th><th>客户端</th><th>名称</th><th>隧道</th><th>状态</th><th style="min-width:260px">操作</th></tr></thead><tbody>${mappings.map(m=>`<tr id="row-${m.id}"><td style="font-family:monospace;font-size:11px">${m.id}</td><td>${m.clientId}</td><td>${m.name}</td><td style="font-size:12px"><span style="color:var(--dim)">${m.localIp}:${m.localPort}</span> → <span style="color:var(--accent);font-family:monospace">${m.publicUrl||(m.remotePort?':'+m.remotePort:'自动')}</span></td><td id="status-${m.id}">${badge(m.status)}</td><td><button class="btn btn-sm" onclick="checkTunnel('${m.id}','${m.publicUrl||''}')" title="验证隧道是否可达">🔍 检测</button><button class="btn btn-sm" onclick="viewMappingConfig('${m.id}','${m.clientId}','${m.name}','${m.localIp}','${m.localPort}','${m.remotePort||0}','${m.proxyType}')">📄 配置</button><button class="btn btn-sm" onclick="copyUrl('${m.publicUrl||''}')">📋 复制</button><button class="btn btn-sm" onclick="recreateMapping('${m.id}','${m.clientId}','${m.name}','${m.localIp}','${m.localPort}','${m.remotePort||0}','${m.proxyType}')">🔄 重建</button><button class="btn btn-sm btn-danger" onclick="deleteMapping('${m.id}')">🗑 删除</button></td></tr>`).join('')}</tbody></table>`}`}
+function toggleAutoRefresh(){const btn=document.getElementById('auto-refresh-btn');if(autoRefreshTimer){clearInterval(autoRefreshTimer);autoRefreshTimer=null;btn.textContent='⏱ 自动刷新(关)'}else{autoRefreshTimer=setInterval(loadMappings,5000);btn.textContent='⏱ 自动刷新(开)'}}
+async function checkTunnel(id,publicUrl){if(!publicUrl){toast('没有公网地址');return}const statusEl=document.getElementById('status-'+id);statusEl.innerHTML='<span class="badge badge-running">检测中...</span>';try{const start=Date.now();const r=await fetch('http://'+publicUrl,{signal:AbortSignal.timeout(5000)});const ms=Date.now()-start;if(r.ok){statusEl.innerHTML=`<span class="badge badge-active">畅通 ✓ (${ms}ms)</span>`;toast('隧道畅通: '+publicUrl+' ('+ms+'ms)')}else{statusEl.innerHTML=`<span class="badge badge-failed">错误 ${r.status}</span>`;toast('隧道返回 HTTP '+r.status)}}catch(e){statusEl.innerHTML='<span class="badge badge-failed">不可达</span>';toast('隧道不可达: '+publicUrl+' — frpc 可能未运行')}}
+function copyUrl(url){if(!url){toast('无可复制地址');return}navigator.clipboard?.writeText(url).then(()=>toast('已复制: '+url)).catch(()=>toast('复制失败'))}
+async function recreateMapping(id,clientId,name,localIp,localPort,remotePort,proxyType){if(!confirm('确定要删除并重建映射「'+name+'」？'))return;await api('DELETE','/api/port-mappings/'+id);const body={clientId,name,proxyType,localIp,localPort};if(remotePort>0)body.remotePort=remotePort;const{status,data}=await api('POST','/api/port-mappings',body);if(status===201){toast('已重建: '+data.id);loadMappings()}else toast('重建失败: '+JSON.stringify(data))}
+function viewMappingConfig(id,clientId,name,localIp,localPort,remotePort,proxyType){const toml=['serverAddr = "<frps 服务器地址>"','serverPort = 7000','','auth.method = "token"','auth.token = "<frps 令牌>"','','[[proxies]]',`name = "${name}"`,`type = "${proxyType}"`,`localIP = "${localIp}"`,`localPort = ${localPort}`,`remotePort = ${remotePort}`].join('\\n');const overlay=document.createElement('div');overlay.className='modal-overlay';overlay.innerHTML=`<div class="modal"><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">✕</button><h3>frpc 配置 — ${name}</h3><p style="color:var(--dim);margin-bottom:8px">映射: ${id} | 客户端: ${clientId} | ${localIp}:${localPort} → :${remotePort}</p><div class="logs" style="white-space:pre;font-size:12px">${toml}</div><p style="color:var(--dim);margin-top:8px;font-size:12px">此配置由客户端 Agent 自动生成。可复制用于手动 frpc 测试。</p></div>`;document.body.appendChild(overlay);overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove()})}
+function showCreateMapping(){const div=document.getElementById('create-mapping-form');const opts=(window._clients||[]).filter(c=>c.online).map(c=>`<option value="${c.id}">${c.id} (${c.name})</option>`).join('')||'<option value="">没有在线客户端</option>';div.style.display='block';div.innerHTML=`<h3 style="margin-bottom:12px">新建端口映射</h3><div class="form-row"><div class="form-group"><label>目标客户端</label><select id="m-client">${opts}</select></div><div class="form-group"><label>映射名称</label><input id="m-name" value="web-preview"></div><div class="form-group"><label>代理类型</label><select id="m-type"><option>tcp</option><option>http</option><option>https</option></select></div></div><div class="form-row"><div class="form-group"><label>本地端口</label><input id="m-localPort" type="number" value="3000"></div><div class="form-group"><label>远程端口 (留空自动分配)</label><input id="m-remotePort" type="number" placeholder="20000-25000"></div></div><p style="color:var(--dim);font-size:12px;margin-bottom:12px">💡 创建后客户端 Agent 会自动启动 frpc 建立隧道。确保客户端已配置 frpcPath。</p><div class="btn-group"><button class="btn btn-primary" onclick="doCreateMapping()">创建映射</button><button class="btn" onclick="document.getElementById('create-mapping-form').style.display='none'">取消</button></div>`}
+async function doCreateMapping(){const body={clientId:document.getElementById('m-client').value,name:document.getElementById('m-name').value,proxyType:document.getElementById('m-type').value,localIp:'127.0.0.1',localPort:parseInt(document.getElementById('m-localPort').value)};const rp=document.getElementById('m-remotePort').value;if(rp)body.remotePort=parseInt(rp);const{status,data}=await api('POST','/api/port-mappings',body);if(status===201){toast('映射已创建: '+data.id);loadMappings()}else toast('创建失败: '+JSON.stringify(data))}
+async function deleteMapping(id){if(!confirm('确定删除映射 '+id+'？这将停止客户端上的 frpc 进程。'))return;const{status}=await api('DELETE','/api/port-mappings/'+id);if(status===200){toast('已删除');loadMappings()}else toast('删除失败')}
 </script>
 </body>
 </html>

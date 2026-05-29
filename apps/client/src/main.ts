@@ -3,6 +3,7 @@ import { ConnectionManager } from './core/connection.js';
 import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
 import { dispatchTask } from './core/task-dispatcher.js';
+import { startFrpcDaemon, stopFrpcDaemon, isFrpcRunning } from './runtime/frpc-daemon.js';
 
 async function main(): Promise<void> {
   console.log('Remote Agent Gateway - Client Agent v0.1.0');
@@ -77,9 +78,16 @@ async function main(): Promise<void> {
 
   console.log('Client agent ready. Waiting for tasks...');
 
+  // Auto-start frpc daemon if frpcPath is configured
+  if (config.frpcPath) {
+    console.log(`Starting frpc daemon: ${config.frpcPath}`);
+    startFrpcDaemon(config);
+  }
+
   // Graceful shutdown
   const shutdown = () => {
     console.log('Shutting down...');
+    stopFrpcDaemon();
     conn.disconnect();
     process.exit(0);
   };

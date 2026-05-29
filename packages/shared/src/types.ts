@@ -6,6 +6,8 @@ export const TASK_TYPES = [
   'push_file',
   'frp_create_proxy',
   'frp_remove_proxy',
+  'frpc_start',
+  'frpc_stop',
 ] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
@@ -80,6 +82,14 @@ export interface FrpRemoveProxyPayload {
   mappingId: string;
 }
 
+export interface FrpcStartPayload {
+  // empty — just start the frpc daemon
+}
+
+export interface FrpcStopPayload {
+  // empty — just stop the frpc daemon
+}
+
 export interface HealthCheckPayload {
   // empty
 }
@@ -91,6 +101,8 @@ export type TaskPayloadMap = {
   push_file: PushFilePayload;
   frp_create_proxy: FrpCreateProxyPayload;
   frp_remove_proxy: FrpRemoveProxyPayload;
+  frpc_start: FrpcStartPayload;
+  frpc_stop: FrpcStopPayload;
 };
 
 // Task record (DB)

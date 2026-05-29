@@ -12,6 +12,7 @@ import { executeCommand } from '../executors/exec-command.executor.js';
 import { executePushFile } from '../executors/push-file.executor.js';
 import { executeFrpCreate } from '../executors/frp-create.executor.js';
 import { executeFrpRemove } from '../executors/frp-remove.executor.js';
+import { startFrpcDaemon, stopFrpcDaemon } from '../runtime/frpc-daemon.js';
 
 export async function dispatchTask(
   conn: ConnectionManager,
@@ -55,6 +56,16 @@ export async function dispatchTask(
 
       case 'frp_remove_proxy':
         result = await executeFrpRemove(conn, config, taskId, payload as FrpRemoveProxyPayload);
+        break;
+
+      case 'frpc_start':
+        startFrpcDaemon(config);
+        result = { started: true };
+        break;
+
+      case 'frpc_stop':
+        stopFrpcDaemon();
+        result = { stopped: true };
         break;
 
       default:
