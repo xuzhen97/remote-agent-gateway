@@ -1,7 +1,29 @@
 import { z } from 'zod';
 import { config } from 'dotenv';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
-config();
+// Find .env by walking up from the module's directory (handles monorepo CWD issues)
+function findEnvFile(startDir: string): string | null {
+  let dir = startDir;
+  for (let i = 0; i < 6; i++) {
+    const envPath = path.join(dir, '.env');
+    if (fs.existsSync(envPath)) return envPath;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
+const envFile = findEnvFile(
+  typeof __dirname !== 'undefined' ? __dirname : path.dirname(new URL(import.meta.url).pathname),
+);
+if (envFile) {
+  config({ path: envFile });
+} else {
+  config(); // fallback: try CWD
+}
 
 const envSchema = z.object({
   // Server
