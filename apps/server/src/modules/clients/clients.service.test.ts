@@ -105,4 +105,25 @@ describe('ClientsService', () => {
     const logOther = state.db!.exec("SELECT content FROM task_logs WHERE task_id = 'task_other'");
     expect(logOther[0].values).toEqual([['other-log']]);
   });
+
+  it('does not delete unrelated data when deleting a missing client', () => {
+    // Insert some data for another client to ensure it stays
+    insertClient({ id: 'other-client', status: 'offline', updatedAt: 1_000_000 });
+    insertTask({ id: 'task_other', clientId: 'other-client' });
+
+    const summary = service.deleteClientCascade('missing-client');
+
+    expect(summary).toEqual({ deletedMappings: 0, deletedTasks: 0, deletedLogs: 0 });
+    expect(service.getClient('missing-client')).toBeUndefined();
+    // Other data untouched
+    expect(service.getClient('other-client')).toBeDefined();
+  });
+
+  it('keeps online status visible for callers that must reject online deletion before cleanup', () => {
+    insertClient({ id: 'online-client', status: 'online', updatedAt: 1_000_000 });
+
+    const client = service.getClient('online-client');
+
+    expect(client?.status).toBe('online');
+  });
 });
