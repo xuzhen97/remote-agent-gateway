@@ -135,10 +135,13 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
         return;
       }
       const content = fs.readFileSync(fullPath);
+      const rawName = path.basename(fullPath);
+      const safeName = rawName.replace(/[^\x00-\x7F]/g, '_');
+      const encodedName = encodeURIComponent(rawName).replace(/'/g, '%27');
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Length': content.length,
-        'Content-Disposition': `attachment; filename="${path.basename(fullPath)}"`,
+        'Content-Disposition': `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`,
       });
       res.end(content);
       return;
