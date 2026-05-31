@@ -14,6 +14,39 @@ const ClientConfigSchema = z.object({
   tags: z.array(z.string()).default([]),
 });
 
+function resolveExecutablePath(configDir: string, configuredPath?: string): string | undefined {
+  const relativeInput = configuredPath?.replace(/^[.][/\\]/, '') ?? 'bin/frpc';
+  const candidates: string[] = [];
+
+  if (configuredPath) {
+    if (path.isAbsolute(configuredPath)) {
+      candidates.push(configuredPath);
+    } else {
+      candidates.push(path.resolve(configDir, configuredPath));
+    }
+  }
+
+  let current = configDir;
+  for (;;) {
+    candidates.push(path.resolve(current, relativeInput));
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+    if (process.platform === 'win32' && !candidate.toLowerCase().endsWith('.exe')) {
+      const withExe = `${candidate}.exe`;
+      if (fs.existsSync(withExe)) return withExe;
+    }
+  }
+
+  return configuredPath
+    ? (path.isAbsolute(configuredPath) ? configuredPath : path.resolve(configDir, configuredPath))
+    : undefined;
+}
+
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
 
 export function loadConfig(configPath = './config.json'): ClientConfig {
@@ -32,5 +65,11 @@ export function loadConfig(configPath = './config.json'): ClientConfig {
   }
 
   const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-  return ClientConfigSchema.parse(raw);
+  const parsed = ClientConfigSchema.parse(raw);
+  const configDir = path.dirname(path.resolve(configPath));
+
+  return {
+    ...parsed,
+    frpcPath: resolveExecutablePath(configDir, parsed.frpcPath),
+  };
 }

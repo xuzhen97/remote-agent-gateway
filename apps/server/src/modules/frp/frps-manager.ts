@@ -12,11 +12,39 @@ import { env } from '../../config/env.js';
 let frpsProcess: ChildProcess | null = null;
 let frpsReady = false;
 
+export function resolveFrpsBinaryPath(configuredPath: string, fromDir = process.cwd()): string {
+  const relativeInput = configuredPath.replace(/^[.][/\\]/, '');
+  const candidates: string[] = [];
+
+  if (path.isAbsolute(configuredPath)) {
+    candidates.push(configuredPath);
+  } else {
+    let current = path.resolve(fromDir);
+    for (;;) {
+      candidates.push(path.resolve(current, relativeInput));
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+    if (process.platform === 'win32' && !candidate.toLowerCase().endsWith('.exe')) {
+      const withExe = `${candidate}.exe`;
+      if (fs.existsSync(withExe)) return withExe;
+    }
+  }
+
+  return path.isAbsolute(configuredPath) ? configuredPath : path.resolve(fromDir, configuredPath);
+}
+
 /**
  * Ensure frps binary exists. If not, print instructions.
  */
 export function ensureFrpsBinary(): boolean {
-  if (fs.existsSync(env.FRPS_BIN_PATH)) return true;
+  const binaryPath = resolveFrpsBinaryPath(env.FRPS_BIN_PATH);
+  if (fs.existsSync(binaryPath)) return true;
 
   console.log('╔══════════════════════════════════════════════╗');
   console.log('║  frps binary not found.                      ║');
@@ -25,7 +53,7 @@ export function ensureFrpsBinary(): boolean {
   console.log('║  Or download manually from:                  ║');
   console.log('║  https://github.com/fatedier/frp/releases    ║');
   console.log('║  and place frps at:                          ║');
-  console.log(`║  ${env.FRPS_BIN_PATH.padEnd(42)}║`);
+  console.log(`║  ${binaryPath.padEnd(42)}║`);
   console.log('╚══════════════════════════════════════════════╝');
   return false;
 }
@@ -42,8 +70,10 @@ export async function startFrps(): Promise<void> {
     return;
   }
 
+  const binaryPath = resolveFrpsBinaryPath(env.FRPS_BIN_PATH);
+
   // Generate frps.toml from env
-  const configDir = path.resolve(env.FRPS_BIN_PATH, '..', '..', 'frp');
+  const configDir = path.resolve(binaryPath, '..', '..', 'frp');
   if (!fs.existsSync(configDir)) {
     fs.mkdirSync(configDir, { recursive: true });
   }
@@ -67,7 +97,7 @@ export async function startFrps(): Promise<void> {
 
   console.log(`Starting frps (builtin mode) on port ${env.FRPS_PORT}...`);
 
-  frpsProcess = spawn(env.FRPS_BIN_PATH, ['-c', tomlPath], {
+  frpsProcess = spawn(binaryPath, ['-c', tomlPath], {
     cwd: configDir,
     stdio: 'pipe',
   });
