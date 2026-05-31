@@ -52,6 +52,52 @@ export const FrpRemoveProxyPayloadSchema = z.object({
 
 export const HealthCheckPayloadSchema = z.object({});
 
+const RelativeClientPathSchema = z.string().min(1).max(2048).refine((value) => {
+  const normalized = value.replace(/\\/g, '/');
+  if (normalized.startsWith('/')) return false;
+  if (/^[A-Za-z]:\//.test(normalized)) return false;
+  return !normalized.split('/').some((part) => part === '..');
+}, 'Path must be relative and stay inside client workspace');
+
+export const FileServiceStartPayloadSchema = z.object({
+  port: z.number().int().min(0).max(65535).optional().default(0),
+  token: z.string().min(16).max(256),
+  ttlMs: z.number().int().positive().max(24 * 60 * 60 * 1000).optional(),
+});
+
+export const FileServiceStopPayloadSchema = z.object({});
+export const FileServiceStatusPayloadSchema = z.object({});
+
+export const ClientFilePathPayloadSchema = z.object({
+  path: RelativeClientPathSchema,
+});
+
+export const ClientFileMkdirPayloadSchema = z.object({
+  path: RelativeClientPathSchema,
+  recursive: z.boolean().optional().default(true),
+});
+
+export const ClientFileDeletePayloadSchema = z.object({
+  path: RelativeClientPathSchema,
+  recursive: z.boolean().optional().default(false),
+});
+
+export const ClientFileMovePayloadSchema = z.object({
+  from: RelativeClientPathSchema,
+  to: RelativeClientPathSchema,
+  overwrite: z.boolean().optional().default(false),
+});
+
+export const ClientFileCopyPayloadSchema = z.object({
+  from: RelativeClientPathSchema,
+  to: RelativeClientPathSchema,
+  overwrite: z.boolean().optional().default(false),
+});
+
+export const ClientFileWriteQuerySchema = z.object({
+  path: RelativeClientPathSchema,
+});
+
 // Create task request
 export const CreateTaskPayloadSchema = z.object({
   clientId: z.string().min(1),

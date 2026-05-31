@@ -7,6 +7,13 @@ import {
   TaskLogPayloadSchema,
   TaskResultPayloadSchema,
   CreatePortMappingPayloadSchema,
+  FileServiceStartPayloadSchema,
+  FileServiceStopPayloadSchema,
+  FileServiceStatusPayloadSchema,
+  ClientFilePathPayloadSchema,
+  ClientFileMovePayloadSchema,
+  ClientFileCopyPayloadSchema,
+  ClientFileMkdirPayloadSchema,
 } from '../schemas.js';
 
 describe('TaskTypeSchema', () => {
@@ -164,5 +171,42 @@ describe('CreatePortMappingPayloadSchema', () => {
         remotePort: 23000,
       })
     ).toThrow();
+  });
+});
+
+describe('client file management schemas', () => {
+  it('accepts file service task payloads', () => {
+    expect(TaskTypeSchema.parse('file_service_start')).toBe('file_service_start');
+    expect(TaskTypeSchema.parse('file_service_stop')).toBe('file_service_stop');
+    expect(TaskTypeSchema.parse('file_service_status')).toBe('file_service_status');
+
+    expect(FileServiceStartPayloadSchema.parse({ port: 0, token: 'tok_abc_1234567890', ttlMs: 600000 })).toEqual({
+      port: 0,
+      token: 'tok_abc_1234567890',
+      ttlMs: 600000,
+    });
+    expect(FileServiceStopPayloadSchema.parse({})).toEqual({});
+    expect(FileServiceStatusPayloadSchema.parse({})).toEqual({});
+  });
+
+  it('accepts client file operation payloads', () => {
+    expect(ClientFilePathPayloadSchema.parse({ path: 'notes/a.txt' })).toEqual({ path: 'notes/a.txt' });
+    expect(ClientFileMkdirPayloadSchema.parse({ path: 'notes', recursive: true })).toEqual({ path: 'notes', recursive: true });
+    expect(ClientFileMovePayloadSchema.parse({ from: 'notes/a.txt', to: 'archive/a.txt', overwrite: false })).toEqual({
+      from: 'notes/a.txt',
+      to: 'archive/a.txt',
+      overwrite: false,
+    });
+    expect(ClientFileCopyPayloadSchema.parse({ from: 'archive/a.txt', to: 'copy/a.txt', overwrite: true })).toEqual({
+      from: 'archive/a.txt',
+      to: 'copy/a.txt',
+      overwrite: true,
+    });
+  });
+
+  it('rejects absolute paths and traversal paths in client file operation payloads', () => {
+    expect(() => ClientFilePathPayloadSchema.parse({ path: '../secret.txt' })).toThrow();
+    expect(() => ClientFilePathPayloadSchema.parse({ path: '/etc/passwd' })).toThrow();
+    expect(() => ClientFilePathPayloadSchema.parse({ path: 'C:\\Windows\\win.ini' })).toThrow();
   });
 });

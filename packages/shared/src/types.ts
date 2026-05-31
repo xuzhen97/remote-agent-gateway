@@ -8,6 +8,9 @@ export const TASK_TYPES = [
   'frp_remove_proxy',
   'frpc_start',
   'frpc_stop',
+  'file_service_start',
+  'file_service_stop',
+  'file_service_status',
 ] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
 
@@ -94,6 +97,53 @@ export interface HealthCheckPayload {
   // empty
 }
 
+export interface FileServiceStartPayload {
+  port?: number;
+  token: string;
+  ttlMs?: number;
+}
+
+export interface FileServiceStopPayload {
+  // empty
+}
+
+export interface FileServiceStatusPayload {
+  // empty
+}
+
+export interface FileServiceStartResult {
+  running: true;
+  host: '127.0.0.1';
+  port: number;
+  startedAt: number;
+  expiresAt?: number;
+}
+
+export interface FileServiceStatusResult {
+  running: boolean;
+  host: '127.0.0.1';
+  port?: number;
+  startedAt?: number;
+  uptimeMs?: number;
+  expiresAt?: number;
+}
+
+export interface ClientFileEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'directory' | 'other';
+  size: number;
+  mtimeMs: number;
+}
+
+export interface ClientFileStat {
+  path: string;
+  type: 'file' | 'directory' | 'other';
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}
+
 export type TaskPayloadMap = {
   health_check: HealthCheckPayload;
   exec_script: ExecScriptPayload;
@@ -103,6 +153,9 @@ export type TaskPayloadMap = {
   frp_remove_proxy: FrpRemoveProxyPayload;
   frpc_start: FrpcStartPayload;
   frpc_stop: FrpcStopPayload;
+  file_service_start: FileServiceStartPayload;
+  file_service_stop: FileServiceStopPayload;
+  file_service_status: FileServiceStatusPayload;
 };
 
 // Task record (DB)
