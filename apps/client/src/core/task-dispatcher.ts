@@ -6,12 +6,16 @@ import type {
   PushFilePayload,
   FrpCreateProxyPayload,
   FrpRemoveProxyPayload,
+  FileServiceStartPayload,
 } from '@rag/shared';
 import { executeScript } from '../executors/exec-script.executor.js';
 import { executeCommand } from '../executors/exec-command.executor.js';
 import { executePushFile } from '../executors/push-file.executor.js';
 import { executeFrpCreate } from '../executors/frp-create.executor.js';
 import { executeFrpRemove } from '../executors/frp-remove.executor.js';
+import { executeFileServiceStart } from '../executors/file-service-start.executor.js';
+import { executeFileServiceStop } from '../executors/file-service-stop.executor.js';
+import { executeFileServiceStatus } from '../executors/file-service-status.executor.js';
 import { startFrpcDaemon, stopFrpcDaemon } from '../runtime/frpc-daemon.js';
 
 export async function dispatchTask(
@@ -66,6 +70,18 @@ export async function dispatchTask(
       case 'frpc_stop':
         stopFrpcDaemon();
         result = { stopped: true };
+        break;
+
+      case 'file_service_start':
+        result = await executeFileServiceStart(config, payload as FileServiceStartPayload);
+        break;
+
+      case 'file_service_stop':
+        result = await executeFileServiceStop();
+        break;
+
+      case 'file_service_status':
+        result = await executeFileServiceStatus();
         break;
 
       default:
