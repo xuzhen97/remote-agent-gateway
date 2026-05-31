@@ -27,6 +27,7 @@ const CLIENT_ID = 'e2e-test-client';
 
 const KEEP_ALIVE = process.argv.includes('--keep');
 const VERBOSE = process.argv.includes('--verbose');
+const RUN_FRP_FILE_TESTS = process.env.RAG_E2E_FRP_FILE_TESTS === '1';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 let passed = 0;
@@ -280,7 +281,62 @@ async function main() {
     return task.status === 'success' && typeof resultSize === 'number' && resultSize > 0;
   });
 
-  // 9. Agent API — run script that reads pushed file
+  // 9. Client file management via FRP HTTP data plane
+  if (RUN_FRP_FILE_TESTS) {
+    await test('Client file session starts', async () => {
+      const { status, body } = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/file-session/start`);
+      const session = body as Record<string, unknown>;
+      return status === 200 && session.clientId === CLIENT_ID && typeof session.publicUrl === 'string';
+    });
+
+    await test('Client file mkdir + write + list + read', async () => {
+      const mkdir = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/mkdir`, {
+        path: 'managed',
+        recursive: true,
+      });
+      if (mkdir.status !== 200) return false;
+
+      const write = await api('PUT', `${BASE_URL}/api/clients/${CLIENT_ID}/files/write?path=managed/frp-http.txt`, {
+        body: 'FRP_HTTP_FILE_OK',
+        headers: { 'Content-Type': 'text/plain' },
+      });
+      if (write.status !== 200) return false;
+
+      const list = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files?path=managed`);
+      const entries = ((list.body as Record<string, unknown>).entries ?? []) as { name: string }[];
+      if (!entries.some((entry) => entry.name === 'frp-http.txt')) return false;
+
+      const read = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?path=managed/frp-http.txt`);
+      return read.status === 200 && String(read.body).includes('FRP_HTTP_FILE_OK');
+    });
+
+    await test('Client file move + copy + delete', async () => {
+      const move = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/move`, {
+        from: 'managed/frp-http.txt',
+        to: 'managed/frp-http-moved.txt',
+        overwrite: false,
+      });
+      if (move.status !== 200) return false;
+
+      const copy = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/copy`, {
+        from: 'managed/frp-http-moved.txt',
+        to: 'managed/frp-http-copy.txt',
+        overwrite: false,
+      });
+      if (copy.status !== 200) return false;
+
+      const del = await api('DELETE', `${BASE_URL}/api/clients/${CLIENT_ID}/files?path=managed/frp-http-moved.txt`);
+      if (del.status !== 200) return false;
+
+      const statDeleted = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?path=managed/frp-http-moved.txt`);
+      const statCopy = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?path=managed/frp-http-copy.txt`);
+      return statDeleted.status >= 400 && statCopy.status === 200;
+    });
+  } else {
+    console.log('Skipping FRP HTTP file-plane tests. Set RAG_E2E_FRP_FILE_TESTS=1 to enable.');
+  }
+
+  // 10. Agent API — run script that reads pushed file
   await test('Agent run-script reads pushed file', async () => {
     const { status, body } = await apiJson('POST', `${BASE_URL}/api/agent/run-script`, {
       target: { clientId: CLIENT_ID },
