@@ -182,6 +182,25 @@ pnpm typecheck     # 类型检查
 | `GET` | `/api/files` | 列出文件 |
 | `GET` | `/api/files/:id/download` | 下载文件 |
 
+### 客户端文件管理
+
+这些接口通过 WebSocket 启动客户端本地文件 HTTP 服务，并通过 FRP 暴露的数据面传输文件内容。所有路径都限制在客户端 `workspaceDir` 下。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `POST` | `/api/clients/:clientId/file-session/start` | 启动客户端文件服务并创建 FRP 映射 |
+| `GET` | `/api/clients/:clientId/file-session` | 查看文件服务会话 |
+| `POST` | `/api/clients/:clientId/file-session/stop` | 停止文件服务会话 |
+| `GET` | `/api/clients/:clientId/files?path=.` | 列出目录 |
+| `GET` | `/api/clients/:clientId/files/stat?path=...` | 查看文件信息 |
+| `GET` | `/api/clients/:clientId/files/read?path=...` | 读取文件内容 |
+| `GET` | `/api/clients/:clientId/files/download?path=...` | 下载文件 |
+| `PUT` | `/api/clients/:clientId/files/write?path=...` | 写入文件 |
+| `POST` | `/api/clients/:clientId/files/mkdir` | 创建目录 |
+| `DELETE` | `/api/clients/:clientId/files?path=...` | 删除文件或目录 |
+| `POST` | `/api/clients/:clientId/files/move` | 移动或重命名 |
+| `POST` | `/api/clients/:clientId/files/copy` | 复制文件或目录 |
+
 ### 端口映射
 
 | 方法 | 路径 | 说明 |
