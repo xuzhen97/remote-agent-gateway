@@ -7,6 +7,7 @@ import { initDb, saveDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { taskRoutes } from './modules/tasks/tasks.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
+import { clientFilesRoutes } from './modules/client-files/client-files.routes.js';
 import { frpRoutes } from './modules/frp/frp.routes.js';
 import { agentRoutes } from './modules/agent/agent.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
@@ -69,6 +70,7 @@ async function main(): Promise<void> {
   await app.register(clientRoutes);
   await app.register(taskRoutes);
   await app.register(fileRoutes);
+  await app.register(clientFilesRoutes);
   await app.register(frpRoutes);
   await app.register(agentRoutes);
 
