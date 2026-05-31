@@ -244,7 +244,11 @@ export async function startFileHttpServer(options: StartOptions): Promise<FileHt
   activeToken = options.token;
   activeRoots = resolveAllowedRoots(options.workspaceDir, options.allowedRoots);
   for (const root of activeRoots) {
-    fs.mkdirSync(root.path, { recursive: true });
+    try {
+      fs.mkdirSync(root.path, { recursive: true });
+    } catch {
+      if (!fs.existsSync(root.path)) throw new Error(`Root directory does not exist and cannot be created: ${root.path}`);
+    }
   }
 
   activeServer = http.createServer((req, res) => {
