@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { tasksService as defaultTasksService } from '../tasks/tasks.service.js';
 import { connectionManager as defaultConnectionManager } from '../connections/connections.manager.js';
-import { frpService as defaultFrpService } from '../frp/frp.service.js';
+import { frpService as defaultFrpService, getFrpsConnectionInfo } from '../frp/frp.service.js';
 
 export interface ClientFileSession {
   clientId: string;
@@ -75,6 +75,38 @@ export class ClientFileSessionsService {
       localPort: result.port,
     });
 
+    const frpsInfo = getFrpsConnectionInfo();
+    const frpPayload = {
+      mappingId: mapping.id,
+      name: `file-service-${clientId}`,
+      proxyType: 'tcp',
+      localIp: '127.0.0.1',
+      localPort: result.port,
+      remotePort: mapping.remote_port,
+      customDomain: mapping.custom_domain ?? undefined,
+      serverAddr: frpsInfo.serverAddr,
+      serverPort: frpsInfo.serverPort,
+      authToken: frpsInfo.authToken,
+    };
+    const frpTask = this.deps.tasksService.createTask({
+      clientId,
+      type: 'frp_create_proxy',
+      payload: frpPayload,
+      createdBy: 'server:file-session',
+    });
+
+    const frpDispatched = this.deps.connectionManager.sendToClient(clientId, {
+      type: 'task.dispatch',
+      requestId: frpTask.id,
+      payload: {
+        taskId: frpTask.id,
+        taskType: 'frp_create_proxy',
+        payload: frpPayload,
+      },
+    });
+
+    if (!frpDispatched) throw new Error(`Client ${clientId} is offline`);
+
     const apiMapping = this.deps.frpService.toApi(mapping) as { id: string; publicUrl?: string };
     if (!apiMapping.publicUrl) throw new Error('FRP mapping did not provide publicUrl');
 
@@ -83,7 +115,7 @@ export class ClientFileSessionsService {
       token,
       localPort: result.port,
       mappingId: mapping.id,
-      publicUrl: apiMapping.publicUrl,
+      publicUrl: this.toHttpUrl(apiMapping.publicUrl),
       startedAt: result.startedAt,
       expiresAt: Date.now() + ttlMs,
     };
@@ -95,6 +127,11 @@ export class ClientFileSessionsService {
     const session = this.sessions.get(clientId);
     this.sessions.delete(clientId);
     return session;
+  }
+
+  private toHttpUrl(publicUrl: string): string {
+    if (/^https?:\/\//.test(publicUrl)) return publicUrl;
+    return `http://${publicUrl}`;
   }
 
   private async waitForStartResult(taskId: string): Promise<{ port: number; startedAt: number }> {
