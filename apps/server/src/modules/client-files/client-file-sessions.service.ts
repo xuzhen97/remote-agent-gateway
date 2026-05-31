@@ -106,6 +106,7 @@ export class ClientFileSessionsService {
     });
 
     if (!frpDispatched) throw new Error(`Client ${clientId} is offline`);
+    await this.waitForTaskSuccess(frpTask.id, 'FRP file service mapping');
 
     const apiMapping = this.deps.frpService.toApi(mapping) as { id: string; publicUrl?: string };
     if (!apiMapping.publicUrl) throw new Error('FRP mapping did not provide publicUrl');
@@ -135,21 +136,25 @@ export class ClientFileSessionsService {
   }
 
   private async waitForStartResult(taskId: string): Promise<{ port: number; startedAt: number }> {
+    const task = await this.waitForTaskSuccess(taskId, 'File service start');
+    const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
+    if (typeof result.port === 'number' && typeof result.startedAt === 'number') {
+      return { port: result.port, startedAt: result.startedAt };
+    }
+    throw new Error(`File service start task ${taskId} returned invalid result`);
+  }
+
+  private async waitForTaskSuccess(taskId: string, label: string) {
     const startedAt = Date.now();
     while (Date.now() - startedAt < 10_000) {
       const task = this.deps.tasksService.getTask(taskId);
-      if (task?.status === 'success' && task.result) {
-        const result = typeof task.result === 'string' ? JSON.parse(task.result) : task.result;
-        if (typeof result.port === 'number' && typeof result.startedAt === 'number') {
-          return { port: result.port, startedAt: result.startedAt };
-        }
-      }
+      if (task?.status === 'success') return task;
       if (task?.status === 'failed') {
-        throw new Error(task.error ?? 'File service start failed');
+        throw new Error(task.error ?? `${label} failed`);
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
-    throw new Error(`Timed out waiting for file service start task ${taskId}`);
+    throw new Error(`Timed out waiting for ${label} task ${taskId}`);
   }
 }
 

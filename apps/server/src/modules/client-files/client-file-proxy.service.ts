@@ -18,11 +18,11 @@ export class ClientFileProxyService {
   }
 
   async write(session: ClientFileSession, clientPath: string, body: Buffer): Promise<unknown> {
-    return this.requestJson(session, `/v1/write?path=${encodeURIComponent(clientPath)}`, { method: 'PUT', body });
+    return this.requestJson(session, `/v1/write?path=${encodeURIComponent(clientPath)}`, { method: 'PUT', body: this.toBodyInit(body) });
   }
 
   async upload(session: ClientFileSession, clientPath: string, filename: string, body: Buffer): Promise<unknown> {
-    return this.requestJson(session, `/v1/upload?path=${encodeURIComponent(clientPath)}&filename=${encodeURIComponent(filename)}`, { method: 'POST', body });
+    return this.requestJson(session, `/v1/upload?path=${encodeURIComponent(clientPath)}&filename=${encodeURIComponent(filename)}`, { method: 'POST', body: this.toBodyInit(body) });
   }
 
   async mkdir(session: ClientFileSession, payload: { path: string; recursive?: boolean }): Promise<unknown> {
@@ -39,6 +39,12 @@ export class ClientFileProxyService {
 
   async copy(session: ClientFileSession, payload: { from: string; to: string; overwrite?: boolean }): Promise<unknown> {
     return this.requestJson(session, '/v1/copy', this.jsonInit(payload));
+  }
+
+  private toBodyInit(body: Buffer): BodyInit {
+    const copy = new Uint8Array(body.byteLength);
+    copy.set(body);
+    return new Blob([copy.buffer]);
   }
 
   private jsonInit(payload: unknown): RequestInit {

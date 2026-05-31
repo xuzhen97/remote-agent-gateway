@@ -28,6 +28,7 @@ const CLIENT_ID = 'e2e-test-client';
 const KEEP_ALIVE = process.argv.includes('--keep');
 const VERBOSE = process.argv.includes('--verbose');
 const RUN_FRP_FILE_TESTS = process.env.RAG_E2E_FRP_FILE_TESTS === '1';
+const FRP_EXE = process.platform === 'win32' ? '.exe' : '';
 
 // ── Helpers ─────────────────────────────────────────────────────────
 let passed = 0;
@@ -112,14 +113,29 @@ async function main() {
     await new Promise<void>((resolve) => build.on('close', () => resolve()));
   }
 
+  const distBin = path.join(DIST, 'bin');
+  const frpsPath = path.join(distBin, `frps${FRP_EXE}`);
+  const frpcPath = path.join(distBin, `frpc${FRP_EXE}`);
+  if (RUN_FRP_FILE_TESTS) {
+    const rootBin = path.join(ROOT, 'bin');
+    const frpsSrc = path.join(rootBin, `frps${FRP_EXE}`);
+    const frpcSrc = path.join(rootBin, `frpc${FRP_EXE}`);
+    if (!fs.existsSync(frpsSrc) || !fs.existsSync(frpcSrc)) {
+      throw new Error(`FRP file tests require ${frpsSrc} and ${frpcSrc}`);
+    }
+    fs.mkdirSync(distBin, { recursive: true });
+    fs.copyFileSync(frpsSrc, frpsPath);
+    fs.copyFileSync(frpcSrc, frpcPath);
+  }
+
   // Prepare configs
   fs.writeFileSync(path.join(DIST, '.env'), [
-    'SERVER_PORT=3000', 'SERVER_HOST=0.0.0.0',
+    'SERVER_PORT=3000', RUN_FRP_FILE_TESTS ? 'SERVER_HOST=127.0.0.1' : 'SERVER_HOST=0.0.0.0',
     'ADMIN_TOKEN=test_admin_token', 'AGENT_API_TOKEN=test_agent_token',
     'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
-    'FRP_MODE=remote', 'FRPS_HOST=', 'FRPS_PORT=7000',
+    RUN_FRP_FILE_TESTS ? 'FRP_MODE=builtin' : 'FRP_MODE=remote', 'FRPS_HOST=', 'FRPS_PORT=7000',
     'FRPS_TOKEN=test_frp_token', 'FRPS_DASHBOARD_PORT=7500',
-    'FRPS_BIN_PATH=./bin/frps',
+    `FRPS_BIN_PATH=${frpsPath}`,
     'FRP_PORT_RANGE_START=20000', 'FRP_PORT_RANGE_END=25000',
   ].join('\n'));
 
@@ -127,10 +143,14 @@ async function main() {
     clientId: CLIENT_ID, clientName: 'E2E Test Machine',
     serverUrl: 'ws://localhost:3000/ws/client', apiBaseUrl: 'http://localhost:3000',
     token: TOKEN, workspaceDir: './workspace', tags: ['test', 'e2e'],
+    ...(RUN_FRP_FILE_TESTS ? { frpcPath, frpcWorkDir: './frp' } : {}),
   }));
 
-  // Clean DB
+  // Clean runtime state
   try { fs.unlinkSync(path.join(DIST, 'db.sqlite')); } catch { /* ok */ }
+  fs.rmSync(path.join(DIST, 'frp'), { recursive: true, force: true });
+  fs.rmSync(path.join(DIST, 'workspace'), { recursive: true, force: true });
+  fs.mkdirSync(path.join(DIST, 'workspace'), { recursive: true });
 
   // ── Start server ──────────────────────────────────────────────────
   console.log('── Starting server ──');
