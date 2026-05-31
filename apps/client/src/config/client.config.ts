@@ -9,6 +9,7 @@ const ClientConfigSchema = z.object({
   apiBaseUrl: z.string().url(),
   token: z.string().min(1),
   workspaceDir: z.string().min(1),
+  allowedRoots: z.array(z.string()).optional().default([]),
   frpcPath: z.string().optional(),
   frpcWorkDir: z.string().optional(),
   tags: z.array(z.string()).default([]),

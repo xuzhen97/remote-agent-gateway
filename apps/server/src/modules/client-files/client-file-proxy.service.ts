@@ -1,43 +1,47 @@
 import type { ClientFileSession } from './client-file-sessions.service.js';
 
 export class ClientFileProxyService {
-  async list(session: ClientFileSession, clientPath: string): Promise<unknown> {
-    return this.requestJson(session, `/v1/list?path=${encodeURIComponent(clientPath)}`);
+  async roots(session: ClientFileSession): Promise<unknown> {
+    return this.requestJson(session, '/v1/roots');
   }
 
-  async stat(session: ClientFileSession, clientPath: string): Promise<unknown> {
-    return this.requestJson(session, `/v1/stat?path=${encodeURIComponent(clientPath)}`);
+  async list(session: ClientFileSession, rootId: string, clientPath: string): Promise<unknown> {
+    return this.requestJson(session, `/v1/list?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}`);
   }
 
-  async read(session: ClientFileSession, clientPath: string): Promise<Response> {
-    return this.requestRaw(session, `/v1/read?path=${encodeURIComponent(clientPath)}`);
+  async stat(session: ClientFileSession, rootId: string, clientPath: string): Promise<unknown> {
+    return this.requestJson(session, `/v1/stat?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}`);
   }
 
-  async download(session: ClientFileSession, clientPath: string): Promise<Response> {
-    return this.requestRaw(session, `/v1/download?path=${encodeURIComponent(clientPath)}`);
+  async read(session: ClientFileSession, rootId: string, clientPath: string): Promise<Response> {
+    return this.requestRaw(session, `/v1/read?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}`);
   }
 
-  async write(session: ClientFileSession, clientPath: string, body: Buffer): Promise<unknown> {
-    return this.requestJson(session, `/v1/write?path=${encodeURIComponent(clientPath)}`, { method: 'PUT', body: this.toBodyInit(body) });
+  async download(session: ClientFileSession, rootId: string, clientPath: string): Promise<Response> {
+    return this.requestRaw(session, `/v1/download?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}`);
   }
 
-  async upload(session: ClientFileSession, clientPath: string, filename: string, body: Buffer): Promise<unknown> {
-    return this.requestJson(session, `/v1/upload?path=${encodeURIComponent(clientPath)}&filename=${encodeURIComponent(filename)}`, { method: 'POST', body: this.toBodyInit(body) });
+  async write(session: ClientFileSession, rootId: string, clientPath: string, body: Buffer): Promise<unknown> {
+    return this.requestJson(session, `/v1/write?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}`, { method: 'PUT', body: this.toBodyInit(body) });
   }
 
-  async mkdir(session: ClientFileSession, payload: { path: string; recursive?: boolean }): Promise<unknown> {
+  async upload(session: ClientFileSession, rootId: string, clientPath: string, filename: string, body: Buffer): Promise<unknown> {
+    return this.requestJson(session, `/v1/upload?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}&filename=${encodeURIComponent(filename)}`, { method: 'POST', body: this.toBodyInit(body) });
+  }
+
+  async mkdir(session: ClientFileSession, payload: { rootId: string; path: string; recursive?: boolean }): Promise<unknown> {
     return this.requestJson(session, '/v1/mkdir', this.jsonInit(payload));
   }
 
-  async delete(session: ClientFileSession, clientPath: string, recursive: boolean): Promise<unknown> {
-    return this.requestJson(session, `/v1/delete?path=${encodeURIComponent(clientPath)}&recursive=${recursive ? 'true' : 'false'}`, { method: 'DELETE' });
+  async delete(session: ClientFileSession, rootId: string, clientPath: string, recursive: boolean): Promise<unknown> {
+    return this.requestJson(session, `/v1/delete?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(clientPath)}&recursive=${recursive ? 'true' : 'false'}`, { method: 'DELETE' });
   }
 
-  async move(session: ClientFileSession, payload: { from: string; to: string; overwrite?: boolean }): Promise<unknown> {
+  async move(session: ClientFileSession, payload: { rootId: string; from: string; to: string; overwrite?: boolean }): Promise<unknown> {
     return this.requestJson(session, '/v1/move', this.jsonInit(payload));
   }
 
-  async copy(session: ClientFileSession, payload: { from: string; to: string; overwrite?: boolean }): Promise<unknown> {
+  async copy(session: ClientFileSession, payload: { rootId: string; from: string; to: string; overwrite?: boolean }): Promise<unknown> {
     return this.requestJson(session, '/v1/copy', this.jsonInit(payload));
   }
 

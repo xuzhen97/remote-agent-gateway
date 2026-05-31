@@ -45,6 +45,8 @@ export class ClientFileSessionsService {
     const existing = this.getSession(clientId);
     if (existing) return existing;
 
+    await this.removeExistingFileServiceMappings(clientId);
+
     const token = `file_${randomBytes(24).toString('hex')}`;
     const payload = { port: 0, token, ttlMs };
     const startTask = this.deps.tasksService.createTask({
@@ -128,6 +130,35 @@ export class ClientFileSessionsService {
     const session = this.sessions.get(clientId);
     this.sessions.delete(clientId);
     return session;
+  }
+
+  private async removeExistingFileServiceMappings(clientId: string): Promise<void> {
+    const mappings = this.deps.frpService.listMappings(clientId)
+      .filter((mapping) => mapping.name === `file-service-${clientId}`);
+
+    for (const mapping of mappings) {
+      const removeTask = this.deps.tasksService.createTask({
+        clientId,
+        type: 'frp_remove_proxy',
+        payload: { mappingId: mapping.id },
+        createdBy: 'server:file-session',
+      });
+
+      const dispatched = this.deps.connectionManager.sendToClient(clientId, {
+        type: 'task.dispatch',
+        requestId: removeTask.id,
+        payload: {
+          taskId: removeTask.id,
+          taskType: 'frp_remove_proxy',
+          payload: { mappingId: mapping.id },
+        },
+      });
+
+      if (dispatched) {
+        await this.waitForTaskSuccess(removeTask.id, 'Old file service mapping removal');
+      }
+      this.deps.frpService.deleteMapping(mapping.id);
+    }
   }
 
   private toHttpUrl(publicUrl: string): string {

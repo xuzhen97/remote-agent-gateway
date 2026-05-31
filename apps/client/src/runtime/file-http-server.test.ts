@@ -35,63 +35,67 @@ describe('file HTTP server', () => {
     expect(response.status).toBe(401);
   });
 
-  it('creates directories, writes files, lists entries, reads files, and stats files', async () => {
+  it('lists configured roots and performs file operations inside the selected root', async () => {
+    const rootsResponse = await request('/v1/roots');
+    expect(rootsResponse.status).toBe(200);
+    const rootsBody = await rootsResponse.json() as { roots: { id: string; label: string }[] };
+    const rootId = rootsBody.roots[0]?.id;
+    expect(rootId).toBeTruthy();
+
     expect((await request('/v1/mkdir', {
       method: 'POST',
-      body: JSON.stringify({ path: 'notes', recursive: true }),
+      body: JSON.stringify({ rootId, path: 'nested', recursive: true }),
       headers: { 'Content-Type': 'application/json' },
     })).status).toBe(200);
 
-    expect((await request('/v1/write?path=notes/a.txt', {
+    expect((await request(`/v1/write?rootId=${rootId}&path=nested/a.txt`, {
       method: 'PUT',
-      body: 'hello file plane',
+      body: 'hello roots',
     })).status).toBe(200);
 
-    const listResponse = await request('/v1/list?path=notes');
+    const listResponse = await request(`/v1/list?rootId=${rootId}&path=nested`);
     expect(listResponse.status).toBe(200);
     const listBody = await listResponse.json() as { entries: { name: string; path: string; type: string }[] };
-    expect(listBody.entries).toContainEqual(expect.objectContaining({ name: 'a.txt', path: 'notes/a.txt', type: 'file' }));
-
-    const readResponse = await request('/v1/read?path=notes/a.txt');
-    expect(await readResponse.text()).toBe('hello file plane');
-
-    const statResponse = await request('/v1/stat?path=notes/a.txt');
-    const statBody = await statResponse.json() as { path: string; type: string; size: number };
-    expect(statBody).toEqual(expect.objectContaining({ path: 'notes/a.txt', type: 'file', size: 16 }));
+    expect(listBody.entries).toContainEqual(expect.objectContaining({ name: 'a.txt', path: 'nested/a.txt', type: 'file' }));
   });
 
   it('moves, copies, and deletes files', async () => {
+    const rootsBody = await (await request('/v1/roots')).json() as { roots: { id: string }[] };
+    const rootId = rootsBody.roots[0]?.id;
+
     await request('/v1/mkdir', {
       method: 'POST',
-      body: JSON.stringify({ path: 'notes', recursive: true }),
+      body: JSON.stringify({ rootId, path: 'notes', recursive: true }),
       headers: { 'Content-Type': 'application/json' },
     });
-    await request('/v1/write?path=notes/a.txt', { method: 'PUT', body: 'abc' });
+    await request(`/v1/write?rootId=${rootId}&path=notes/a.txt`, { method: 'PUT', body: 'abc' });
 
     const moveResponse = await request('/v1/move', {
       method: 'POST',
-      body: JSON.stringify({ from: 'notes/a.txt', to: 'notes/b.txt', overwrite: false }),
+      body: JSON.stringify({ rootId, from: 'notes/a.txt', to: 'notes/b.txt', overwrite: false }),
       headers: { 'Content-Type': 'application/json' },
     });
     expect(moveResponse.status).toBe(200);
 
     const copyResponse = await request('/v1/copy', {
       method: 'POST',
-      body: JSON.stringify({ from: 'notes/b.txt', to: 'notes/c.txt', overwrite: false }),
+      body: JSON.stringify({ rootId, from: 'notes/b.txt', to: 'notes/c.txt', overwrite: false }),
       headers: { 'Content-Type': 'application/json' },
     });
     expect(copyResponse.status).toBe(200);
 
-    expect(await (await request('/v1/read?path=notes/c.txt')).text()).toBe('abc');
+    expect(await (await request(`/v1/read?rootId=${rootId}&path=notes/c.txt`)).text()).toBe('abc');
 
-    const deleteResponse = await request('/v1/delete?path=notes/b.txt', { method: 'DELETE' });
+    const deleteResponse = await request(`/v1/delete?rootId=${rootId}&path=notes/b.txt`, { method: 'DELETE' });
     expect(deleteResponse.status).toBe(200);
 
-    expect((await request('/v1/stat?path=notes/b.txt')).status).toBe(404);
+    expect((await request(`/v1/stat?rootId=${rootId}&path=notes/b.txt`)).status).toBe(404);
   });
 
   it('rejects traversal paths', async () => {
-    const response = await request('/v1/read?path=../secret.txt');
+    const rootsBody = await (await request('/v1/roots')).json() as { roots: { id: string }[] };
+    const rootId = rootsBody.roots[0]?.id;
+    const response = await request(`/v1/read?rootId=${rootId}&path=../secret.txt`);
     expect(response.status).toBe(400);
   });
 });

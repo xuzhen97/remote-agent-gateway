@@ -5,16 +5,21 @@ describe('ClientFileSessionsService', () => {
   it('creates a start task and FRP mapping when no session exists', async () => {
     const tasksService = {
       createTask: vi.fn()
+        .mockReturnValueOnce({ id: 'task_remove_old_file', client_id: 'client-1' })
         .mockReturnValueOnce({ id: 'task_start_file', client_id: 'client-1' })
         .mockReturnValueOnce({ id: 'task_frp_file', client_id: 'client-1' }),
-      getTask: vi.fn().mockReturnValue({
-        id: 'task_start_file',
+      getTask: vi.fn((taskId: string) => ({
+        id: taskId,
         status: 'success',
-        result: JSON.stringify({ running: true, host: '127.0.0.1', port: 45123, startedAt: 1000 }),
-      }),
+        result: taskId === 'task_start_file'
+          ? JSON.stringify({ running: true, host: '127.0.0.1', port: 45123, startedAt: 1000 })
+          : JSON.stringify({ ok: true }),
+      })),
     };
     const connectionManager = { sendToClient: vi.fn().mockReturnValue(true) };
     const frpService = {
+      listMappings: vi.fn().mockReturnValue([{ id: 'pm_old_file', client_id: 'client-1', name: 'file-service-client-1' }]),
+      deleteMapping: vi.fn(),
       createMapping: vi.fn().mockReturnValue({
         id: 'pm_file',
         client_id: 'client-1',
@@ -35,6 +40,15 @@ describe('ClientFileSessionsService', () => {
     const service = new ClientFileSessionsService({ tasksService, connectionManager, frpService } as never);
     const session = await service.startSession('client-1');
 
+    expect(tasksService.createTask).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: 'client-1',
+      type: 'frp_remove_proxy',
+      payload: { mappingId: 'pm_old_file' },
+    }));
+    expect(connectionManager.sendToClient).toHaveBeenCalledWith('client-1', expect.objectContaining({
+      payload: expect.objectContaining({ taskType: 'frp_remove_proxy' }),
+    }));
+    expect(frpService.deleteMapping).toHaveBeenCalledWith('pm_old_file');
     expect(tasksService.createTask).toHaveBeenCalledWith(expect.objectContaining({
       clientId: 'client-1',
       type: 'file_service_start',

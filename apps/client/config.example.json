@@ -5,6 +5,9 @@
   "apiBaseUrl": "http://localhost:3000",
   "token": "test_agent_token",
   "workspaceDir": "./workspace",
+  "allowedRoots": [
+    "./workspace"
+  ],
   "frpcPath": "./bin/frpc",
   "frpcWorkDir": "./frp",
   "tags": ["dev"]

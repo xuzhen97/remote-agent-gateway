@@ -25,6 +25,10 @@ const SERVER_PORT = Number(process.env.RAG_E2E_SERVER_PORT ?? '31300');
 const BASE_URL = `http://localhost:${SERVER_PORT}`;
 const TOKEN = 'test_agent_token';
 const CLIENT_ID = 'e2e-test-client';
+const FRPS_PORT = Number(process.env.RAG_E2E_FRPS_PORT ?? '17000');
+const FRPS_DASHBOARD_PORT = Number(process.env.RAG_E2E_FRPS_DASHBOARD_PORT ?? '17500');
+const FRP_PORT_RANGE_START = Number(process.env.RAG_E2E_FRP_PORT_RANGE_START ?? '21000');
+const FRP_PORT_RANGE_END = Number(process.env.RAG_E2E_FRP_PORT_RANGE_END ?? '21050');
 
 const KEEP_ALIVE = process.argv.includes('--keep');
 const VERBOSE = process.argv.includes('--verbose');
@@ -84,6 +88,13 @@ function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 let serverProc: ChildProcess | null = null;
 let clientProc: ChildProcess | null = null;
 
+function spawnPackageManager(args: string[], cwd: string, stdio: 'inherit' | 'pipe' = 'pipe'): ChildProcess {
+  if (process.platform === 'win32') {
+    return spawn('cmd.exe', ['/d', '/s', '/c', `pnpm ${args.join(' ')}`], { cwd, stdio });
+  }
+  return spawn('pnpm', args, { cwd, stdio });
+}
+
 function startProcess(name: string, cwd: string, cmd: string, args: string[]): ChildProcess {
   const proc = spawn(cmd, args, { cwd, stdio: 'pipe' });
   proc.stdout?.on('data', (d: Buffer) => { if (VERBOSE) process.stdout.write(`  [${name}] ${d}`); });
@@ -110,8 +121,11 @@ async function main() {
   // Ensure dist is built
   if (!fs.existsSync(path.join(DIST, 'server.bundle.cjs'))) {
     console.log('Building dist...');
-    const build = spawn('pnpm', ['build:dist'], { cwd: ROOT, stdio: 'inherit' });
-    await new Promise<void>((resolve) => build.on('close', () => resolve()));
+    const build = spawnPackageManager(['build:dist'], ROOT, 'inherit');
+    await new Promise<void>((resolve, reject) => {
+      build.on('close', (code) => code === 0 ? resolve() : reject(new Error(`build:dist exited with code ${code ?? 1}`)));
+      build.on('error', reject);
+    });
   }
 
   const distBin = path.join(DIST, 'bin');
@@ -134,10 +148,10 @@ async function main() {
     `SERVER_PORT=${SERVER_PORT}`, RUN_FRP_FILE_TESTS ? 'SERVER_HOST=127.0.0.1' : 'SERVER_HOST=0.0.0.0',
     'ADMIN_TOKEN=test_admin_token', 'AGENT_API_TOKEN=test_agent_token',
     'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
-    RUN_FRP_FILE_TESTS ? 'FRP_MODE=builtin' : 'FRP_MODE=remote', 'FRPS_HOST=', 'FRPS_PORT=7000',
-    'FRPS_TOKEN=test_frp_token', 'FRPS_DASHBOARD_PORT=7500',
+    RUN_FRP_FILE_TESTS ? 'FRP_MODE=builtin' : 'FRP_MODE=remote', 'FRPS_HOST=', `FRPS_PORT=${FRPS_PORT}`,
+    'FRPS_TOKEN=test_frp_token', `FRPS_DASHBOARD_PORT=${FRPS_DASHBOARD_PORT}`,
     `FRPS_BIN_PATH=${frpsPath}`,
-    'FRP_PORT_RANGE_START=20000', 'FRP_PORT_RANGE_END=25000',
+    `FRP_PORT_RANGE_START=${FRP_PORT_RANGE_START}`, `FRP_PORT_RANGE_END=${FRP_PORT_RANGE_END}`, 
   ].join('\n'));
 
   fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify({
@@ -304,44 +318,55 @@ async function main() {
 
   // 9. Client file management via FRP HTTP data plane
   if (RUN_FRP_FILE_TESTS) {
+    let rootId = '';
+
     await test('Client file session starts', async () => {
       const { status, body } = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/file-session/start`);
       const session = body as Record<string, unknown>;
       return status === 200 && session.clientId === CLIENT_ID && typeof session.publicUrl === 'string';
     });
 
+    await test('Client file roots are listed', async () => {
+      const roots = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/roots`);
+      const body = roots.body as { roots?: { id: string }[] };
+      rootId = (body.roots ?? [])[0]?.id ?? '';
+      return roots.status === 200 && Array.isArray(body.roots) && body.roots.length >= 1 && Boolean(rootId);
+    });
+
     await test('Client file mkdir + write + list + read', async () => {
       const mkdir = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/mkdir`, {
+        rootId,
         path: 'managed',
         recursive: true,
       });
       if (mkdir.status !== 200) return false;
 
-      const write = await api('PUT', `${BASE_URL}/api/clients/${CLIENT_ID}/files/write?path=managed/frp-http.txt`, {
+      const write = await api('PUT', `${BASE_URL}/api/clients/${CLIENT_ID}/files/write?rootId=${encodeURIComponent(rootId)}&path=managed/frp-http.txt`, {
         body: 'FRP_HTTP_FILE_OK',
         headers: { 'Content-Type': 'text/plain' },
       });
       if (write.status !== 200) return false;
 
-      const upload = await api('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/upload?path=managed&filename=uploaded.txt`, {
+      const upload = await api('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/upload?rootId=${encodeURIComponent(rootId)}&path=managed&filename=uploaded.txt`, {
         body: 'FRP_HTTP_UPLOAD_OK',
         headers: { 'Content-Type': 'application/octet-stream' },
       });
       if (upload.status !== 200) return false;
 
-      const list = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files?path=managed`);
+      const list = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files?rootId=${encodeURIComponent(rootId)}&path=managed`);
       const entries = ((list.body as Record<string, unknown>).entries ?? []) as { name: string }[];
       if (!entries.some((entry) => entry.name === 'frp-http.txt')) return false;
       if (!entries.some((entry) => entry.name === 'uploaded.txt')) return false;
 
-      const read = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?path=managed/frp-http.txt`);
-      const readUpload = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?path=managed/uploaded.txt`);
+      const read = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?rootId=${encodeURIComponent(rootId)}&path=managed/frp-http.txt`);
+      const readUpload = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?rootId=${encodeURIComponent(rootId)}&path=managed/uploaded.txt`);
       return read.status === 200 && String(read.body).includes('FRP_HTTP_FILE_OK')
         && readUpload.status === 200 && String(readUpload.body).includes('FRP_HTTP_UPLOAD_OK');
     });
 
     await test('Client file move + copy + delete', async () => {
       const move = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/move`, {
+        rootId,
         from: 'managed/frp-http.txt',
         to: 'managed/frp-http-moved.txt',
         overwrite: false,
@@ -349,17 +374,18 @@ async function main() {
       if (move.status !== 200) return false;
 
       const copy = await apiJson('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/copy`, {
+        rootId,
         from: 'managed/frp-http-moved.txt',
         to: 'managed/frp-http-copy.txt',
         overwrite: false,
       });
       if (copy.status !== 200) return false;
 
-      const del = await api('DELETE', `${BASE_URL}/api/clients/${CLIENT_ID}/files?path=managed/frp-http-moved.txt`);
+      const del = await api('DELETE', `${BASE_URL}/api/clients/${CLIENT_ID}/files?rootId=${encodeURIComponent(rootId)}&path=managed/frp-http-moved.txt`);
       if (del.status !== 200) return false;
 
-      const statDeleted = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?path=managed/frp-http-moved.txt`);
-      const statCopy = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?path=managed/frp-http-copy.txt`);
+      const statDeleted = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?rootId=${encodeURIComponent(rootId)}&path=managed/frp-http-moved.txt`);
+      const statCopy = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/stat?rootId=${encodeURIComponent(rootId)}&path=managed/frp-http-copy.txt`);
       return statDeleted.status >= 400 && statCopy.status === 200;
     });
   } else {

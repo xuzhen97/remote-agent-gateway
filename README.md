@@ -184,22 +184,43 @@ pnpm typecheck     # 类型检查
 
 ### 客户端文件管理
 
-这些接口通过 WebSocket 启动客户端本地文件 HTTP 服务，并通过 FRP 暴露的数据面传输文件内容。所有路径都限制在客户端 `workspaceDir` 下。
+这些接口通过 WebSocket 启动客户端本地文件 HTTP 服务，并通过 FRP 暴露的数据面传输文件内容。客户端通过 `allowedRoots` 声明可浏览根目录；前端和服务端使用 `rootId + path` 组合来定位文件，而不是直接传递任意绝对路径。
+
+客户端配置示例：
+
+```json
+{
+  "workspaceDir": "./workspace",
+  "allowedRoots": [
+    "./workspace"
+  ],
+  "frpcPath": "./bin/frpc"
+}
+```
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | `POST` | `/api/clients/:clientId/file-session/start` | 启动客户端文件服务并创建 FRP 映射 |
 | `GET` | `/api/clients/:clientId/file-session` | 查看文件服务会话 |
 | `POST` | `/api/clients/:clientId/file-session/stop` | 停止文件服务会话 |
-| `GET` | `/api/clients/:clientId/files?path=.` | 列出目录 |
-| `GET` | `/api/clients/:clientId/files/stat?path=...` | 查看文件信息 |
-| `GET` | `/api/clients/:clientId/files/read?path=...` | 读取文件内容 |
-| `GET` | `/api/clients/:clientId/files/download?path=...` | 下载文件 |
-| `PUT` | `/api/clients/:clientId/files/write?path=...` | 写入文件 |
-| `POST` | `/api/clients/:clientId/files/mkdir` | 创建目录 |
-| `DELETE` | `/api/clients/:clientId/files?path=...` | 删除文件或目录 |
-| `POST` | `/api/clients/:clientId/files/move` | 移动或重命名 |
-| `POST` | `/api/clients/:clientId/files/copy` | 复制文件或目录 |
+| `GET` | `/api/clients/:clientId/files/roots` | 获取当前客户端允许浏览的根目录列表 |
+| `GET` | `/api/clients/:clientId/files?rootId=...&path=.` | 列出目录 |
+| `GET` | `/api/clients/:clientId/files/stat?rootId=...&path=...` | 查看文件信息 |
+| `GET` | `/api/clients/:clientId/files/read?rootId=...&path=...` | 读取文件内容 |
+| `GET` | `/api/clients/:clientId/files/download?rootId=...&path=...` | 下载文件 |
+| `PUT` | `/api/clients/:clientId/files/write?rootId=...&path=...` | 写入文件 |
+| `POST` | `/api/clients/:clientId/files/upload?rootId=...&path=...&filename=...` | 上传文件到当前根目录路径 |
+| `POST` | `/api/clients/:clientId/files/mkdir` | 创建目录（body 含 `rootId`, `path`） |
+| `DELETE` | `/api/clients/:clientId/files?rootId=...&path=...` | 删除文件或目录 |
+| `POST` | `/api/clients/:clientId/files/move` | 移动或重命名（body 含 `rootId`, `from`, `to`） |
+| `POST` | `/api/clients/:clientId/files/copy` | 复制文件或目录（body 含 `rootId`, `from`, `to`） |
+
+错误语义：
+
+- `400`：路径非法、越界到允许根目录之外、`rootId` 不存在
+- `403`：当前客户端进程无权限访问
+- `404`：文件或目录不存在
+- `409`：目标已存在或操作冲突
 
 ### 端口映射
 

@@ -65,14 +65,16 @@ RAG_E2E_FRP_FILE_TESTS=1 pnpm test:e2e
 覆盖能力：
 
 - 启动客户端文件服务
+- 获取 roots 列表
 - 创建 FRP 映射
-- 创建目录
-- 写入文件
-- 列目录
-- 读取文件
-- 移动文件
-- 复制文件
-- 删除文件
+- 使用 `rootId + path` 创建目录
+- 使用 `rootId + path` 写入文件
+- 使用 `rootId + path` 上传文件
+- 使用 `rootId + path` 列目录
+- 使用 `rootId + path` 读取文件
+- 使用 `rootId + path` 移动文件
+- 使用 `rootId + path` 复制文件
+- 使用 `rootId + path` 删除文件
 
 ## 手动调试
 
@@ -124,7 +126,7 @@ await test('你的测试名称', async () => {
 
 | 症状 | 可能原因 | 解决 |
 |------|----------|------|
-| `Timeout waiting: server startup` | 端口 3000 被占用 | `npx kill-port 3000` |
+| `Timeout waiting: server startup` | E2E 端口被占用 | 设置 `RAG_E2E_SERVER_PORT`，或释放默认端口 `31300` |
 | `Client failed to register` | config.json 中 token 与 .env 不匹配 | 检查 ADMIN_TOKEN、AGENT_API_TOKEN |
 | `404 Client not found` | clientId 与注册时不一致 | 确认 `CLIENT_ID` 常量与 config.json 一致 |
 | `401 Missing authorization` | Token 传递失败 | 检查 `api()` 函数的 headers 逻辑 |

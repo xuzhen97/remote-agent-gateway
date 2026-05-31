@@ -24,6 +24,7 @@ describe('task dispatcher file service tasks', () => {
       apiBaseUrl: 'http://localhost:3000',
       token: 'agent-token',
       workspaceDir,
+      allowedRoots: ['./workspace'],
       tags: [],
     };
 

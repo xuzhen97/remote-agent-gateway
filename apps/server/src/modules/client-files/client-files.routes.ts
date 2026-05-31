@@ -8,6 +8,12 @@ import {
   ClientFileMkdirPayloadSchema,
   ClientFileMovePayloadSchema,
   ClientFilePathPayloadSchema,
+  ClientFileRootDeletePayloadSchema,
+  ClientFileRootMkdirPayloadSchema,
+  ClientFileRootPathPayloadSchema,
+  ClientFileRootPayloadSchema,
+  ClientFileRootMovePayloadSchema,
+  ClientFileRootCopyPayloadSchema,
   ClientFileWriteQuerySchema,
 } from '@rag/shared';
 
@@ -56,27 +62,31 @@ export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
     return { stopped: Boolean(session) };
   });
 
-  app.get<{ Params: { clientId: string }; Querystring: { path?: string } }>('/api/clients/:clientId/files', async (request) => {
-    const payload = ClientFilePathPayloadSchema.parse({ path: request.query.path ?? '.' });
-    return clientFileProxyService.list(await getSession(request.params.clientId), payload.path);
+  app.get<{ Params: { clientId: string } }>('/api/clients/:clientId/files/roots', async (request) => {
+    return clientFileProxyService.roots(await getSession(request.params.clientId));
   });
 
-  app.get<{ Params: { clientId: string }; Querystring: { path?: string } }>('/api/clients/:clientId/files/stat', async (request) => {
-    const payload = ClientFilePathPayloadSchema.parse({ path: request.query.path ?? '.' });
-    return clientFileProxyService.stat(await getSession(request.params.clientId), payload.path);
+  app.get<{ Params: { clientId: string }; Querystring: { rootId?: string; path?: string } }>('/api/clients/:clientId/files', async (request) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path ?? '.' });
+    return clientFileProxyService.list(await getSession(request.params.clientId), payload.rootId, payload.path);
   });
 
-  app.get<{ Params: { clientId: string }; Querystring: { path: string } }>('/api/clients/:clientId/files/read', async (request, reply) => {
-    const payload = ClientFilePathPayloadSchema.parse({ path: request.query.path });
-    const response = await clientFileProxyService.read(await getSession(request.params.clientId), payload.path);
+  app.get<{ Params: { clientId: string }; Querystring: { rootId?: string; path?: string } }>('/api/clients/:clientId/files/stat', async (request) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path ?? '.' });
+    return clientFileProxyService.stat(await getSession(request.params.clientId), payload.rootId, payload.path);
+  });
+
+  app.get<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/read', async (request, reply) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path });
+    const response = await clientFileProxyService.read(await getSession(request.params.clientId), payload.rootId, payload.path);
     reply.code(response.status);
     reply.header('Content-Type', response.headers.get('Content-Type') ?? 'application/octet-stream');
     return reply.send(Buffer.from(await response.arrayBuffer()));
   });
 
-  app.get<{ Params: { clientId: string }; Querystring: { path: string } }>('/api/clients/:clientId/files/download', async (request, reply) => {
-    const payload = ClientFilePathPayloadSchema.parse({ path: request.query.path });
-    const response = await clientFileProxyService.download(await getSession(request.params.clientId), payload.path);
+  app.get<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/download', async (request, reply) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path });
+    const response = await clientFileProxyService.download(await getSession(request.params.clientId), payload.rootId, payload.path);
     reply.code(response.status);
     reply.header('Content-Type', response.headers.get('Content-Type') ?? 'application/octet-stream');
     const disposition = response.headers.get('Content-Disposition');
@@ -84,40 +94,41 @@ export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(Buffer.from(await response.arrayBuffer()));
   });
 
-  app.put<{ Params: { clientId: string }; Querystring: { path: string } }>('/api/clients/:clientId/files/write', async (request) => {
-    const payload = ClientFileWriteQuerySchema.parse({ path: request.query.path });
+  app.put<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/write', async (request) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path });
     const buffer = await readRequestBuffer(request.body);
-    return clientFileProxyService.write(await getSession(request.params.clientId), payload.path, buffer);
+    return clientFileProxyService.write(await getSession(request.params.clientId), payload.rootId, payload.path, buffer);
   });
 
-  app.post<{ Params: { clientId: string }; Querystring: { path?: string; filename?: string } }>('/api/clients/:clientId/files/upload', async (request, reply) => {
-    const payload = ClientFilePathPayloadSchema.parse({ path: request.query.path ?? '.' });
+  app.post<{ Params: { clientId: string }; Querystring: { rootId?: string; path?: string; filename?: string } }>('/api/clients/:clientId/files/upload', async (request, reply) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path ?? '.' });
     const filename = request.query.filename;
     if (!filename) return reply.code(400).send({ error: 'filename is required' });
     const buffer = await readRequestBuffer(request.body);
-    return clientFileProxyService.upload(await getSession(request.params.clientId), payload.path, filename, buffer);
+    return clientFileProxyService.upload(await getSession(request.params.clientId), payload.rootId, payload.path, filename, buffer);
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/files/mkdir', async (request) => {
-    const payload = ClientFileMkdirPayloadSchema.parse(request.body);
+    const payload = ClientFileRootMkdirPayloadSchema.parse(request.body);
     return clientFileProxyService.mkdir(await getSession(request.params.clientId), payload);
   });
 
-  app.delete<{ Params: { clientId: string }; Querystring: { path: string; recursive?: string } }>('/api/clients/:clientId/files', async (request) => {
-    const payload = ClientFileDeletePayloadSchema.parse({
+  app.delete<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string; recursive?: string } }>('/api/clients/:clientId/files', async (request) => {
+    const payload = ClientFileRootDeletePayloadSchema.parse({
+      rootId: request.query.rootId,
       path: request.query.path,
       recursive: request.query.recursive === 'true',
     });
-    return clientFileProxyService.delete(await getSession(request.params.clientId), payload.path, payload.recursive);
+    return clientFileProxyService.delete(await getSession(request.params.clientId), payload.rootId, payload.path, payload.recursive);
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/files/move', async (request) => {
-    const payload = ClientFileMovePayloadSchema.parse(request.body);
+    const payload = ClientFileRootMovePayloadSchema.parse(request.body);
     return clientFileProxyService.move(await getSession(request.params.clientId), payload);
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/files/copy', async (request) => {
-    const payload = ClientFileCopyPayloadSchema.parse(request.body);
+    const payload = ClientFileRootCopyPayloadSchema.parse(request.body);
     return clientFileProxyService.copy(await getSession(request.params.clientId), payload);
   });
 }

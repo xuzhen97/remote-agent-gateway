@@ -144,6 +144,43 @@ export interface ClientFileStat {
   ctimeMs: number;
 }
 
+export interface ClientFileRoot {
+  id: string;
+  label: string;
+  path: string;
+}
+
+export interface ClientFileRootPayload {
+  rootId: string;
+}
+
+export interface ClientFileRootPathPayload {
+  rootId: string;
+  path: string;
+}
+
+export interface ClientFileRootMkdirPayload extends ClientFileRootPathPayload {
+  recursive?: boolean;
+}
+
+export interface ClientFileRootDeletePayload extends ClientFileRootPathPayload {
+  recursive?: boolean;
+}
+
+export interface ClientFileRootMovePayload {
+  rootId: string;
+  from: string;
+  to: string;
+  overwrite?: boolean;
+}
+
+export interface ClientFileRootCopyPayload {
+  rootId: string;
+  from: string;
+  to: string;
+  overwrite?: boolean;
+}
+
 export type TaskPayloadMap = {
   health_check: HealthCheckPayload;
   exec_script: ExecScriptPayload;

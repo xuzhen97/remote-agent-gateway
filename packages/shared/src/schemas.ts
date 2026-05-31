@@ -98,6 +98,43 @@ export const ClientFileWriteQuerySchema = z.object({
   path: RelativeClientPathSchema,
 });
 
+const ClientFileRootIdSchema = z.string().min(1).max(128);
+
+export const ClientFileRootPayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+});
+
+export const ClientFileRootPathPayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+  path: RelativeClientPathSchema,
+});
+
+export const ClientFileRootMkdirPayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+  path: RelativeClientPathSchema,
+  recursive: z.boolean().optional().default(true),
+});
+
+export const ClientFileRootDeletePayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+  path: RelativeClientPathSchema,
+  recursive: z.boolean().optional().default(false),
+});
+
+export const ClientFileRootMovePayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+  from: RelativeClientPathSchema,
+  to: RelativeClientPathSchema,
+  overwrite: z.boolean().optional().default(false),
+});
+
+export const ClientFileRootCopyPayloadSchema = z.object({
+  rootId: ClientFileRootIdSchema,
+  from: RelativeClientPathSchema,
+  to: RelativeClientPathSchema,
+  overwrite: z.boolean().optional().default(false),
+});
+
 // Create task request
 export const CreateTaskPayloadSchema = z.object({
   clientId: z.string().min(1),

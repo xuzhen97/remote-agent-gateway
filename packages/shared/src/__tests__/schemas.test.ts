@@ -14,6 +14,11 @@ import {
   ClientFileMovePayloadSchema,
   ClientFileCopyPayloadSchema,
   ClientFileMkdirPayloadSchema,
+  ClientFileRootPayloadSchema,
+  ClientFileRootPathPayloadSchema,
+  ClientFileRootMkdirPayloadSchema,
+  ClientFileRootMovePayloadSchema,
+  ClientFileRootCopyPayloadSchema,
 } from '../schemas.js';
 
 describe('TaskTypeSchema', () => {
@@ -204,9 +209,36 @@ describe('client file management schemas', () => {
     });
   });
 
-  it('rejects absolute paths and traversal paths in client file operation payloads', () => {
+  it('accepts root metadata and root-aware payloads', () => {
+    expect(ClientFileRootPayloadSchema.parse({ rootId: 'root-0' })).toEqual({ rootId: 'root-0' });
+    expect(ClientFileRootPathPayloadSchema.parse({ rootId: 'root-1', path: 'Windows/System32' })).toEqual({
+      rootId: 'root-1',
+      path: 'Windows/System32',
+    });
+    expect(ClientFileRootMkdirPayloadSchema.parse({ rootId: 'root-2', path: 'reports/2026', recursive: true })).toEqual({
+      rootId: 'root-2',
+      path: 'reports/2026',
+      recursive: true,
+    });
+    expect(ClientFileRootMovePayloadSchema.parse({ rootId: 'root-2', from: 'a.txt', to: 'archive/a.txt', overwrite: false })).toEqual({
+      rootId: 'root-2',
+      from: 'a.txt',
+      to: 'archive/a.txt',
+      overwrite: false,
+    });
+    expect(ClientFileRootCopyPayloadSchema.parse({ rootId: 'root-2', from: 'a.txt', to: 'copy/a.txt', overwrite: true })).toEqual({
+      rootId: 'root-2',
+      from: 'a.txt',
+      to: 'copy/a.txt',
+      overwrite: true,
+    });
+  });
+
+  it('rejects absolute paths, traversal paths, and empty root ids', () => {
     expect(() => ClientFilePathPayloadSchema.parse({ path: '../secret.txt' })).toThrow();
     expect(() => ClientFilePathPayloadSchema.parse({ path: '/etc/passwd' })).toThrow();
     expect(() => ClientFilePathPayloadSchema.parse({ path: 'C:\\Windows\\win.ini' })).toThrow();
+    expect(() => ClientFileRootPayloadSchema.parse({ rootId: '' })).toThrow();
+    expect(() => ClientFileRootPathPayloadSchema.parse({ rootId: 'root-0', path: '../secret.txt' })).toThrow();
   });
 });
