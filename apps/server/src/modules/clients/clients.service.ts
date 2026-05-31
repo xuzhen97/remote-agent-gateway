@@ -1,6 +1,8 @@
 import { getDb } from '../../db/index.js';
 import type { ClientInfo } from '@rag/shared';
 import { connectionManager } from '../connections/connections.manager.js';
+import { frpService } from '../frp/frp.service.js';
+import { tasksService } from '../tasks/tasks.service.js';
 
 export interface ClientRow {
   id: string;
@@ -63,6 +65,24 @@ export class ClientsService {
   setOffline(clientId: string): void {
     const db = getDb();
     db.run('UPDATE clients SET status = ?, updated_at = ? WHERE id = ?', ['offline', Date.now(), clientId]);
+  }
+
+  deleteOfflineClientsOlderThan(cutoffMs: number): number {
+    const db = getDb();
+    db.run('DELETE FROM clients WHERE status = ? AND updated_at < ?', ['offline', cutoffMs]);
+    return db.getRowsModified();
+  }
+
+  deleteClientCascade(clientId: string): {
+    deletedMappings: number;
+    deletedTasks: number;
+    deletedLogs: number;
+  } {
+    const db = getDb();
+    const deletedMappings = frpService.deleteMappingsByClientId(clientId);
+    const { deletedTasks, deletedLogs } = tasksService.deleteTasksByClientId(clientId);
+    db.run('DELETE FROM clients WHERE id = ?', [clientId]);
+    return { deletedMappings, deletedTasks, deletedLogs };
   }
 
   updateHeartbeat(clientId: string, info?: { cpu?: number; memory?: number; uptime?: number }): void {

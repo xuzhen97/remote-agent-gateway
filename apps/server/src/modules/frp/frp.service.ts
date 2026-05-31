@@ -93,6 +93,12 @@ export class FrpService {
     db.run('DELETE FROM port_mappings WHERE id = ?', [mappingId]);
   }
 
+  deleteMappingsByClientId(clientId: string): number {
+    const db = getDb();
+    db.run('DELETE FROM port_mappings WHERE client_id = ?', [clientId]);
+    return db.getRowsModified();
+  }
+
   private getNextAvailablePort(): number {
     const db = getDb();
     const used = new Set<number>();

@@ -115,6 +115,23 @@ export class TasksService {
     return results;
   }
 
+  deleteTasksByClientId(clientId: string): { deletedTasks: number; deletedLogs: number } {
+    const db = getDb();
+
+    db.run(
+      `DELETE FROM task_logs WHERE task_id IN (
+        SELECT id FROM tasks WHERE client_id = ?
+      )`,
+      [clientId],
+    );
+    const deletedLogs = db.getRowsModified();
+
+    db.run('DELETE FROM tasks WHERE client_id = ?', [clientId]);
+    const deletedTasks = db.getRowsModified();
+
+    return { deletedTasks, deletedLogs };
+  }
+
   toApi(task: TaskRow): Record<string, unknown> {
     return {
       id: task.id,
