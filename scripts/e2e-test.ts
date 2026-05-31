@@ -21,7 +21,8 @@ import * as fs from 'node:fs';
 // ── Config ──────────────────────────────────────────────────────────
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const BASE_URL = 'http://localhost:3000';
+const SERVER_PORT = Number(process.env.RAG_E2E_SERVER_PORT ?? '31300');
+const BASE_URL = `http://localhost:${SERVER_PORT}`;
 const TOKEN = 'test_agent_token';
 const CLIENT_ID = 'e2e-test-client';
 
@@ -130,7 +131,7 @@ async function main() {
 
   // Prepare configs
   fs.writeFileSync(path.join(DIST, '.env'), [
-    'SERVER_PORT=3000', RUN_FRP_FILE_TESTS ? 'SERVER_HOST=127.0.0.1' : 'SERVER_HOST=0.0.0.0',
+    `SERVER_PORT=${SERVER_PORT}`, RUN_FRP_FILE_TESTS ? 'SERVER_HOST=127.0.0.1' : 'SERVER_HOST=0.0.0.0',
     'ADMIN_TOKEN=test_admin_token', 'AGENT_API_TOKEN=test_agent_token',
     'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
     RUN_FRP_FILE_TESTS ? 'FRP_MODE=builtin' : 'FRP_MODE=remote', 'FRPS_HOST=', 'FRPS_PORT=7000',
@@ -141,7 +142,7 @@ async function main() {
 
   fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify({
     clientId: CLIENT_ID, clientName: 'E2E Test Machine',
-    serverUrl: 'ws://localhost:3000/ws/client', apiBaseUrl: 'http://localhost:3000',
+    serverUrl: `ws://localhost:${SERVER_PORT}/ws/client`, apiBaseUrl: BASE_URL,
     token: TOKEN, workspaceDir: './workspace', tags: ['test', 'e2e'],
     ...(RUN_FRP_FILE_TESTS ? { frpcPath, frpcWorkDir: './frp' } : {}),
   }));
@@ -322,12 +323,21 @@ async function main() {
       });
       if (write.status !== 200) return false;
 
+      const upload = await api('POST', `${BASE_URL}/api/clients/${CLIENT_ID}/files/upload?path=managed&filename=uploaded.txt`, {
+        body: 'FRP_HTTP_UPLOAD_OK',
+        headers: { 'Content-Type': 'application/octet-stream' },
+      });
+      if (upload.status !== 200) return false;
+
       const list = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files?path=managed`);
       const entries = ((list.body as Record<string, unknown>).entries ?? []) as { name: string }[];
       if (!entries.some((entry) => entry.name === 'frp-http.txt')) return false;
+      if (!entries.some((entry) => entry.name === 'uploaded.txt')) return false;
 
       const read = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?path=managed/frp-http.txt`);
-      return read.status === 200 && String(read.body).includes('FRP_HTTP_FILE_OK');
+      const readUpload = await api('GET', `${BASE_URL}/api/clients/${CLIENT_ID}/files/read?path=managed/uploaded.txt`);
+      return read.status === 200 && String(read.body).includes('FRP_HTTP_FILE_OK')
+        && readUpload.status === 200 && String(readUpload.body).includes('FRP_HTTP_UPLOAD_OK');
     });
 
     await test('Client file move + copy + delete', async () => {

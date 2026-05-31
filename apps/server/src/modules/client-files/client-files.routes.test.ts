@@ -24,9 +24,14 @@ vi.mock('./client-file-sessions.service.js', () => ({
   },
 }));
 
+const { uploadMock } = vi.hoisted(() => ({
+  uploadMock: vi.fn().mockResolvedValue({ path: 'notes/a.txt', size: 11 }),
+}));
+
 vi.mock('./client-file-proxy.service.js', () => ({
   clientFileProxyService: {
     list: vi.fn().mockResolvedValue({ path: '.', entries: [{ name: 'a.txt', path: 'a.txt', type: 'file', size: 3, mtimeMs: 1000 }] }),
+    upload: uploadMock,
   },
 }));
 
@@ -41,5 +46,21 @@ describe('client file routes', () => {
       path: '.',
       entries: [{ name: 'a.txt', path: 'a.txt', type: 'file', size: 3, mtimeMs: 1000 }],
     });
+  });
+
+  it('uploads a browser file body to the selected client path', async () => {
+    const app = Fastify();
+    await app.register(clientFilesRoutes);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/clients/client-1/files/upload?path=notes&filename=a.txt',
+      headers: { 'content-type': 'application/octet-stream' },
+      payload: Buffer.from('hello upload'),
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ path: 'notes/a.txt', size: 11 });
+    expect(uploadMock).toHaveBeenCalledWith(expect.any(Object), 'notes', 'a.txt', Buffer.from('hello upload'));
   });
 });

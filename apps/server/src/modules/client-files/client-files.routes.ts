@@ -31,6 +31,13 @@ async function readRequestBuffer(body: unknown): Promise<Buffer> {
 }
 
 export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
+  app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_request, body, done) => {
+    done(null, body);
+  });
+  app.addContentTypeParser('text/plain', { parseAs: 'buffer' }, (_request, body, done) => {
+    done(null, body);
+  });
+
   app.addHook('preHandler', authMiddleware);
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/file-session/start', async (request) => {
