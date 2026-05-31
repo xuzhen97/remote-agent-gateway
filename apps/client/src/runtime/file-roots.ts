@@ -22,9 +22,10 @@ export function resolveRootPath(roots: ClientFileRoot[], rootId: string, clientP
     throw new Error('Path outside allowed root');
   }
 
-  const resolved = relative ? path.resolve(root.path, relative) : path.resolve(root.path);
   const normalizedRoot = path.resolve(root.path);
-  if (resolved !== normalizedRoot && !resolved.startsWith(normalizedRoot + path.sep)) {
+  const resolved = relative ? path.resolve(normalizedRoot, relative) : normalizedRoot;
+  const rel = path.relative(normalizedRoot, resolved);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error('Path outside allowed root');
   }
   return resolved;
