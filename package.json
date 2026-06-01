@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "tsx scripts/dev.ts",
     "dev:server": "pnpm --filter @rag/server dev",
     "dev:client": "pnpm --filter @rag/client dev",
     "build": "pnpm -r build",

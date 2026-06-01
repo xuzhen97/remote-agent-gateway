@@ -86,7 +86,12 @@ export interface FrpRemoveProxyPayload {
 }
 
 export interface FrpcStartPayload {
-  // empty — just start the frpc daemon
+  /** frps server address (IP or hostname) */
+  serverAddr: string;
+  /** frps bind port (default 7000) */
+  serverPort: number;
+  /** frps auth token */
+  authToken: string;
 }
 
 export interface FrpcStopPayload {

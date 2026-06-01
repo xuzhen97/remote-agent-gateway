@@ -73,7 +73,7 @@ remote-agent-gateway/
 ├── apps/client/              # 客户端 Agent
 │   └── src/
 │       ├── main.ts           # 入口：连接 → 注册 → 心跳 → 等待任务
-│       ├── config/           # config.json 加载
+│       ├── config/           # client.config.yaml 加载与解析
 │       ├── core/             # 连接管理、注册、心跳、任务分发
 │       ├── executors/        # 5 种执行器
 │       │   ├── exec-script.executor.ts    # Node.js/Python/Bash 脚本
@@ -115,16 +115,16 @@ pnpm install
 
 ```bash
 # 1. 配置服务端
-cp .env.example .env
-# 编辑 .env，至少修改 ADMIN_TOKEN 和 AGENT_API_TOKEN
+cp server.config.example.yaml server.config.yaml
+# 编辑 server.config.yaml，至少修改 auth.adminToken 和 auth.agentApiToken
 
 # 2. 启动服务端
 pnpm dev:server
 # → http://localhost:3000
 
 # 3. 配置客户端（另一台机器或本机）
-cp apps/client/config.example.json apps/client/config.json
-# 编辑 config.json，填写 serverUrl 和 token
+cp client.config.example.yaml client.config.yaml
+# 编辑 client.config.yaml，填写 server.wsUrl、server.apiBaseUrl 和 server.token
 
 # 4. 启动客户端
 pnpm dev:client
@@ -188,14 +188,26 @@ pnpm typecheck     # 类型检查
 
 客户端配置示例：
 
-```json
-{
-  "workspaceDir": "./workspace",
-  "allowedRoots": [
-    "./workspace"
-  ],
-  "frpcPath": "./bin/frpc"
-}
+```yaml
+client:
+  id: dev-client-01
+  name: Development Machine
+  tags:
+    - dev
+
+server:
+  wsUrl: ws://localhost:3000/ws/client
+  apiBaseUrl: http://localhost:3000
+  token: test_agent_token
+
+workspace:
+  dir: ./workspace
+  allowedRoots:
+    - ./workspace
+
+frp:
+  binPath: ./bin/frpc
+  workDir: ./frp
 ```
 
 | 方法 | 路径 | 说明 |
@@ -316,8 +328,8 @@ rag-v0.1.0-win.zip / rag-v0.1.0-linux.tar.gz
 ├── server.bundle.cjs      # 服务端（~1.9 MB 原始）
 ├── client.bundle.cjs      # 客户端（~260 KB）
 ├── sql-wasm.wasm          # SQLite 运行时（~644 KB）
-├── .env.example           # 服务端配置模板
-├── config.example.json    # 客户端配置模板
+├── server.config.example.yaml # 服务端配置模板
+├── client.config.example.yaml # 客户端配置模板
 ├── DEPLOY.txt             # 部署说明
 ├── start-server.bat / .sh # 服务端启动脚本
 └── start-client.bat / .sh # 客户端启动脚本
@@ -336,8 +348,8 @@ dist/
 ├── server.bundle.cjs      # 服务端单文件
 ├── client.bundle.cjs      # 客户端单文件
 ├── sql-wasm.wasm          # SQLite WASM
-├── .env.example           # 服务端配置模板
-├── config.example.json    # 客户端配置模板
+├── server.config.example.yaml # 服务端配置模板
+├── client.config.example.yaml # 客户端配置模板
 ├── start-server.bat / .sh # 启动脚本
 └── start-client.bat / .sh # 启动脚本
 ```
@@ -350,8 +362,8 @@ scp -r dist/ user@your-server:/opt/rag/
 
 # 2. 配置
 cd /opt/rag/dist
-cp .env.example .env
-# 编辑 .env：修改 ADMIN_TOKEN、AGENT_API_TOKEN
+cp server.config.example.yaml server.config.yaml
+# 编辑 server.config.yaml：修改 auth.adminToken、auth.agentApiToken
 
 # 3. 确保 Node.js 22+ 已安装
 node --version  # 应 ≥ 22
@@ -377,12 +389,12 @@ pm2 start server.bundle.cjs --name rag-server
 ```bash
 # 1. 将 dist/ 复制到客户端
 # 2. 配置
-cp config.example.json config.json
-# 编辑 config.json：
-#   - serverUrl: "ws://your-server:3000/ws/client"
-#   - apiBaseUrl: "http://your-server:3000"
-#   - token: 与服务端 AGENT_API_TOKEN 一致
-#   - workspaceDir: 工作目录
+cp client.config.example.yaml client.config.yaml
+# 编辑 client.config.yaml：
+#   - server.wsUrl: "ws://your-server:3000/ws/client"
+#   - server.apiBaseUrl: "http://your-server:3000"
+#   - server.token: 与服务端 auth.agentApiToken 一致
+#   - workspace.dir: 工作目录
 
 # 3. 启动
 node client.bundle.cjs
@@ -391,18 +403,27 @@ node client.bundle.cjs
 
 **客户端配置示例：**
 
-```json
-{
-  "clientId": "win-dev-01",
-  "clientName": "Windows Dev Machine",
-  "serverUrl": "ws://your-server.com:3000/ws/client",
-  "apiBaseUrl": "http://your-server.com:3000",
-  "token": "your_agent_token",
-  "workspaceDir": "D:/rag-workspace",
-  "frpcPath": "D:/rag/bin/frpc.exe",
-  "frpcWorkDir": "D:/rag/frp",
-  "tags": ["windows", "dev"]
-}
+```yaml
+client:
+  id: win-dev-01
+  name: Windows Dev Machine
+  tags:
+    - windows
+    - dev
+
+server:
+  wsUrl: ws://your-server.com:3000/ws/client
+  apiBaseUrl: http://your-server.com:3000
+  token: your_agent_token
+
+workspace:
+  dir: D:/rag-workspace
+  allowedRoots:
+    - D:/rag-workspace
+
+frp:
+  binPath: D:/rag/bin/frpc.exe
+  workDir: D:/rag/frp
 ```
 
 ### 容器化部署（可选）
@@ -412,7 +433,7 @@ FROM node:22-alpine
 WORKDIR /app
 COPY dist/server.bundle.cjs .
 COPY dist/sql-wasm.wasm .
-COPY dist/.env.example .env
+COPY dist/server.config.example.yaml server.config.yaml
 EXPOSE 3000
 CMD ["node", "server.bundle.cjs"]
 ```
@@ -542,21 +563,39 @@ pnpm package:linux     # 打包 Linux .tar.gz
 
 ### 部署模式
 
-| 模式 | `.env` 配置 | frps 位置 | 谁管理 |
-|------|------------|-----------|--------|
-| **`builtin`** | `FRP_MODE=builtin` | 与服务端同机 | 服务端自动下载并管理 frps 进程 |
-| **`external`** | `FRP_MODE=external` | 与服务端同机 | 用户手动启动 frps |
-| **`remote`**（默认） | `FRP_MODE=remote` `FRPS_HOST=1.2.3.4` | 独立公网机器 | 用户部署和管理 |
+| 模式 | `server.config.yaml` 配置 | frps 位置 | 谁管理 |
+|------|--------------------------|-----------|--------|
+| **`builtin`** | `frp.mode=builtin` | 与服务端同机 | 服务端自动下载并管理 frps 进程 |
+| **`external`** | `frp.mode=external` | 与服务端同机 | 用户手动启动 frps |
+| **`remote`**（默认） | `frp.mode=remote` | 独立公网机器 | 用户部署和管理 |
 
-```env
-# .env 中的 FRP 配置段
-FRP_MODE=remote              # builtin | external | remote
-FRPS_HOST=your-server-ip      # remote 模式必填
-FRPS_PORT=7000
-FRPS_TOKEN=change_me_token   # 必须与 frps.toml 中一致
-FRP_PORT_RANGE_START=20000
-FRP_PORT_RANGE_END=25000
+```yaml
+frp:
+  mode: remote
+  connectHost: your-server-ip   # client/frpc 实际连接的 frps 地址
+  publicHost: your-server-ip    # 外部用户访问映射时看到的地址；留空时回退到 connectHost
+  port: 7000
+  token: change_me_token        # 必须与 frps.toml 中一致
+  dashboard:
+    scheme: http
+    host: your-server-ip
+    port: 7500
+    user: admin
+    password: change_me_dashboard_password
+  portRange:
+    start: 20000
+    end: 25000
 ```
+
+### 配置语义
+
+- `frp.connectHost`：服务端下发给 client，供 frpc 连接 frps 使用
+- `frp.publicHost`：服务端生成 `publicUrl` 时使用，供人类/外部系统访问映射使用
+- `frp.port`：frps 控制端口
+- `frp.token`：frps token
+- `frp.dashboard.scheme/host/port/user/password`：服务端查询 frps dashboard / API，用于确认代理是否已注册到 frps
+
+`connectHost` 和 `publicHost` 可以相同，但它们不是同一个概念。
 
 ### 快速开始
 
@@ -567,11 +606,12 @@ pnpm download:frp
 
 # 2. 服务端：编辑 frp/frps.toml 修改 auth.token，启动 frps
 ./bin/frps -c frp/frps.toml
-# 或设置 FRP_MODE=builtin 让服务端自动管理
+# 或设置 server.config.yaml 中 frp.mode=builtin 让服务端自动管理
 
-# 3. 客户端 config.json 配置 frpc 路径
-# "frpcPath": "./bin/frpc",
-# "frpcWorkDir": "./frp"
+# 3. 客户端 client.config.yaml 配置 frp 路径
+# frp:
+#   binPath: ./bin/frpc
+#   workDir: ./frp
 
 # 4. 通过 API 创建映射
 curl -X POST http://server:3000/api/agent/open-port \
@@ -581,6 +621,12 @@ curl -X POST http://server:3000/api/agent/open-port \
 
 # 5. 访问公网地址
 curl http://your-server-ip:20000
+# 如果使用 http/https + customDomain，publicUrl 会按协议生成，例如：
+#   http://preview.example.com
+#   https://secure.example.com
+#
+# Web 控制台里的“检查注册”按钮会查询 frps dashboard API，
+# 用于确认代理是否已注册到 frps，而不是判断业务端口是否可访问。
 ```
 
 ### 穿透测试
@@ -594,10 +640,10 @@ pnpm test:frp:verbose
 ### 架构
 
 ```
-外部用户 → frps(公网:20000) → frpc(客户端) → localhost:3000
-            ▲                       ▲
-            │ 独立部署               │ Agent 自动管理
-            │ 或 builtin 模式       │ 一个映射一个进程
+外部用户 → frps(publicHost:remotePort / customDomain) → frpc(客户端) → localhost:3000
+            ▲                                            ▲
+            │ publicHost 用于外部访问                     │ connectHost 用于 frpc 连接 frps
+            │ 独立部署或 builtin 模式                    │ Agent 自动管理
 ```
 
 ### 防火墙要求

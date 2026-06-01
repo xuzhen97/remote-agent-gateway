@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
-import { env } from './config/env.js';
+import { env, envSource } from './config/env.js';
 import { initDb, saveDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { taskRoutes } from './modules/tasks/tasks.routes.js';
@@ -20,6 +20,7 @@ async function main(): Promise<void> {
   // Initialize database
   await initDb();
   console.log('Database initialized');
+  console.log(`Server config: ${envSource.path} (${envSource.format})`);
 
   // FRP mode
   console.log(`FRP mode: ${env.FRP_MODE}`);

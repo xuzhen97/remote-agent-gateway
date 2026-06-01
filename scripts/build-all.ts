@@ -10,10 +10,18 @@ const DIST = path.join(ROOT, 'dist');
 
 fs.mkdirSync(DIST, { recursive: true });
 
-// Clean old builds
+// Clean old builds and stale legacy config artifacts
 for (const f of fs.readdirSync(DIST)) {
-  if (f.endsWith('.js') || f.endsWith('.cjs') || f.endsWith('.map')) {
-    fs.unlinkSync(path.join(DIST, f));
+  if (
+    f.endsWith('.js') ||
+    f.endsWith('.cjs') ||
+    f.endsWith('.map') ||
+    f === '.env' ||
+    f === '.env.example' ||
+    f === 'config.json' ||
+    f === 'config.example.json'
+  ) {
+    fs.rmSync(path.join(DIST, f), { recursive: true, force: true });
   }
 }
 
@@ -57,12 +65,13 @@ if (wasmPath) {
   console.warn('  WARNING: sql-wasm.wasm not found');
 }
 
-// Copy .env.example as template (always overwrite)
-fs.existsSync(path.join(ROOT, '.env.example')) &&
-  fs.copyFileSync(path.join(ROOT, '.env.example'), path.join(DIST, '.env.example'));
-// Copy .env but only if dist doesn't have one yet (preserve user config)
-if (!fs.existsSync(path.join(DIST, '.env')) && fs.existsSync(path.join(ROOT, '.env'))) {
-  fs.copyFileSync(path.join(ROOT, '.env'), path.join(DIST, '.env'));
+// Copy server YAML template (always overwrite example)
+fs.existsSync(path.join(ROOT, 'server.config.example.yaml')) &&
+  fs.copyFileSync(path.join(ROOT, 'server.config.example.yaml'), path.join(DIST, 'server.config.example.yaml'));
+
+// Copy active server config only if dist doesn't already have one
+if (!fs.existsSync(path.join(DIST, 'server.config.yaml')) && fs.existsSync(path.join(ROOT, 'server.config.yaml'))) {
+  fs.copyFileSync(path.join(ROOT, 'server.config.yaml'), path.join(DIST, 'server.config.yaml'));
 }
 
 // Copy web console
@@ -90,8 +99,12 @@ await esbuild.build({
   external: ['systeminformation'],
 });
 
-fs.existsSync(path.join(ROOT, 'apps/client/config.example.json')) &&
-  fs.copyFileSync(path.join(ROOT, 'apps/client/config.example.json'), path.join(DIST, 'config.example.json'));
+fs.existsSync(path.join(ROOT, 'client.config.example.yaml')) &&
+  fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, 'client.config.example.yaml'));
+
+if (!fs.existsSync(path.join(DIST, 'client.config.yaml')) && fs.existsSync(path.join(ROOT, 'client.config.yaml'))) {
+  fs.copyFileSync(path.join(ROOT, 'client.config.yaml'), path.join(DIST, 'client.config.yaml'));
+}
 
 console.log('  client.bundle.js ready');
 
@@ -102,8 +115,8 @@ fs.writeFileSync(path.join(DIST, 'start-server.bat'), [
   '@echo off',
   'title Remote Agent Gateway - Server',
   'echo Starting server...',
-  'if not exist .env copy .env.example .env',
-  'echo Edit .env to configure admin/agent tokens',
+  'if not exist server.config.yaml copy server.config.example.yaml server.config.yaml',
+  'echo Edit server.config.yaml to configure host, tokens and FRP settings',
   'node server.bundle.cjs',
   'pause',
 ].join('\r\n'));
@@ -112,8 +125,8 @@ fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
   '@echo off',
   'title Remote Agent Gateway - Client',
   'echo Starting client agent...',
-  'if not exist config.json copy config.example.json config.json',
-  'echo Edit config.json to configure server URL and token',
+  'if not exist client.config.yaml copy client.config.example.yaml client.config.yaml',
+  'echo Edit client.config.yaml to configure server URLs and token',
   'node client.bundle.cjs',
   'pause',
 ].join('\r\n'));
@@ -121,7 +134,7 @@ fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
 const shServer = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Server..."',
-  '[ ! -f .env ] && cp .env.example .env && echo "Created .env — edit to configure"',
+  '[ ! -f server.config.yaml ] && cp server.config.example.yaml server.config.yaml && echo "Created server.config.yaml — edit to configure"',
   'node server.bundle.cjs',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-server.sh'), shServer);
@@ -130,7 +143,7 @@ fs.chmodSync(path.join(DIST, 'start-server.sh'), 0o755);
 const shClient = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Client..."',
-  '[ ! -f config.json ] && cp config.example.json config.json && echo "Created config.json — edit to configure"',
+  '[ ! -f client.config.yaml ] && cp client.config.example.yaml client.config.yaml && echo "Created client.config.yaml — edit to configure"',
   'node client.bundle.cjs',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-client.sh'), shClient);

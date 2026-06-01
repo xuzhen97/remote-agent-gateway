@@ -11,8 +11,8 @@
  *   6. Clean up (delete mapping, stop server)
  *
  * Prerequisites:
- *   - frps running somewhere (FRPS_HOST configured in .env)
- *   - frpc binary on the client machine (frpcPath in config.json)
+ *   - frps running somewhere (frp.host configured in server.config.yaml)
+ *   - frpc binary on the client machine (frp.binPath in client/server config workflow)
  *   - Server and client already built (pnpm build:dist)
  *
  * Usage:
@@ -24,16 +24,20 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
+import { parse as parseYaml } from 'yaml';
 
 // ── Config ──────────────────────────────────────────────────────────
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const BASE_URL = 'http://localhost:3000';
-const TOKEN = (() => {
-  const env = fs.readFileSync(path.join(ROOT, '.env'), 'utf-8');
-  const match = env.match(/^AGENT_API_TOKEN=(.+)$/m);
-  return match ? match[1].trim() : 'test_agent_token';
-})();
+const serverConfig = parseYaml(fs.readFileSync(path.join(ROOT, 'server.config.yaml'), 'utf-8')) as {
+  auth: { agentApiToken: string };
+  frp: { connectHost: string; publicHost?: string; port: number; token: string; binPath: string };
+};
+const clientConfig = parseYaml(fs.readFileSync(path.join(ROOT, 'client.config.yaml'), 'utf-8')) as {
+  frp?: { binPath?: string };
+};
+const TOKEN = serverConfig.auth.agentApiToken;
 const CLIENT_ID = 'frp-test-client';
 const TEST_PORT = parseInt(process.argv.includes('--port')
   ? process.argv[process.argv.indexOf('--port') + 1]
@@ -41,20 +45,13 @@ const TEST_PORT = parseInt(process.argv.includes('--port')
 const NO_START = process.argv.includes('--no-start');
 const VERBOSE = process.argv.includes('--verbose');
 
-// Read FRP config from .env
-function readEnvVar(name: string): string {
-  const env = fs.readFileSync(path.join(ROOT, '.env'), 'utf-8');
-  const match = env.match(new RegExp(`^${name}=(.+)$`, 'm'));
-  return match ? match[1].trim() : '';
-}
-
-const FRPS_HOST = readEnvVar('FRPS_HOST');
-const FRPS_PORT = parseInt(readEnvVar('FRPS_PORT') || '7000');
-const FRPS_TOKEN = readEnvVar('FRPS_TOKEN');
+const FRPS_HOST = serverConfig.frp.publicHost || serverConfig.frp.connectHost;
+const FRPS_PORT = serverConfig.frp.port;
+const FRPS_TOKEN = serverConfig.frp.token;
 
 if (!FRPS_HOST) {
-  console.error('❌ FRPS_HOST not configured in .env');
-  console.error('   Set FRPS_HOST to your frps server address and try again.');
+  console.error('❌ FRPS_HOST not configured in server.config.yaml');
+  console.error('   Set frp.connectHost/publicHost to your frps server address and try again.');
   process.exit(1);
 }
 
@@ -160,12 +157,10 @@ async function main() {
   }
 
   // ── Prepare configs ───────────────────────────────────────────────
-  // Copy .env to dist
-  const envContent = fs.readFileSync(path.join(ROOT, '.env'), 'utf-8');
-  fs.writeFileSync(path.join(DIST, '.env'), envContent);
+  fs.writeFileSync(path.join(DIST, 'server.config.yaml'), fs.readFileSync(path.join(ROOT, 'server.config.yaml'), 'utf-8'));
 
   // Resolve frpc path (absolute, since client runs from dist/)
-  let frpcPath = readEnvVar('FRPS_BIN_PATH').replace('frps', 'frpc') || './bin/frpc';
+  let frpcPath = clientConfig.frp?.binPath || './bin/frpc';
   if (!path.isAbsolute(frpcPath)) {
     frpcPath = path.resolve(ROOT, frpcPath);
   }
@@ -175,25 +170,40 @@ async function main() {
   }
   if (!fs.existsSync(frpcPath)) {
     console.error(`❌ frpc binary not found at: ${frpcPath}`);
-    console.error('   Run pnpm download:frp or set correct path in .env');
+    console.error('   Run pnpm download:frp or set correct path in server.config.yaml');
     process.exit(1);
   }
   log('📋', `frpc: ${frpcPath}`);
 
   // Write client config
-  fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify({
-    clientId: CLIENT_ID,
-    clientName: 'FRP Test Machine',
-    serverUrl: 'ws://localhost:3000/ws/client',
-    apiBaseUrl: 'http://localhost:3000',
-    token: TOKEN,
-    workspaceDir: './workspace',
-    frpcPath,
-    frpcWorkDir: './frp',
-    tags: ['test', 'frp'],
-  }));
+  fs.writeFileSync(path.join(DIST, 'client.config.yaml'), `
+client:
+  id: ${CLIENT_ID}
+  name: FRP Test Machine
+  tags:
+    - test
+    - frp
+
+server:
+  wsUrl: ws://localhost:3000/ws/client
+  apiBaseUrl: http://localhost:3000
+  token: ${TOKEN}
+
+workspace:
+  dir: ./workspace
+  allowedRoots:
+    - ./workspace
+
+frp:
+  binPath: ${frpcPath}
+  workDir: ./frp
+`.trim() + '\n');
 
   // Clean old DB
+  fs.rmSync(path.join(DIST, 'config.json'), { force: true });
+  fs.rmSync(path.join(DIST, 'config.example.json'), { force: true });
+  fs.rmSync(path.join(DIST, '.env'), { force: true });
+  fs.rmSync(path.join(DIST, '.env.example'), { force: true });
   try { fs.unlinkSync(path.join(DIST, 'db.sqlite')); } catch { /* ok */ }
 
   // ── Start server + client ─────────────────────────────────────────

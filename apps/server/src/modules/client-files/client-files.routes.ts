@@ -58,7 +58,7 @@ export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/file-session/stop', async (request) => {
-    const session = clientFileSessionsService.stopSession(request.params.clientId);
+    const session = await clientFileSessionsService.stopSession(request.params.clientId);
     return { stopped: Boolean(session) };
   });
 

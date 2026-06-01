@@ -33,7 +33,10 @@ export class FrpService {
 
     // Auto-assign remote port if not specified
     const remotePort = params.remotePort ?? this.getNextAvailablePort();
-    const publicUrl = buildFrpPublicUrl(remotePort);
+    const publicUrl = buildFrpPublicUrl(remotePort, {
+      proxyType: params.proxyType as 'tcp' | 'http' | 'https',
+      customDomain: params.customDomain,
+    });
 
     db.run(
       `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, custom_domain, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'inactive', ?, ?, ?)`,

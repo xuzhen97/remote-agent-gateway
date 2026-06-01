@@ -50,6 +50,12 @@ export const FrpRemoveProxyPayloadSchema = z.object({
   mappingId: z.string().min(1),
 });
 
+export const FrpcStartPayloadSchema = z.object({
+  serverAddr: z.string().min(1),
+  serverPort: z.number().int().min(1).max(65535),
+  authToken: z.string().min(1),
+});
+
 export const HealthCheckPayloadSchema = z.object({});
 
 const RelativeClientPathSchema = z.string().min(1).max(2048).refine((value) => {

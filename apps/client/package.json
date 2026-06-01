@@ -20,7 +20,8 @@
     "pino-pretty": "^13.0.0",
     "execa": "^9.5.0",
     "fs-extra": "^11.3.0",
-    "systeminformation": "^5.25.0"
+    "systeminformation": "^5.25.0",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",

@@ -1,11 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { frpService, getFrpsConnectionInfo } from './frp.service.js';
+import { env } from '../../config/env.js';
 import { CreatePortMappingPayloadSchema } from '@rag/shared';
 import { authMiddleware } from '../auth/auth.middleware.js';
 import { auditService } from '../audit/audit.service.js';
 import { connectionManager } from '../connections/connections.manager.js';
 import { tasksService } from '../tasks/tasks.service.js';
 import { clientsService } from '../clients/clients.service.js';
+import { probeHttpTarget, probeTcpTarget } from './frp-probe.service.js';
+import { checkFrpsProxyRegistration } from './frps-dashboard.service.js';
 
 export async function frpRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', authMiddleware);
@@ -84,6 +87,36 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
     const query = request.query as { clientId?: string };
     const mappings = frpService.listMappings(query.clientId);
     return reply.send(mappings.map((m) => frpService.toApi(m)));
+  });
+
+  app.post<{ Params: { mappingId: string } }>('/api/port-mappings/:mappingId/check-registration', async (request, reply) => {
+    const mapping = frpService.getMapping(request.params.mappingId);
+    if (!mapping) {
+      return reply.code(404).send({ error: 'Port mapping not found' });
+    }
+
+    const apiMapping = frpService.toApi(mapping) as {
+      name: string;
+      proxyType: 'tcp' | 'http' | 'https';
+      remotePort?: number | null;
+    };
+
+    const result = await checkFrpsProxyRegistration({
+      dashboard: {
+        scheme: env.FRPS_DASHBOARD_SCHEME,
+        host: env.FRPS_DASHBOARD_HOST,
+        port: env.FRPS_DASHBOARD_PORT,
+        user: env.FRPS_DASHBOARD_USER,
+        password: env.FRPS_DASHBOARD_PASSWORD,
+      },
+      mapping: {
+        name: apiMapping.name,
+        proxyType: apiMapping.proxyType,
+        remotePort: apiMapping.remotePort,
+      },
+    });
+
+    return reply.send(result);
   });
 
   // Delete port mapping

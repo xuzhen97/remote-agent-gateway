@@ -1,0 +1,19 @@
+client:
+  id: dev-client-01
+  name: Development Machine
+  tags:
+    - dev
+
+server:
+  wsUrl: ws://localhost:3000/ws/client
+  apiBaseUrl: http://localhost:3000
+  token: test_agent_token
+
+workspace:
+  dir: ./workspace
+  allowedRoots:
+    - ./workspace
+
+frp:
+  binPath: ./bin/frpc
+  workDir: ./frp

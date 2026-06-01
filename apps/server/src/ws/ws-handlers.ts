@@ -36,19 +36,25 @@ export function handleWsMessage(ws: WebSocket, rawData: string): void {
         detail: `Client ${info.name} registered`,
       });
 
-      // Send FRP config so client knows where frps is
-      const frpsInfo = getFrpsConnectionInfo();
+      const ackPayload: Record<string, unknown> = {
+        message: `Registered as ${info.clientId}`,
+      };
+
+      try {
+        const frpsInfo = getFrpsConnectionInfo();
+        ackPayload.frp = {
+          serverAddr: frpsInfo.serverAddr,
+          serverPort: frpsInfo.serverPort,
+          authToken: frpsInfo.authToken,
+        };
+      } catch (err) {
+        console.warn('Skipping FRP registration payload:', err instanceof Error ? err.message : err);
+      }
+
       ws.send(JSON.stringify({
         type: 'server.ack',
         requestId: message.requestId,
-        payload: {
-          message: `Registered as ${info.clientId}`,
-          frp: {
-            serverAddr: frpsInfo.serverAddr,
-            serverPort: frpsInfo.serverPort,
-            authToken: frpsInfo.authToken,
-          },
-        },
+        payload: ackPayload,
       }));
       break;
     }

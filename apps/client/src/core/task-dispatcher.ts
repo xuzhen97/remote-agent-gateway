@@ -7,6 +7,7 @@ import type {
   FrpCreateProxyPayload,
   FrpRemoveProxyPayload,
   FileServiceStartPayload,
+  FrpcStartPayload,
 } from '@rag/shared';
 import { executeScript } from '../executors/exec-script.executor.js';
 import { executeCommand } from '../executors/exec-command.executor.js';
@@ -16,7 +17,7 @@ import { executeFrpRemove } from '../executors/frp-remove.executor.js';
 import { executeFileServiceStart } from '../executors/file-service-start.executor.js';
 import { executeFileServiceStop } from '../executors/file-service-stop.executor.js';
 import { executeFileServiceStatus } from '../executors/file-service-status.executor.js';
-import { startFrpcDaemon, stopFrpcDaemon } from '../runtime/frpc-daemon.js';
+import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from '../runtime/frpc-daemon.js';
 
 export async function dispatchTask(
   conn: ConnectionManager,
@@ -62,10 +63,17 @@ export async function dispatchTask(
         result = await executeFrpRemove(conn, config, taskId, payload as FrpRemoveProxyPayload);
         break;
 
-      case 'frpc_start':
+      case 'frpc_start': {
+        const frpInfo = payload as FrpcStartPayload;
+        setFrpsInfo({
+          serverAddr: frpInfo.serverAddr,
+          serverPort: frpInfo.serverPort,
+          authToken: frpInfo.authToken,
+        });
         startFrpcDaemon(config);
         result = { started: true };
         break;
+      }
 
       case 'frpc_stop':
         stopFrpcDaemon();

@@ -4,6 +4,7 @@ import { authMiddleware } from '../auth/auth.middleware.js';
 import { tasksService } from '../tasks/tasks.service.js';
 import { connectionManager } from '../connections/connections.manager.js';
 import { auditService } from '../audit/audit.service.js';
+import { getFrpsConnectionInfo } from '../frp/frp.service.js';
 
 export async function clientRoutes(app: FastifyInstance): Promise<void> {
   // All client routes require auth
@@ -30,16 +31,23 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Client is offline' });
     }
 
+    const frpsInfo = getFrpsConnectionInfo();
+    const payload = {
+      serverAddr: frpsInfo.serverAddr,
+      serverPort: frpsInfo.serverPort,
+      authToken: frpsInfo.authToken,
+    };
+
     const task = tasksService.createTask({
       clientId: request.params.clientId,
       type: 'frpc_start',
-      payload: {},
+      payload,
     });
 
     connectionManager.sendToClient(request.params.clientId, {
       type: 'task.dispatch',
       requestId: task.id,
-      payload: { taskId: task.id, taskType: 'frpc_start', payload: {} },
+      payload: { taskId: task.id, taskType: 'frpc_start', payload },
     });
 
     return reply.send({ status: 'dispatched', taskId: task.id });

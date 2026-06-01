@@ -1,95 +1,69 @@
-import { z } from 'zod';
-import { config } from 'dotenv';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { loadServerConfig } from './server.config.js';
 
-// Find .env by walking up from CWD or the source file directory.
-// Handles monorepo CWD issues (pnpm --filter changes CWD to app dir).
-function findEnvFile(): string | null {
-  // Try exact file path resolution first (works in bundled dist mode)
-  const bundledPath = path.join(process.cwd(), '.env');
-  if (fs.existsSync(bundledPath)) return bundledPath;
+const serverConfig = loadServerConfig();
 
-  // Walk up from CWD (works when CWD is the project root)
-  let dir = process.cwd();
-  for (let i = 0; i < 8; i++) {
-    const envPath = path.join(dir, '.env');
-    if (fs.existsSync(envPath)) return envPath;
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+export const env = {
+  SERVER_PORT: serverConfig.server.port,
+  SERVER_HOST: serverConfig.server.host,
+  ADMIN_TOKEN: serverConfig.auth.adminToken,
+  AGENT_API_TOKEN: serverConfig.auth.agentApiToken,
+  DB_PATH: serverConfig.storage.dbPath,
+  STORAGE_DIR: serverConfig.storage.filesDir,
+  FRP_MODE: serverConfig.frp.mode,
+  FRPS_HOST: serverConfig.frp.connectHost,
+  FRPS_PUBLIC_HOST: serverConfig.frp.publicHost,
+  FRPS_PORT: serverConfig.frp.port,
+  FRPS_TOKEN: serverConfig.frp.token,
+  FRPS_DASHBOARD_SCHEME: serverConfig.frp.dashboard.scheme,
+  FRPS_DASHBOARD_HOST: serverConfig.frp.dashboard.host || serverConfig.frp.connectHost,
+  FRPS_DASHBOARD_PORT: serverConfig.frp.dashboard.port,
+  FRPS_DASHBOARD_USER: serverConfig.frp.dashboard.user,
+  FRPS_DASHBOARD_PASSWORD: serverConfig.frp.dashboard.password,
+  FRPS_BIN_PATH: serverConfig.frp.binPath,
+  FRP_PORT_RANGE_START: serverConfig.frp.portRange.start,
+  FRP_PORT_RANGE_END: serverConfig.frp.portRange.end,
+} as const;
+
+export type FrpEnvLike = Pick<typeof env, 'FRP_MODE' | 'FRPS_HOST' | 'FRPS_PUBLIC_HOST' | 'SERVER_HOST'>;
+
+export type Env = typeof env;
+export const envSource = serverConfig.source;
+
+export function resolveFrpsHostForEnv(value: FrpEnvLike): string {
+  if (!value.FRPS_HOST) {
+    throw new Error('FRPS_HOST is required');
+  }
+  return value.FRPS_HOST;
+}
+
+export function buildFrpPublicUrlForEnv(
+  value: FrpEnvLike,
+  remotePort: number,
+  options?: { proxyType?: 'tcp' | 'http' | 'https'; customDomain?: string },
+): string {
+  if (options?.customDomain) {
+    if (options.proxyType === 'https') return `https://${options.customDomain}`;
+    if (options.proxyType === 'http') return `http://${options.customDomain}`;
+    return options.customDomain;
   }
 
-  // Try walking up from this source file's location
-  try {
-    const srcDir = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:\/)/, '$1'));
-    let d = srcDir;
-    for (let i = 0; i < 8; i++) {
-      const envPath = path.join(d, '.env');
-      if (fs.existsSync(envPath)) return envPath;
-      const p = path.dirname(d);
-      if (p === d) break;
-      d = p;
-    }
-  } catch { /* ignore */ }
-
-  return null;
-}
-
-const envFile = findEnvFile();
-if (envFile) {
-  config({ path: envFile });
-} else {
-  config(); // fallback: try CWD
-}
-
-const envSchema = z.object({
-  // Server
-  SERVER_PORT: z.coerce.number().int().positive().default(3000),
-  SERVER_HOST: z.string().default('0.0.0.0'),
-  ADMIN_TOKEN: z.string().min(1),
-  AGENT_API_TOKEN: z.string().min(1),
-
-  // Database
-  DB_PATH: z.string().default('./storage/db.sqlite'),
-  STORAGE_DIR: z.string().default('./storage/files'),
-
-  // FRP
-  FRP_MODE: z.enum(['builtin', 'external', 'remote']).default('remote'),
-  FRPS_HOST: z.string().default(''),
-  FRPS_PORT: z.coerce.number().int().default(7000),
-  FRPS_TOKEN: z.string().default('change_me_frp_token'),
-  FRPS_DASHBOARD_PORT: z.coerce.number().int().default(7500),
-  FRP_PORT_RANGE_START: z.coerce.number().int().default(20000),
-  FRP_PORT_RANGE_END: z.coerce.number().int().default(25000),
-
-  // Binaries (for builtin frps)
-  FRPS_BIN_PATH: z.string().default('./bin/frps'),
-});
-
-export const env = envSchema.parse(process.env);
-export type Env = z.infer<typeof envSchema>;
-
-/**
- * Resolve the frps address that clients should connect to.
- *
- * - builtin/external: frps runs on the same host as the server → SERVER_HOST
- * - remote: frps is on a separate machine → FRPS_HOST
- */
-export function resolveFrpsHost(): string {
-  if (env.FRP_MODE === 'remote') {
-    if (!env.FRPS_HOST) {
-      throw new Error('FRPS_HOST is required when FRP_MODE=remote');
-    }
-    return env.FRPS_HOST;
+  const host = value.FRPS_PUBLIC_HOST || value.FRPS_HOST;
+  if (!host) {
+    throw new Error('FRPS_PUBLIC_HOST or FRPS_HOST is required');
   }
-  // builtin/external: frps on same machine
-  // Return SERVER_HOST unless it's 0.0.0.0 (then fall back to localhost for frpc)
-  return env.SERVER_HOST === '0.0.0.0' ? '127.0.0.1' : env.SERVER_HOST;
-}
 
-/** Human-readable public URL for port mappings */
-export function buildFrpPublicUrl(remotePort: number): string {
-  const host = env.FRP_MODE === 'remote' ? env.FRPS_HOST : env.SERVER_HOST;
+  if (options?.proxyType === 'https') return `https://${host}:${remotePort}`;
+  if (options?.proxyType === 'http') return `http://${host}:${remotePort}`;
   return `${host}:${remotePort}`;
+}
+
+export function resolveFrpsHost(): string {
+  return resolveFrpsHostForEnv(env);
+}
+
+export function buildFrpPublicUrl(
+  remotePort: number,
+  options?: { proxyType?: 'tcp' | 'http' | 'https'; customDomain?: string },
+): string {
+  return buildFrpPublicUrlForEnv(env, remotePort, options);
 }

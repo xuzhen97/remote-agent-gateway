@@ -43,7 +43,7 @@ pnpm test:e2e:verbose
 test:e2e
   │
   ├─ 1. 确保 dist/ 已构建（如无则自动 build:dist）
-  ├─ 2. 写入测试用 .env 和 config.json
+  ├─ 2. 写入测试用 `server.config.yaml` 和 `client.config.yaml`
   ├─ 3. 清理旧 db.sqlite
   ├─ 4. 启动 server.bundle.cjs（后台进程）
   ├─ 5. 轮询 /api/health 直到就绪
@@ -83,10 +83,10 @@ RAG_E2E_FRP_FILE_TESTS=1 pnpm test:e2e
 pnpm build:dist
 
 # 2. 启动服务端（终端 1）
-cd dist && node server.bundle.cjs
+cd dist && cp server.config.example.yaml server.config.yaml && node server.bundle.cjs
 
 # 3. 启动客户端（终端 2）
-cd dist && node client.bundle.cjs
+cd dist && cp client.config.example.yaml client.config.yaml && node client.bundle.cjs
 
 # 4. 手动测试（终端 3）
 curl -s http://localhost:3000/api/health
@@ -127,7 +127,7 @@ await test('你的测试名称', async () => {
 | 症状 | 可能原因 | 解决 |
 |------|----------|------|
 | `Timeout waiting: server startup` | E2E 端口被占用 | 设置 `RAG_E2E_SERVER_PORT`，或释放默认端口 `31300` |
-| `Client failed to register` | config.json 中 token 与 .env 不匹配 | 检查 ADMIN_TOKEN、AGENT_API_TOKEN |
-| `404 Client not found` | clientId 与注册时不一致 | 确认 `CLIENT_ID` 常量与 config.json 一致 |
+| `Client failed to register` | `client.config.yaml` 中 `server.token` 配置错误，或与服务端 `server.config.yaml` 中 `auth.agentApiToken` 不一致 | 检查 `auth.agentApiToken` 与 `server.token` |
+| `404 Client not found` | `client.id` 与注册时不一致 | 确认 `CLIENT_ID` 常量与 `client.config.yaml` 一致 |
 | `401 Missing authorization` | Token 传递失败 | 检查 `api()` 函数的 headers 逻辑 |
 | 文件上传失败 | multipart/form-data 格式问题 | 确保 FormData 正确设置 filename |

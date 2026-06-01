@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto';
 import { tasksService as defaultTasksService } from '../tasks/tasks.service.js';
 import { connectionManager as defaultConnectionManager } from '../connections/connections.manager.js';
 import { frpService as defaultFrpService, getFrpsConnectionInfo } from '../frp/frp.service.js';
+import { checkFrpsProxyRegistration } from '../frp/frps-dashboard.service.js';
+import { env } from '../../config/env.js';
 
 export interface ClientFileSession {
   clientId: string;
@@ -43,11 +45,16 @@ export class ClientFileSessionsService {
 
   async startSession(clientId: string, ttlMs = 30 * 60 * 1000): Promise<ClientFileSession> {
     const existing = this.getSession(clientId);
-    if (existing) return existing;
+    if (existing) {
+      const healthy = await this.isSessionHealthy(existing);
+      if (healthy) return existing;
+      this.sessions.delete(clientId);
+    }
 
     await this.removeExistingFileServiceMappings(clientId);
 
     const token = `file_${randomBytes(24).toString('hex')}`;
+    const mappingName = this.buildFileServiceName(clientId, token);
     const payload = { port: 0, token, ttlMs };
     const startTask = this.deps.tasksService.createTask({
       clientId,
@@ -71,7 +78,7 @@ export class ClientFileSessionsService {
     const result = await this.waitForStartResult(startTask.id);
     const mapping = this.deps.frpService.createMapping({
       clientId,
-      name: `file-service-${clientId}`,
+      name: mappingName,
       proxyType: 'tcp',
       localIp: '127.0.0.1',
       localPort: result.port,
@@ -80,7 +87,7 @@ export class ClientFileSessionsService {
     const frpsInfo = getFrpsConnectionInfo();
     const frpPayload = {
       mappingId: mapping.id,
-      name: `file-service-${clientId}`,
+      name: mappingName,
       proxyType: 'tcp',
       localIp: '127.0.0.1',
       localPort: result.port,
@@ -126,16 +133,79 @@ export class ClientFileSessionsService {
     return session;
   }
 
-  stopSession(clientId: string): ClientFileSession | undefined {
+  async stopSession(clientId: string): Promise<ClientFileSession | undefined> {
     const session = this.sessions.get(clientId);
+    if (!session) return undefined;
+
+    const removeTask = this.deps.tasksService.createTask({
+      clientId,
+      type: 'frp_remove_proxy',
+      payload: { mappingId: session.mappingId },
+      createdBy: 'server:file-session',
+    });
+
+    const removeDispatched = this.deps.connectionManager.sendToClient(clientId, {
+      type: 'task.dispatch',
+      requestId: removeTask.id,
+      payload: {
+        taskId: removeTask.id,
+        taskType: 'frp_remove_proxy',
+        payload: { mappingId: session.mappingId },
+      },
+    });
+
+    if (removeDispatched) {
+      await this.waitForTaskSuccess(removeTask.id, 'File session FRP removal');
+    }
+    this.deps.frpService.deleteMapping(session.mappingId);
+
+    const stopTask = this.deps.tasksService.createTask({
+      clientId,
+      type: 'file_service_stop',
+      payload: {},
+      createdBy: 'server:file-session',
+    });
+
+    const stopDispatched = this.deps.connectionManager.sendToClient(clientId, {
+      type: 'task.dispatch',
+      requestId: stopTask.id,
+      payload: {
+        taskId: stopTask.id,
+        taskType: 'file_service_stop',
+        payload: {},
+      },
+    });
+
+    if (stopDispatched) {
+      await this.waitForTaskSuccess(stopTask.id, 'File session service stop');
+    }
+
     this.sessions.delete(clientId);
     return session;
   }
 
+  private async isSessionHealthy(session: ClientFileSession): Promise<boolean> {
+    try {
+      const response = await fetch(`${session.publicUrl}/v1/roots`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      if (!response.ok) {
+        console.warn(`[file-session] health check failed for ${session.clientId}: HTTP ${response.status}`);
+      }
+      return response.ok;
+    } catch (err) {
+      console.warn(`[file-session] health check failed for ${session.clientId}:`, err instanceof Error ? err.message : err);
+      return false;
+    }
+  }
+
   private async removeExistingFileServiceMappings(clientId: string): Promise<void> {
     const mappings = this.deps.frpService.listMappings(clientId)
-      .filter((mapping) => mapping.name === `file-service-${clientId}`);
+      .filter((mapping) => mapping.name?.startsWith(`file-service-${clientId}`));
 
+    if (mappings.length === 0) return;
+
+    const removeTasks: Array<{ id: string; mappingId: string }> = [];
     for (const mapping of mappings) {
       const removeTask = this.deps.tasksService.createTask({
         clientId,
@@ -155,10 +225,60 @@ export class ClientFileSessionsService {
       });
 
       if (dispatched) {
-        await this.waitForTaskSuccess(removeTask.id, 'Old file service mapping removal');
+        removeTasks.push({ id: removeTask.id, mappingId: mapping.id });
+      } else {
+        this.deps.frpService.deleteMapping(mapping.id);
       }
-      this.deps.frpService.deleteMapping(mapping.id);
     }
+
+    for (const task of removeTasks) {
+      await this.waitForTaskSuccess(task.id, 'Old file service mapping removal');
+    }
+
+    const representative = mappings[0];
+    try {
+      await this.waitForProxyUnregistered({
+        name: representative.name,
+        proxyType: representative.proxy_type as 'tcp' | 'http' | 'https',
+        remotePort: representative.remote_port,
+      });
+
+      for (const mapping of mappings) {
+        this.deps.frpService.deleteMapping(mapping.id);
+      }
+    } catch (err) {
+      console.warn(`[file-session] old proxy release not confirmed for ${clientId}; continuing with a fresh mapping:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  private buildFileServiceName(clientId: string, token: string): string {
+    return `file-service-${clientId}-${token.slice(-8)}`;
+  }
+
+  private async waitForProxyUnregistered(mapping: { name: string; proxyType: 'tcp' | 'http' | 'https'; remotePort?: number | null }): Promise<void> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < 30_000) {
+      const result = await checkFrpsProxyRegistration({
+        dashboard: {
+          scheme: env.FRPS_DASHBOARD_SCHEME,
+          host: env.FRPS_DASHBOARD_HOST,
+          port: env.FRPS_DASHBOARD_PORT,
+          user: env.FRPS_DASHBOARD_USER,
+          password: env.FRPS_DASHBOARD_PASSWORD,
+        },
+        mapping,
+      });
+
+      if (!result.dashboardReachable) {
+        throw new Error(`Cannot confirm proxy removal from frps: ${result.detail ?? result.reason}`);
+      }
+      if (!result.registered) {
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`Timed out waiting for frps to release proxy ${mapping.name}`);
   }
 
   private toHttpUrl(publicUrl: string): string {

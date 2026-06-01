@@ -17,6 +17,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  console.log(`Client config: ${config.source?.path ?? 'unknown'} (${config.source?.format ?? 'unknown'})`);
+
   console.log(`Client ID: ${config.clientId}`);
   console.log(`Server: ${config.serverUrl}`);
 
@@ -40,9 +42,6 @@ async function main(): Promise<void> {
           const frp = ackPayload.frp as { serverAddr: string; serverPort: number; authToken: string };
           console.log(`frps config received: ${frp.serverAddr}:${frp.serverPort}`);
           setFrpsInfo({ serverAddr: frp.serverAddr, serverPort: frp.serverPort, authToken: frp.authToken });
-          // Auto-start frpc daemon now that we know where frps is
-          console.log(`Starting frpc daemon...`);
-          startFrpcDaemon(config);
         }
         break;
       }

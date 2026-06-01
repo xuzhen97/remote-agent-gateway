@@ -1,0 +1,28 @@
+server:
+  host: 0.0.0.0
+  port: 3000
+
+auth:
+  adminToken: change_me_admin_token
+  agentApiToken: change_me_agent_token
+
+storage:
+  dbPath: ./storage/db.sqlite
+  filesDir: ./storage/files
+
+frp:
+  mode: remote
+  connectHost: ""
+  publicHost: ""
+  port: 7000
+  token: change_me_frp_token
+  dashboard:
+    scheme: http
+    host: ""
+    port: 7500
+    user: admin
+    password: change_me_dashboard_password
+  binPath: ./bin/frps
+  portRange:
+    start: 20000
+    end: 25000

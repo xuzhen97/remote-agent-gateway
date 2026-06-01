@@ -144,24 +144,59 @@ async function main() {
   }
 
   // Prepare configs
-  fs.writeFileSync(path.join(DIST, '.env'), [
-    `SERVER_PORT=${SERVER_PORT}`, RUN_FRP_FILE_TESTS ? 'SERVER_HOST=127.0.0.1' : 'SERVER_HOST=0.0.0.0',
-    'ADMIN_TOKEN=test_admin_token', 'AGENT_API_TOKEN=test_agent_token',
-    'DB_PATH=./db.sqlite', 'STORAGE_DIR=./files',
-    RUN_FRP_FILE_TESTS ? 'FRP_MODE=builtin' : 'FRP_MODE=remote', 'FRPS_HOST=', `FRPS_PORT=${FRPS_PORT}`,
-    'FRPS_TOKEN=test_frp_token', `FRPS_DASHBOARD_PORT=${FRPS_DASHBOARD_PORT}`,
-    `FRPS_BIN_PATH=${frpsPath}`,
-    `FRP_PORT_RANGE_START=${FRP_PORT_RANGE_START}`, `FRP_PORT_RANGE_END=${FRP_PORT_RANGE_END}`, 
-  ].join('\n'));
+  fs.writeFileSync(path.join(DIST, 'server.config.yaml'), `
+server:
+  host: ${RUN_FRP_FILE_TESTS ? '127.0.0.1' : '0.0.0.0'}
+  port: ${SERVER_PORT}
 
-  fs.writeFileSync(path.join(DIST, 'config.json'), JSON.stringify({
-    clientId: CLIENT_ID, clientName: 'E2E Test Machine',
-    serverUrl: `ws://localhost:${SERVER_PORT}/ws/client`, apiBaseUrl: BASE_URL,
-    token: TOKEN, workspaceDir: './workspace', tags: ['test', 'e2e'],
-    ...(RUN_FRP_FILE_TESTS ? { frpcPath, frpcWorkDir: './frp' } : {}),
-  }));
+auth:
+  adminToken: test_admin_token
+  agentApiToken: test_agent_token
+
+storage:
+  dbPath: ./db.sqlite
+  filesDir: ./files
+
+frp:
+  mode: ${RUN_FRP_FILE_TESTS ? 'builtin' : 'remote'}
+  connectHost: 127.0.0.1
+  publicHost: 127.0.0.1
+  port: ${FRPS_PORT}
+  token: test_frp_token
+  dashboardPort: ${FRPS_DASHBOARD_PORT}
+  binPath: ${frpsPath}
+  portRange:
+    start: ${FRP_PORT_RANGE_START}
+    end: ${FRP_PORT_RANGE_END}
+`.trim() + '\n');
+
+  fs.writeFileSync(path.join(DIST, 'client.config.yaml'), `
+client:
+  id: ${CLIENT_ID}
+  name: E2E Test Machine
+  tags:
+    - test
+    - e2e
+
+server:
+  wsUrl: ws://localhost:${SERVER_PORT}/ws/client
+  apiBaseUrl: ${BASE_URL}
+  token: ${TOKEN}
+
+workspace:
+  dir: ./workspace
+  allowedRoots:
+    - ./workspace
+
+frp:
+${RUN_FRP_FILE_TESTS ? `  binPath: ${frpcPath}\n  workDir: ./frp` : '  {}'}
+`.trim() + '\n');
 
   // Clean runtime state
+  fs.rmSync(path.join(DIST, 'config.json'), { force: true });
+  fs.rmSync(path.join(DIST, 'config.example.json'), { force: true });
+  fs.rmSync(path.join(DIST, '.env'), { force: true });
+  fs.rmSync(path.join(DIST, '.env.example'), { force: true });
   try { fs.unlinkSync(path.join(DIST, 'db.sqlite')); } catch { /* ok */ }
   fs.rmSync(path.join(DIST, 'frp'), { recursive: true, force: true });
   fs.rmSync(path.join(DIST, 'workspace'), { recursive: true, force: true });
