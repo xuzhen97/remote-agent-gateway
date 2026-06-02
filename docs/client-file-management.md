@@ -175,6 +175,66 @@ sequenceDiagram
 
 ---
 
+## 文件上传流程：直连 vs 代理
+
+### 直连上传（推荐，不占 server 带宽）
+
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent / Browser
+    participant Server as Server API
+    participant FRP as FRP Tunnel
+    participant Client as Client File Service
+
+    Agent->>Server: POST /file-session/start
+    Server-->>Agent: session with publicUrl + token
+
+    Note over Agent,Client: File data goes DIRECTLY via FRP, server not involved
+
+    Agent->>FRP: POST {publicUrl}/v1/upload with Bearer token + file body
+    FRP->>Client: Forward upload request
+    Client-->>FRP: 200 OK with file info
+    FRP-->>Agent: 200 OK
+```
+
+### 代理上传（备选，走 server 中转）
+
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Server as Server API
+    participant FRP as FRP Tunnel
+    participant Client as Client File Service
+
+    Agent->>Server: POST /files/upload with file body
+    Server->>Server: Buffer entire file in memory
+    Server->>FRP: POST {publicUrl}/v1/upload with Bearer token
+    FRP->>Client: Forward upload request
+    Client-->>FRP: 200 OK
+    FRP-->>Server: 200 OK
+    Server-->>Agent: 200 OK
+
+    Note over Agent,Server: File data passes through server, consuming bandwidth and memory
+```
+
+### 获取直连 URL（便捷接口）
+
+```mermaid
+sequenceDiagram
+    participant Agent as AI Agent
+    participant Server as Server API
+
+    Agent->>Server: POST /files/upload-url?rootId=root-0&path=.&filename=app.tar.gz
+    Server-->>Agent: { url, method, headers, rootId, path, filename }
+
+    Note over Agent: Agent now has the direct URL and auth headers
+    Note over Agent: Can upload directly to FRP tunnel
+
+    Agent->>Agent: Use url + headers to upload file directly
+```
+
+---
+
 ## `read` 与 `download` 的区别
 
 | 接口 | 路径 | 前端行为 | 实现差异 |
@@ -351,6 +411,88 @@ interface ClientFileSession {
 | 文件位置 | server 本地 `storage/files/` | client 本地磁盘 |
 | 传输方式 | 直接从 server 磁盘读取 | 经 FRP 隧道从 client 拉取 |
 | 权限控制 | server token | server token + fileToken + allowedRoots |
-| 文件上传 | multipart 上传到 server | 经 FRP 隧道上传到 client |
+| 文件上传 | multipart 上传到 server | **直连上传（推荐）** 或 代理上传（备选） |
 | 移动/复制 | 不支持 | 支持 |
 | 首次访问延迟 | 无（本地磁盘） | **预创建 < 100ms，按需 ~2-5 秒** |
+
+---
+
+## API 参考
+
+### 会话管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/clients/:clientId/file-session/start` | 创建或复用文件会话，返回 `{ publicUrl, token, ... }` |
+| GET | `/api/clients/:clientId/file-session` | 获取当前会话（不存在返回 404） |
+| POST | `/api/clients/:clientId/file-session/stop` | 停止文件会话 |
+
+### 直连操作（推荐，不占 server 带宽）
+
+AI Agent 和前端应**优先使用直连方式**操作文件，避免大文件数据经过 server 中转。
+
+#### 流程
+
+1. 调用 `POST /api/clients/:clientId/file-session/start` 获取 `publicUrl` 和 `token`
+2. 直接向 `{publicUrl}/v1/*` 发送请求，附带 `Authorization: Bearer {token}` 头
+
+#### 直连端点
+
+| 方法 | 直连 URL | 说明 |
+|------|----------|------|
+| GET | `{publicUrl}/v1/roots` | 列出可浏览根目录 |
+| GET | `{publicUrl}/v1/list?rootId=...&path=...` | 列出目录内容 |
+| GET | `{publicUrl}/v1/read?rootId=...&path=...` | 读取文件内容 |
+| GET | `{publicUrl}/v1/download?rootId=...&path=...` | 下载文件（带 Content-Disposition） |
+| PUT | `{publicUrl}/v1/write?rootId=...&path=...` | 写入文件内容 |
+| POST | `{publicUrl}/v1/upload?rootId=...&path=...&filename=...` | 上传文件 |
+| POST | `{publicUrl}/v1/mkdir` | 创建目录 |
+| DELETE | `{publicUrl}/v1/delete?rootId=...&path=...&recursive=true` | 删除文件/目录 |
+| POST | `{publicUrl}/v1/move` | 移动/重命名 |
+| POST | `{publicUrl}/v1/copy` | 复制 |
+
+### 获取直连 URL 的 API（便捷接口）
+
+为不方便直接拼接 URL 的调用方，server 提供了获取直连上传/写入 URL 的接口：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/clients/:clientId/files/upload-url?rootId=...&path=...&filename=...` | 返回直连上传 URL + 认证信息 |
+| POST | `/api/clients/:clientId/files/write-url?rootId=...&path=...` | 返回直连写入 URL + 认证信息 |
+
+响应示例（`upload-url`）：
+
+```json
+{
+  "url": "http://frps.example.com:23001/v1/upload?rootId=root-0&path=.&filename=test.txt",
+  "method": "POST",
+  "headers": {
+    "Authorization": "Bearer file_xxx",
+    "Content-Type": "application/octet-stream"
+  },
+  "rootId": "root-0",
+  "path": ".",
+  "filename": "test.txt"
+}
+```
+
+调用方拿到 `url` 和 `headers` 后，直接 `POST` 文件内容到该 URL 即可完成上传，**文件数据不经过 server**。
+
+### 代理操作（备选，走 server 中转）
+
+适用于调用方无法直连 FRP 公网地址的场景（如 server 与 client 不在同一网络）。
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/clients/:clientId/files/roots` | 列出根目录（代理） |
+| GET | `/api/clients/:clientId/files?rootId=...&path=...` | 列出目录内容（代理） |
+| GET | `/api/clients/:clientId/files/read?rootId=...&path=...` | 读取文件（代理） |
+| GET | `/api/clients/:clientId/files/download?rootId=...&path=...` | 下载文件（代理） |
+| PUT | `/api/clients/:clientId/files/write?rootId=...&path=...` | 写入文件（代理） |
+| POST | `/api/clients/:clientId/files/upload?rootId=...&path=...&filename=...` | 上传文件（代理） |
+| POST | `/api/clients/:clientId/files/mkdir` | 创建目录（代理） |
+| DELETE | `/api/clients/:clientId/files?rootId=...&path=...&recursive=...` | 删除（代理） |
+| POST | `/api/clients/:clientId/files/move` | 移动/重命名（代理） |
+| POST | `/api/clients/:clientId/files/copy` | 复制（代理） |
+
+> **注意**：代理端点会将文件数据在 server 内存中转一次，大文件建议使用直连方式。

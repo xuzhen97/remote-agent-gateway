@@ -7,14 +7,12 @@ import {
   ClientFileDeletePayloadSchema,
   ClientFileMkdirPayloadSchema,
   ClientFileMovePayloadSchema,
-  ClientFilePathPayloadSchema,
   ClientFileRootDeletePayloadSchema,
   ClientFileRootMkdirPayloadSchema,
   ClientFileRootPathPayloadSchema,
   ClientFileRootPayloadSchema,
   ClientFileRootMovePayloadSchema,
   ClientFileRootCopyPayloadSchema,
-  ClientFileWriteQuerySchema,
 } from '@rag/shared';
 
 async function getSession(clientId: string) {
@@ -94,18 +92,57 @@ export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(Buffer.from(await response.arrayBuffer()));
   });
 
-  app.put<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/write', async (request) => {
-    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path });
-    const buffer = await readRequestBuffer(request.body);
-    return clientFileProxyService.write(await getSession(request.params.clientId), payload.rootId, payload.path, buffer);
+  // Direct upload URL endpoint: returns the direct FRP tunnel URL + token so the caller
+  // can upload directly to the client without proxying through the server.
+  // This avoids consuming server bandwidth for large file transfers.
+  app.post<{ Params: { clientId: string }; Querystring: { rootId?: string; path?: string; filename?: string } }>('/api/clients/:clientId/files/upload-url', async (request, reply) => {
+    if (!request.query.filename) return reply.code(400).send({ error: 'filename is required' });
+    const session = await getSession(request.params.clientId);
+    const rootId = request.query.rootId ?? 'root-0';
+    const path = request.query.path ?? '.';
+    const uploadPath = `/v1/upload?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}&filename=${encodeURIComponent(request.query.filename)}`;
+    return {
+      url: `${session.publicUrl}${uploadPath}`,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/octet-stream' },
+      rootId,
+      path,
+      filename: request.query.filename,
+    };
   });
 
+  // Direct write URL endpoint: returns the direct FRP tunnel URL + token so the caller
+  // can write file content directly to the client without proxying through the server.
+  app.post<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/write-url', async (request, reply) => {
+    if (!request.query.path) return reply.code(400).send({ error: 'path is required' });
+    const session = await getSession(request.params.clientId);
+    const rootId = request.query.rootId ?? 'root-0';
+    const writePath = `/v1/write?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(request.query.path)}`;
+    return {
+      url: `${session.publicUrl}${writePath}`,
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/octet-stream' },
+      rootId,
+      path: request.query.path,
+    };
+  });
+
+  // Proxied upload endpoint: for callers that cannot reach the FRP tunnel directly.
+  // Prefer /upload-url for large files to avoid consuming server bandwidth.
   app.post<{ Params: { clientId: string }; Querystring: { rootId?: string; path?: string; filename?: string } }>('/api/clients/:clientId/files/upload', async (request, reply) => {
     const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path ?? '.' });
     const filename = request.query.filename;
     if (!filename) return reply.code(400).send({ error: 'filename is required' });
     const buffer = await readRequestBuffer(request.body);
     return clientFileProxyService.upload(await getSession(request.params.clientId), payload.rootId, payload.path, filename, buffer);
+  });
+
+  // Proxied write endpoint: for callers that cannot reach the FRP tunnel directly.
+  // Prefer /write-url for large content to avoid consuming server bandwidth.
+  app.put<{ Params: { clientId: string }; Querystring: { rootId?: string; path: string } }>('/api/clients/:clientId/files/write', async (request) => {
+    const payload = ClientFileRootPathPayloadSchema.parse({ rootId: request.query.rootId, path: request.query.path });
+    const buffer = await readRequestBuffer(request.body);
+    return clientFileProxyService.write(await getSession(request.params.clientId), payload.rootId, payload.path, buffer);
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/files/mkdir', async (request) => {
