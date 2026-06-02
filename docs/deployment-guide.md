@@ -60,8 +60,8 @@
 |------|------|------|
 | Node.js | ≥ 22 | Server 和 Client 运行环境 |
 | pnpm | ≥ 10 | 包管理器（也可用 npm） |
-| frps | v0.61+ | FRP 服务端，部署在 Server 所在机器 |
-| frpc | v0.61+ | FRP 客户端，部署在 Client 所在机器 |
+| frps | v0.69+ | FRP 服务端，部署在 Server 所在机器 |
+| frpc | v0.69+ | FRP 客户端，部署在 Client 所在机器 |
 
 ---
 
@@ -75,11 +75,11 @@ FRP 是整个系统的隧道层，用于让 AI Agent 直接访问客户端本地
 
 ```bash
 # 下载 frp（以 linux/amd64 为例）
-wget https://github.com/fatedier/frp/releases/download/v0.61.0/frp_0.61.0_linux_amd64.tar.gz
-tar xzf frp_0.61.0_linux_amd64.tar.gz
+wget https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_linux_amd64.tar.gz
+tar xzf frp_0.69.1_linux_amd64.tar.gz
 
 # 复制 frps 到项目 bin 目录
-cp frp_0.61.0_linux_amd64/frps /path/to/remote-agent-gateway/bin/frps
+cp frp_0.69.1_linux_amd64/frps /path/to/remote-agent-gateway/bin/frps
 ```
 
 也可用项目内置脚本：
@@ -278,7 +278,7 @@ frp:
 pnpm download:frp
 
 # 或者手动下载
-# Linux: wget https://github.com/fatedier/frp/releases/download/v0.61.0/frp_0.61.0_linux_amd64.tar.gz
+# Linux: wget https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_linux_amd64.tar.gz
 # 解压后复制 frpc 到 bin/ 目录
 ```
 
