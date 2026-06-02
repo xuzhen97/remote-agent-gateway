@@ -105,6 +105,7 @@ dist/
 ├── sql-wasm.wasm            # SQLite 运行时
 ├── server.config.example.yaml
 ├── client.config.example.yaml
+├── ecosystem.config.cjs     # PM2 进程管理配置 ⭐
 ├── start-server.sh / .bat   # Server 启动脚本
 ├── start-client.sh / .bat   # Client 启动脚本
 ├── download-frp.sh / .bat   # FRP 自动下载脚本 ⭐
@@ -200,6 +201,33 @@ set FRP_MIRROR=https://ghfast.top/ && download-frp.bat
 > FRP 直链下载地址：`https://github.com/fatedier/frp/releases/tag/v0.69.1`
 
 ### 4. 配置并启动
+
+#### 方式 A：PM2（推荐生产环境）
+
+```bash
+# 1. 安装 PM2
+npm install -g pm2
+
+# 2. 配置（首次）
+cp server.config.example.yaml server.config.yaml
+vim server.config.yaml
+
+# 如果也运行 client：
+cp client.config.example.yaml client.config.yaml
+vim client.config.yaml
+
+# 3. 下载 FRP
+./download-frp.sh
+
+# 4. 启动
+pm2 start ecosystem.config.cjs
+
+# 5. 确认运行
+pm2 status
+pm2 logs --lines 20
+```
+
+#### 方式 B：直接启动（开发/调试）
 
 **Server：**
 
@@ -673,15 +701,66 @@ export RAG_AGENT_TOKEN="your_secure_agent_token"
 
 ### 进程守护
 
+#### PM2（推荐，Server + Client）
+
+dist/ 目录内置了 `ecosystem.config.cjs`，一键管理所有进程：
+
 ```bash
-# Server — 使用 pm2
-pm2 start apps/server/dist/main.js --name rag-server
+# 安装 PM2
+npm install -g pm2
 
-# Client — 使用 pm2
-pm2 start apps/client/dist/main.js --name rag-client
+# 启动全部（server + client）
+pm2 start ecosystem.config.cjs
 
-# frps — 使用 systemd
-# 创建 /etc/systemd/system/frps.service
+# 仅启动 server
+pm2 start ecosystem.config.cjs --only rag-server
+
+# 仅启动 client
+pm2 start ecosystem.config.cjs --only rag-client
+
+# 查看状态
+pm2 status
+
+# 查看日志
+pm2 logs                # 全部
+pm2 logs rag-server     # 仅 server
+pm2 logs rag-client     # 仅 client
+
+# 实时监控
+pm2 monit
+
+# 重启
+pm2 restart all
+
+# 停止
+pm2 stop all
+
+# 设置开机自启
+pm2 save
+pm2 startup              # 按提示复制粘贴命令
+```
+
+#### ecosystem.config.cjs 配置说明
+
+| 配置项 | Server | Client | 说明 |
+|--------|--------|--------|------|
+| 内存上限 | 500M | 300M | 超限自动重启 |
+| 日志位置 | `logs/server-*.log` | `logs/client-*.log` | 自动轮转 |
+| 重启策略 | 崩溃自动重启 | 崩溃自动重启 | — |
+| 环境变量 | `RAG_SERVER_CONFIG` | `RAG_CLIENT_CONFIG` | 指定配置文件路径 |
+
+日志默认输出到 `logs/` 目录。可通过环境变量自定义：
+
+```bash
+PM2_LOG_DIR=/var/log/rag pm2 start ecosystem.config.cjs
+```
+
+#### systemd（frps）
+
+frps 建议用 systemd 守护：
+
+```ini
+# /etc/systemd/system/frps.service
 [Unit]
 Description=FRP Server
 After=network.target
@@ -693,6 +772,13 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable frps
+sudo systemctl start frps
+sudo systemctl status frps
 ```
 
 ### 数据备份
@@ -748,6 +834,26 @@ WantedBy=multi-user.target
 
 ### 如何升级？
 
+**打包部署：**
+
+```bash
+# 1. 在开发机重新构建
+pnpm build:dist
+pnpm package
+
+# 2. 上传并解压到服务器
+scp release/rag-server-*.tar.gz user@server:/opt/rag/
+ssh user@server
+cd /opt/rag
+tar xzf rag-server-*.tar.gz -C dist/  # 替换 bundle 文件
+
+# 3. 重启
+pm2 restart all
+pm2 logs --lines 20
+```
+
+**源码部署：**
+
 ```bash
 # 拉取最新代码
 git pull
@@ -759,5 +865,5 @@ pnpm install
 pnpm build
 
 # 重启服务
-# pm2 restart rag-server rag-client
+pm2 restart all
 ```

@@ -328,6 +328,13 @@ const batFrp = [
 ].join('\r\n');
 fs.writeFileSync(path.join(DIST, 'download-frp.bat'), batFrp);
 
+// ── PM2 ecosystem ───────────────────────────────────────────────────
+const ecosystemSrc = path.join(ROOT, 'ecosystem.config.cjs');
+if (fs.existsSync(ecosystemSrc)) {
+  fs.copyFileSync(ecosystemSrc, path.join(DIST, 'ecosystem.config.cjs'));
+  console.log('  Copied ecosystem.config.cjs');
+}
+
 // ── Summary ─────────────────────────────────────────────────────────
 const files = fs.readdirSync(DIST).filter((f) => !f.endsWith('.map'));
 console.log('\n=== Build complete ===');
@@ -338,7 +345,10 @@ for (const f of files.sort()) {
   console.log(`  ${f.padEnd(24)} ${kb.padStart(6)} KB`);
 }
 console.log('\nTo distribute: zip dist/ folder and extract on target machine.');
-console.log('Requirements: Node.js 22+');
+console.log('Requirements: Node.js 22+, pm2 (optional)');
 console.log('');
-console.log('  Server:  node server.bundle.cjs  (from dist/)');
-console.log('  Client:  node client.bundle.cjs  (from dist/)');
+console.log('  Quick start:');
+console.log('    pm2 start ecosystem.config.cjs');
+console.log('  Or without pm2:');
+console.log('    Server:  node server.bundle.cjs  (from dist/)');
+console.log('    Client:  node client.bundle.cjs  (from dist/)');
