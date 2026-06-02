@@ -142,7 +142,8 @@ dist/ 目录内置了 FRP 自动下载脚本，运行即可：
 ./download-frp.sh /opt/frp
 ```
 
-脚本会自动检测当前平台（Linux/macOS）和架构（amd64/arm64），从 GitHub Releases 下载 v0.69.1 版本的 FRP 并解压到 `bin/` 目录。
+脚本会自动检测当前平台和架构，**默认通过国内加速镜像下载** v0.69.1 版本的 FRP。
+如果所有镜像失败，会自动回退到 GitHub 直连。
 
 **Windows:**
 
@@ -160,31 +161,31 @@ ls -la bin/frp*
 # 应看到: frps, frpc
 ```
 
-### GitHub 加速（解决国内网络问题）
+### 网络选项
 
-如果服务器在国内或无法直连 GitHub，使用镜像加速：
-
-**Linux/macOS:**
+**默认使用国内加速镜像**，无需额外配置。如需调整：
 
 ```bash
-# 方式 1：使用 --mirror 自动尝试多个加速地址
-./download-frp.sh --mirror
-
-# 方式 2：指定自定义镜像
-FRP_MIRROR=https://ghfast.top/ ./download-frp.sh
-
-# 方式 3：通过环境变量永久设置
-export FRP_MIRROR=https://ghfast.top/
+# 默认（镜像模式，适合国内服务器）
 ./download-frp.sh
+
+# 直连 GitHub（海外服务器或镜像不可用时）
+./download-frp.sh --direct
+
+# 自定义镜像地址
+FRP_MIRROR=https://ghfast.top/ ./download-frp.sh
 ```
 
 **Windows:**
 
 ```cmd
-REM 方式 1：使用 --mirror
-download-frp.bat --mirror
+REM 默认（镜像模式）
+download-frp.bat
 
-REM 方式 2：指定自定义镜像
+REM 直连 GitHub
+download-frp.bat --direct
+
+REM 自定义镜像
 set FRP_MIRROR=https://ghfast.top/ && download-frp.bat
 ```
 

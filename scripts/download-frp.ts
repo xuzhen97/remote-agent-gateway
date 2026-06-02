@@ -6,8 +6,8 @@
  * and extracts frps + frpc to ./bin/
  *
  * Usage:
- *   tsx scripts/download-frp.ts              # direct GitHub
- *   tsx scripts/download-frp.ts --mirror     # use built-in mirrors
+ *   tsx scripts/download-frp.ts              # mirror mode (default)
+ *   tsx scripts/download-frp.ts --direct     # GitHub directly
  *   FRP_MIRROR=https://ghfast.top/ tsx scripts/download-frp.ts
  */
 
@@ -19,7 +19,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 const BIN = path.join(ROOT, 'bin');
 const FRP_VERSION = '0.69.1';
 
-const useMirror = process.argv.includes('--mirror') || !!process.env.FRP_MIRROR;
+const useDirect = process.argv.includes('--direct');
 const customMirror = process.env.FRP_MIRROR;
 const MIRRORS = customMirror
   ? [customMirror]
@@ -58,8 +58,15 @@ function tryDownload(url: string): boolean {
 
 let downloaded = false;
 
-if (useMirror) {
-  // Mirror mode: try each mirror
+if (useDirect) {
+  // Direct mode: GitHub only
+  if (!tryDownload(rawUrl)) {
+    console.error('GitHub direct download failed. Try without --direct to use mirrors.');
+  } else {
+    downloaded = true;
+  }
+} else {
+  // Default: mirror mode — try mirrors first, fallback to direct
   for (const mirror of MIRRORS) {
     if (tryDownload(mirror + rawUrl)) {
       downloaded = true;
@@ -67,15 +74,11 @@ if (useMirror) {
     }
     console.log(`Mirror ${mirror} failed, trying next...`);
   }
-} else {
-  // Direct mode
-  if (!tryDownload(rawUrl)) {
-    console.error('Direct download failed. Retry with --mirror:');
-    console.error('  tsx scripts/download-frp.ts --mirror');
-    console.error('Or specify a custom mirror:');
-    console.error('  FRP_MIRROR=https://your-mirror/ tsx scripts/download-frp.ts');
-  } else {
-    downloaded = true;
+  if (!downloaded) {
+    console.log('All mirrors failed. Falling back to GitHub direct...');
+    if (tryDownload(rawUrl)) {
+      downloaded = true;
+    }
   }
 }
 
