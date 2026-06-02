@@ -88,6 +88,12 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
       }
 
       const { taskId, stream, content } = parsed.data;
+      const task = tasksService.getTask(taskId);
+      if (!task) {
+        console.warn(`[task.log] ignored log for deleted or missing task ${taskId}`);
+        break;
+      }
+
       tasksService.addLog(taskId, stream, content);
       break;
     }

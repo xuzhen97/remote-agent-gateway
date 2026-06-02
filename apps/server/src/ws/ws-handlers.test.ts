@@ -80,4 +80,30 @@ describe('ws handlers auto mapping lifecycle', () => {
     expect(setOfflineMock).toHaveBeenCalledWith('client-1');
     expect(autoOfflineMock).toHaveBeenCalledWith('client-1');
   });
+
+  it('ignores task.log messages for tasks that were already deleted', async () => {
+    const { tasksService } = await import('../modules/tasks/tasks.service.js');
+    const addLogMock = vi.mocked(tasksService.addLog);
+    const getTaskMock = vi.mocked(tasksService.getTask);
+
+    addLogMock.mockReset();
+    getTaskMock.mockReset();
+    getTaskMock.mockReturnValue(undefined);
+
+    const ws = { send: wsSendMock } as never;
+
+    await handleWsMessage(ws, JSON.stringify({
+      type: 'task.log',
+      requestId: 'log_1',
+      payload: {
+        taskId: 'task_deleted',
+        stream: 'stdout',
+        content: 'still running on client',
+      },
+    }));
+
+    expect(getTaskMock).toHaveBeenCalledWith('task_deleted');
+    expect(addLogMock).not.toHaveBeenCalled();
+    expect(wsSendMock).not.toHaveBeenCalledWith(expect.stringContaining('server.error'));
+  });
 });
