@@ -149,6 +149,81 @@ const shClient = [
 fs.writeFileSync(path.join(DIST, 'start-client.sh'), shClient);
 fs.chmodSync(path.join(DIST, 'start-client.sh'), 0o755);
 
+// ── FRP Download Scripts ────────────────────────────────────────────
+const FRP_VERSION = '0.69.1';
+
+// Linux/macOS: download-frp.sh
+const shFrp = [
+  '#!/bin/bash',
+  'set -e',
+  `FRP_VERSION="${FRP_VERSION}"`,
+  'BIN_DIR="${1:-./bin}"',
+  '',
+  'case "$(uname -s)" in',
+  '  Linux)  PLATFORM="linux";;',
+  '  Darwin) PLATFORM="darwin";;',
+  '  *)      echo "Unsupported platform: $(uname -s)"; exit 1;;',
+  'esac',
+  '',
+  'ARCH="$(uname -m)"',
+  'if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; fi',
+  'if [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; fi',
+  '',
+  'FILE="frp_${FRP_VERSION}_${PLATFORM}_${ARCH}.tar.gz"',
+  'URL="https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/${FILE}"',
+  '',
+  'echo "Platform: ${PLATFORM} ${ARCH}"',
+  'echo "Downloading: ${URL}"',
+  '',
+  'mkdir -p "$BIN_DIR"',
+  'curl -L -o "${BIN_DIR}/${FILE}" "${URL}"',
+  'tar -xzf "${BIN_DIR}/${FILE}" -C "${BIN_DIR}"',
+  'rm "${BIN_DIR}/${FILE}"',
+  '',
+  '# Move binaries out of subfolder',
+  'SUBDIR="${BIN_DIR}/frp_${FRP_VERSION}_${PLATFORM}_${ARCH}"',
+  'if [ -d "$SUBDIR" ]; then',
+  '  cp "$SUBDIR"/* "$BIN_DIR/"',
+  '  rm -rf "$SUBDIR"',
+  'fi',
+  '',
+  'chmod +x "$BIN_DIR"/frp*',
+  'echo "Done! FRP binaries in $BIN_DIR/:"',
+  'ls -la "$BIN_DIR"/frp*',
+].join('\n');
+fs.writeFileSync(path.join(DIST, 'download-frp.sh'), shFrp);
+fs.chmodSync(path.join(DIST, 'download-frp.sh'), 0o755);
+
+// Windows: download-frp.bat
+const batFrp = [
+  '@echo off',
+  'setlocal enabledelayedexpansion',
+  `set FRP_VERSION=${FRP_VERSION}`,
+  'set BIN_DIR=%~1',
+  'if "%BIN_DIR%"=="" set BIN_DIR=.\\bin',
+  '',
+  'set FILE=frp_%FRP_VERSION%_windows_amd64.zip',
+  'set URL=https://github.com/fatedier/frp/releases/download/v%FRP_VERSION%/%FILE%',
+  '',
+  'echo Downloading: %URL%',
+  '',
+  'mkdir "%BIN_DIR%" 2>nul',
+  'powershell -Command "Invoke-WebRequest -Uri '%URL%' -OutFile '%BIN_DIR%\\%FILE%'"',
+  'powershell -Command "Expand-Archive -Path '%BIN_DIR%\\%FILE%' -DestinationPath '%BIN_DIR%' -Force"',
+  'del "%BIN_DIR%\\%FILE%"',
+  '',
+  ':: Move binaries out of subfolder',
+  'set SUBDIR=%BIN_DIR%\\frp_%FRP_VERSION%_windows_amd64',
+  'if exist "%SUBDIR%" (',
+  '  copy "%SUBDIR%\\*" "%BIN_DIR%\\" >nul',
+  '  rmdir /s /q "%SUBDIR%"',
+  ')',
+  '',
+  'echo Done! FRP binaries in %BIN_DIR%:',
+  'dir "%BIN_DIR%\\frp*"',
+].join('\r\n');
+fs.writeFileSync(path.join(DIST, 'download-frp.bat'), batFrp);
+
 // ── Summary ─────────────────────────────────────────────────────────
 const files = fs.readdirSync(DIST).filter((f) => !f.endsWith('.map'));
 console.log('\n=== Build complete ===');

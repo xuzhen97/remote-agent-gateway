@@ -14,7 +14,7 @@ import { execSync } from 'node:child_process';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const BIN = path.join(ROOT, 'bin');
-const FRP_VERSION = '0.61.1';
+const FRP_VERSION = '0.69.1';
 
 const platform = process.platform;
 const arch = process.arch === 'x64' ? 'amd64' : process.arch;

@@ -65,6 +65,163 @@
 
 ---
 
+## 部署方式选择
+
+两种部署方式可选：
+
+| 方式 | 适用场景 | 内容 |
+|------|---------|------|
+| **打包部署（推荐）** | 生产环境、分发到多台机器 | 构建 dist/ → 打包 → 上传到服务器 → 自动下载 FRP → 启动 |
+| **源码部署** | 开发环境、需要修改源码 | git clone → pnpm install → 配置 yaml → 启动 |
+
+下面先讲打包部署（推荐生产使用），源码方式留在后面各组件独立部署章节。
+
+---
+
+## 打包部署（推荐）
+
+### 1. 在开发机上构建
+
+```bash
+# 安装依赖
+pnpm install
+
+# 构建 dist/ 目录（包含 server + client 打包文件 + 启动脚本 + FRP 下载脚本）
+pnpm build:dist
+
+# 打包为发布包（自动包含 FRP 下载脚本）
+pnpm package          # 当前平台
+pnpm package:linux    # Linux 专用
+pnpm package:win      # Windows 专用
+pnpm package:all      # 全平台
+```
+
+构建后的 `dist/` 目录内容：
+
+```
+dist/
+├── server.bundle.cjs        # Server 单文件可执行
+├── client.bundle.cjs        # Client 单文件可执行
+├── sql-wasm.wasm            # SQLite 运行时
+├── server.config.example.yaml
+├── client.config.example.yaml
+├── start-server.sh / .bat   # Server 启动脚本
+├── start-client.sh / .bat   # Client 启动脚本
+├── download-frp.sh / .bat   # FRP 自动下载脚本 ⭐
+└── web/                     # 管理控制台
+```
+
+打包后的发布包在 `release/` 目录，如 `rag-server-v0.1.0-linux.tar.gz`。
+
+### 2. 部署到服务器
+
+```bash
+# 在目标服务器上
+# 上传发布包（以 Linux Server 为例）
+scp release/rag-server-v0.1.0-linux.tar.gz user@your-server:/opt/
+
+# SSH 到服务器
+ssh user@your-server
+cd /opt
+tar xzf rag-server-v0.1.0-linux.tar.gz
+cd dist
+```
+
+### 3. 自动下载安装 FRP
+
+dist/ 目录内置了 FRP 自动下载脚本，运行即可：
+
+**Linux/macOS:**
+
+```bash
+# 下载 frps + frpc 到 ./bin/ 目录
+./download-frp.sh
+
+# 或者指定输出目录
+./download-frp.sh /opt/frp
+```
+
+脚本会自动检测当前平台（Linux/macOS）和架构（amd64/arm64），从 GitHub Releases 下载 v0.69.1 版本的 FRP 并解压到 `bin/` 目录。
+
+**Windows:**
+
+```cmd
+download-frp.bat
+
+REM 或指定目录
+download-frp.bat D:\frp
+```
+
+下载完成后确认：
+
+```bash
+ls -la bin/frp*
+# 应看到: frps, frpc
+```
+
+> **网络受限环境？** 如果服务器无法访问 GitHub，可以先在能上网的机器下载对应平台的 FRP release，然后手动复制 `frps` / `frpc` 到服务器的 `bin/` 目录。
+>
+> 下载地址：https://github.com/fatedier/frp/releases/tag/v0.69.1
+
+### 4. 配置并启动
+
+**Server：**
+
+```bash
+# 首次启动自动从 example 创建配置文件
+./start-server.sh
+
+# 或者手动创建配置
+cp server.config.example.yaml server.config.yaml
+vim server.config.yaml  # 修改 host, tokens, FRP 连接信息
+./start-server.sh
+```
+
+**Client：**
+
+```bash
+# 同样，先下载 FRP
+./download-frp.sh
+
+# 首次启动自动创建配置
+./start-client.sh
+
+# 或手动配置
+cp client.config.example.yaml client.config.yaml
+vim client.config.yaml  # 修改 server URL, token, workspace
+./start-client.sh
+```
+
+### 5. 快速验证
+
+```bash
+# 访问管理控制台
+curl http://<server-host>:3000
+
+# 检查客户端连接状态
+curl -H "Authorization: Bearer <adminToken>" \
+  http://<server-host>:3000/api/clients
+```
+
+---
+
+## 源码部署（开发/自定义场景）
+
+以下各章节按组件拆分，适用于需要修改源码或分步部署的场景。
+
+### FRP 下载（源码方式）
+
+在源码项目中：
+
+```bash
+# 项目内置脚本（自动检测平台）
+pnpm download:frp
+```
+
+手动下载（用于打包部署或无 pnpm 环境）：
+
+---
+
 ## FRP 公网穿透服务部署
 
 FRP 是整个系统的隧道层，用于让 AI Agent 直接访问客户端本地的文件服务和端口映射。
@@ -131,7 +288,7 @@ allowPorts = [
 
 ---
 
-## Server 部署
+## Server 部署（源码方式）
 
 ### 1. 获取代码
 
@@ -216,7 +373,7 @@ curl -H "Authorization: Bearer your_secure_admin_token" \
 
 ---
 
-## Client 部署
+## Client 部署（源码方式）
 
 ### 1. 准备
 
