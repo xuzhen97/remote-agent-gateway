@@ -25,6 +25,7 @@ describe('FileHttpAutoMappingProvider', () => {
     };
 
     const connectionManager = { sendToClient: vi.fn().mockReturnValue(true) };
+    const sessionsService = { registerPreCreatedSession: vi.fn() };
     const frpService = {
       createMapping: vi.fn().mockResolvedValue({
         id: 'pm-auto',
@@ -41,12 +42,14 @@ describe('FileHttpAutoMappingProvider', () => {
         updated_at: 1000,
       }),
       deleteMapping: vi.fn(),
+      toApi: vi.fn((m: Record<string, unknown>) => ({ id: m.id, publicUrl: m.public_url, name: m.name, proxyType: m.proxy_type, remotePort: m.remote_port })),
     };
 
     const provider = new FileHttpAutoMappingProvider({
       tasksService: tasksService as never,
       connectionManager: connectionManager as never,
       frpService: frpService as never,
+      sessionsService: sessionsService as never,
       getFrpsConnectionInfo: () => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' }),
       waitForTask: async (taskId: string) => tasksService.getTask(taskId),
     });
@@ -75,6 +78,14 @@ describe('FileHttpAutoMappingProvider', () => {
       name: 'auto-file-http-client-1',
       proxyType: 'http',
     });
+
+    // Should register the pre-created file session
+    expect(sessionsService.registerPreCreatedSession).toHaveBeenCalledWith(expect.objectContaining({
+      clientId: 'client-1',
+      mappingId: 'pm-auto',
+      publicUrl: 'http://frps.example.com:23001',
+      localPort: 45123,
+    }));
   });
 
   it('cleans up cleanup_pending mappings before creating a new one', async () => {
@@ -98,6 +109,7 @@ describe('FileHttpAutoMappingProvider', () => {
       })),
     };
     const connectionManager = { sendToClient: vi.fn().mockReturnValue(true) };
+    const sessionsService = { registerPreCreatedSession: vi.fn() };
     const frpService = {
       createMapping: vi.fn().mockResolvedValue({
         id: 'pm-auto',
@@ -114,12 +126,14 @@ describe('FileHttpAutoMappingProvider', () => {
         updated_at: 1000,
       }),
       deleteMapping: vi.fn(),
+      toApi: vi.fn((m: Record<string, unknown>) => ({ id: m.id, publicUrl: m.public_url, name: m.name, proxyType: m.proxy_type, remotePort: m.remote_port })),
     };
 
     const provider = new FileHttpAutoMappingProvider({
       tasksService: tasksService as never,
       connectionManager: connectionManager as never,
       frpService: frpService as never,
+      sessionsService: sessionsService as never,
       getFrpsConnectionInfo: () => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' }),
       waitForTask: async (taskId: string) => tasksService.getTask(taskId),
     });

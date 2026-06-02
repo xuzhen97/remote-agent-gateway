@@ -2,13 +2,15 @@ import { randomBytes } from 'node:crypto';
 import { getDb } from '../../../db/index.js';
 import { tasksService as defaultTasksService } from '../../tasks/tasks.service.js';
 import { connectionManager as defaultConnectionManager } from '../../connections/connections.manager.js';
-import { frpService as defaultFrpService, getFrpsConnectionInfo as defaultGetFrpsConnectionInfo } from '../../frp/frp.service.js';
+import { frpService as defaultFrpService, getFrpsConnectionInfo as defaultGetFrpsConnectionInfo, type FrpService } from '../../frp/frp.service.js';
+import { clientFileSessionsService as defaultSessionsService, type ClientFileSessionsService } from '../../client-files/client-file-sessions.service.js';
 
 interface FileHttpProviderDeps {
   tasksService: typeof defaultTasksService;
   connectionManager: typeof defaultConnectionManager;
   frpService: typeof defaultFrpService;
   getFrpsConnectionInfo: typeof defaultGetFrpsConnectionInfo;
+  sessionsService?: ClientFileSessionsService;
   waitForTask?: (taskId: string, label: string) => Promise<{ id: string; status: string; result?: string | null; error?: string | null }>;
 }
 
@@ -23,6 +25,7 @@ export class FileHttpAutoMappingProvider {
       connectionManager: deps?.connectionManager ?? defaultConnectionManager,
       frpService: deps?.frpService ?? defaultFrpService,
       getFrpsConnectionInfo: deps?.getFrpsConnectionInfo ?? defaultGetFrpsConnectionInfo,
+      sessionsService: deps?.sessionsService ?? defaultSessionsService,
       waitForTask: deps?.waitForTask,
     } as FileHttpProviderDeps;
   }
@@ -86,6 +89,21 @@ export class FileHttpAutoMappingProvider {
     if (!frpDispatched) throw new Error(`Client ${clientId} went offline before FRP create`);
 
     await this.waitForTaskSuccess(frpTask.id, 'Auto file FRP create');
+
+    // Register the pre-created file session so that startSession() can return it instantly
+    const apiMapping = this.deps.frpService.toApi(mapping) as { id: string; publicUrl?: string };
+    if (apiMapping.publicUrl) {
+      const publicUrl = apiMapping.publicUrl.startsWith('http') ? apiMapping.publicUrl : `http://${apiMapping.publicUrl}`;
+      this.deps.sessionsService?.registerPreCreatedSession({
+        clientId,
+        token,
+        localPort: startResult.port,
+        mappingId: mapping.id,
+        publicUrl,
+        startedAt: Date.now(),
+        expiresAt: Date.now() + (startPayload.ttlMs ?? 30 * 60 * 1000),
+      });
+    }
 
     return {
       mappingId: mapping.id,

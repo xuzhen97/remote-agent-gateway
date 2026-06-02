@@ -43,15 +43,41 @@ export class ClientFileSessionsService {
     return session;
   }
 
+  /**
+   * Register a pre-created file session (e.g. from auto-mapping on client connect).
+   * This allows startSession() to instantly return the session without creating
+   * a new file service or FRP tunnel.
+   */
+  registerPreCreatedSession(session: ClientFileSession): void {
+    console.log(`[file-session] registering pre-created session for ${session.clientId}, url=${session.publicUrl}`);
+    this.sessions.set(session.clientId, session);
+  }
+
   async startSession(clientId: string, ttlMs = 30 * 60 * 1000): Promise<ClientFileSession> {
     const existing = this.getSession(clientId);
     if (existing) {
+      // Optimistic fast path: if a pre-created session exists, return it immediately
+      // without a health check. Pre-created sessions are registered right after the
+      // client connects, so they are very likely healthy. If the session turns out to
+      // be stale, the proxy layer will return an error and the frontend can retry.
+      if (existing.startedAt > 0) {
+        console.log(`[file-session] reusing pre-created session for ${clientId}, url=${existing.publicUrl}`);
+        return existing;
+      }
+      // For non-pre-created sessions, do a health check
       const healthy = await this.isSessionHealthy(existing);
       if (healthy) return existing;
       this.sessions.delete(clientId);
+      // Fire-and-forget cleanup of stale session; don't block the new session
+      this.removeExistingFileServiceMappings(clientId).catch((err) => {
+        console.warn(`[file-session] background cleanup of stale mappings for ${clientId} failed:`, err instanceof Error ? err.message : err);
+      });
+    } else {
+      // Even without a cached session, clean up any orphaned mappings in the background
+      this.removeExistingFileServiceMappings(clientId).catch((err) => {
+        console.warn(`[file-session] background cleanup of orphaned mappings for ${clientId} failed:`, err instanceof Error ? err.message : err);
+      });
     }
-
-    await this.removeExistingFileServiceMappings(clientId);
 
     const token = `file_${randomBytes(24).toString('hex')}`;
     const mappingName = this.buildFileServiceName(clientId, token);
@@ -186,9 +212,13 @@ export class ClientFileSessionsService {
 
   private async isSessionHealthy(session: ClientFileSession): Promise<boolean> {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5_000);
       const response = await fetch(`${session.publicUrl}/v1/roots`, {
         headers: { Authorization: `Bearer ${session.token}` },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       if (!response.ok) {
         console.warn(`[file-session] health check failed for ${session.clientId}: HTTP ${response.status}`);
       }
@@ -205,7 +235,12 @@ export class ClientFileSessionsService {
 
     if (mappings.length === 0) return;
 
-    const removeTasks: Array<{ id: string; mappingId: string }> = [];
+    // Remove mappings from DB immediately so new session doesn't see stale entries
+    for (const mapping of mappings) {
+      this.deps.frpService.deleteMapping(mapping.id);
+    }
+
+    // Dispatch removal tasks to client in the background
     for (const mapping of mappings) {
       const removeTask = this.deps.tasksService.createTask({
         clientId,
@@ -214,7 +249,7 @@ export class ClientFileSessionsService {
         createdBy: 'server:file-session',
       });
 
-      const dispatched = this.deps.connectionManager.sendToClient(clientId, {
+      this.deps.connectionManager.sendToClient(clientId, {
         type: 'task.dispatch',
         requestId: removeTask.id,
         payload: {
@@ -223,31 +258,19 @@ export class ClientFileSessionsService {
           payload: { mappingId: mapping.id },
         },
       });
-
-      if (dispatched) {
-        removeTasks.push({ id: removeTask.id, mappingId: mapping.id });
-      } else {
-        this.deps.frpService.deleteMapping(mapping.id);
-      }
+      // Don't wait for result; the proxy will stop on its own
     }
 
-    for (const task of removeTasks) {
-      await this.waitForTaskSuccess(task.id, 'Old file service mapping removal');
-    }
-
+    // Best-effort: wait for frps to release the old proxy, but with a short timeout
     const representative = mappings[0];
     try {
       await this.waitForProxyUnregistered({
         name: representative.name,
         proxyType: representative.proxy_type as 'tcp' | 'http' | 'https',
         remotePort: representative.remote_port,
-      });
-
-      for (const mapping of mappings) {
-        this.deps.frpService.deleteMapping(mapping.id);
-      }
+      }, 3_000); // Short 3s timeout for background cleanup
     } catch (err) {
-      console.warn(`[file-session] old proxy release not confirmed for ${clientId}; continuing with a fresh mapping:`, err instanceof Error ? err.message : err);
+      console.warn(`[file-session] old proxy release not confirmed for ${clientId}; continuing:`, err instanceof Error ? err.message : err);
     }
   }
 
@@ -255,9 +278,9 @@ export class ClientFileSessionsService {
     return `file-service-${clientId}-${token.slice(-8)}`;
   }
 
-  private async waitForProxyUnregistered(mapping: { name: string; proxyType: 'tcp' | 'http' | 'https'; remotePort?: number | null }): Promise<void> {
+  private async waitForProxyUnregistered(mapping: { name: string; proxyType: 'tcp' | 'http' | 'https'; remotePort?: number | null }, timeoutMs = 30_000): Promise<void> {
     const startedAt = Date.now();
-    while (Date.now() - startedAt < 30_000) {
+    while (Date.now() - startedAt < timeoutMs) {
       const result = await checkFrpsProxyRegistration({
         dashboard: {
           scheme: env.FRPS_DASHBOARD_SCHEME,

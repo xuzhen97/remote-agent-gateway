@@ -35,6 +35,24 @@ describe('file HTTP server', () => {
     expect(response.status).toBe(401);
   });
 
+  it('returns CORS headers so browsers can access directly', async () => {
+    const response = await request('/v1/health');
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  it('handles CORS preflight OPTIONS requests', async () => {
+    const response = await fetch(`${baseUrl}/v1/roots`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:3000',
+        'Access-Control-Request-Method': 'GET',
+      },
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get('access-control-allow-origin')).toBe('*');
+    expect(response.headers.get('access-control-allow-methods')).toContain('GET');
+  });
+
   it('lists configured roots and performs file operations inside the selected root', async () => {
     const rootsResponse = await request('/v1/roots');
     expect(rootsResponse.status).toBe(200);

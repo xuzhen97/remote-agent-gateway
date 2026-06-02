@@ -48,13 +48,13 @@ export async function clientFilesRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/file-session/start', async (request) => {
     const session = await clientFileSessionsService.startSession(request.params.clientId);
-    return { ...session, token: undefined };
+    return session;
   });
 
   app.get<{ Params: { clientId: string } }>('/api/clients/:clientId/file-session', async (request, reply) => {
     const session = clientFileSessionsService.getSession(request.params.clientId);
     if (!session) return reply.code(404).send({ error: 'File session not found' });
-    return reply.send({ ...session, token: undefined });
+    return reply.send(session);
   });
 
   app.post<{ Params: { clientId: string } }>('/api/clients/:clientId/file-session/stop', async (request) => {

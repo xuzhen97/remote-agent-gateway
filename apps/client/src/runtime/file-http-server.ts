@@ -28,7 +28,14 @@ let activeToken = '';
 let activeRoots: ClientFileRoot[] = [];
 let expiryTimer: ReturnType<typeof setTimeout> | null = null;
 
+function setCorsHeaders(res: http.ServerResponse): void {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+}
+
 function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
+  setCorsHeaders(res);
   const payload = Buffer.from(JSON.stringify(body));
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
@@ -83,6 +90,13 @@ function mapError(message: string): number {
 }
 
 async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+  if (req.method === 'OPTIONS') {
+    setCorsHeaders(res);
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   if (!ensureAuthorized(req)) {
     sendError(res, 401, 'Unauthorized');
     return;
@@ -138,6 +152,7 @@ async function handleRequest(req: http.IncomingMessage, res: http.ServerResponse
       const rawName = path.basename(fullPath);
       const safeName = rawName.replace(/[^\x00-\x7F]/g, '_');
       const encodedName = encodeURIComponent(rawName).replace(/'/g, '%27');
+      setCorsHeaders(res);
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
         'Content-Length': content.length,
