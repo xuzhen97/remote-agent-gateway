@@ -5,7 +5,7 @@
  * When a mapping is created/removed, rebuildFrpcDaemon() regenerates the
  * combined config and restarts frpc.
  */
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type { ClientConfig } from '../config/client.config.js';
@@ -48,7 +48,8 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
   const frps = getFrpsInfo();
   const workDir = path.resolve(config.frpcWorkDir ?? path.join(config.workspaceDir, 'frp'));
   fs.mkdirSync(workDir, { recursive: true });
-  cleanupOrphanFrpcProcess(workDir);
+  const configPath = path.join(workDir, 'frpc-combined.toml');
+  cleanupOrphanFrpcProcess(workDir, configPath);
 
   // Collect all mapping configs
   const mappingsDir = path.join(workDir, 'mappings');
@@ -102,7 +103,7 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
   }
 
   // Write combined config
-  const configPath = writeDaemonConfig(workDir, frps, proxies);
+  writeDaemonConfig(workDir, frps, proxies);
 
   // Start frpc
   try {
@@ -168,8 +169,8 @@ function removePidFile(workDir: string): void {
   try { fs.unlinkSync(getPidFilePath(workDir)); } catch { /* ignore */ }
 }
 
-function cleanupOrphanFrpcProcess(workDir: string): void {
-  if (daemonProcess) return;
+function cleanupOrphanFrpcProcess(workDir: string, configPath: string): void {
+  cleanupFrpcProcessesUsingConfig(configPath);
   const pidFile = getPidFilePath(workDir);
   if (!fs.existsSync(pidFile)) return;
 
@@ -187,6 +188,36 @@ function cleanupOrphanFrpcProcess(workDir: string): void {
     // ignore missing process or permission issues; pid file is stale either way
   }
   removePidFile(workDir);
+}
+
+function cleanupFrpcProcessesUsingConfig(configPath: string): void {
+  const normalizedConfig = normalizePathForCompare(configPath);
+
+  try {
+    const rawOutput = execFileSync('wmic', ['process', 'where', "name='frpc.exe'", 'get', 'ProcessId,CommandLine', '/format:csv'], { encoding: 'utf-8' });
+    const output = String(rawOutput);
+    for (const line of output.split(/\r?\n/)) {
+      if (!line.trim() || line.startsWith('Node,')) continue;
+      const match = line.match(/^(.*),(\d+)$/);
+      if (!match) continue;
+      const commandLine = match[1];
+      const pid = Number(match[2]);
+      if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
+      if (!normalizePathForCompare(commandLine).includes(normalizedConfig)) continue;
+      try {
+        process.kill(pid, 'SIGTERM');
+        console.log(`[frpc-daemon] cleaned up orphan process ${pid} for ${configPath}`);
+      } catch {
+        // ignore missing process or permission issues
+      }
+    }
+  } catch {
+    // WMIC may be unavailable on some systems; pid-file cleanup still applies.
+  }
+}
+
+function normalizePathForCompare(value: string): string {
+  return value.replace(/\\/g, '/').replace(/"/g, '').toLowerCase();
 }
 
 function writeDaemonConfig(

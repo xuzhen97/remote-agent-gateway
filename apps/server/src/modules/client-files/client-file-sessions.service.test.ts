@@ -17,6 +17,8 @@ describe('ClientFileSessionsService', () => {
   });
 
   it('creates a start task and FRP mapping when no session exists', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ roots: [] }), { status: 200 })));
+
     const tasksService = {
       createTask: vi.fn()
         .mockReturnValueOnce({ id: 'task_remove_old_file', client_id: 'client-1' })
@@ -104,7 +106,9 @@ describe('ClientFileSessionsService', () => {
     }));
   });
 
-  it('instantly returns a pre-created session without health check', async () => {
+  it('reuses a healthy pre-created session after checking direct URL health', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ roots: [] }), { status: 200 })));
+
     const tasksService = { createTask: vi.fn(), getTask: vi.fn() };
     const connectionManager = { sendToClient: vi.fn() };
     const frpService = { listMappings: vi.fn().mockReturnValue([]), deleteMapping: vi.fn(), createMapping: vi.fn(), toApi: vi.fn() };
@@ -124,7 +128,10 @@ describe('ClientFileSessionsService', () => {
 
     const session = await service.startSession('client-1');
 
-    // Should immediately return the pre-created session without any network calls
+    // Should reuse the pre-created session only after confirming the direct URL works.
+    expect(fetch).toHaveBeenCalledWith('http://frps.example.com:23001/v1/roots', expect.objectContaining({
+      headers: { Authorization: 'Bearer pre-created-token' },
+    }));
     expect(tasksService.createTask).not.toHaveBeenCalled();
     expect(frpService.createMapping).not.toHaveBeenCalled();
     expect(connectionManager.sendToClient).not.toHaveBeenCalled();
@@ -136,7 +143,68 @@ describe('ClientFileSessionsService', () => {
     }));
   });
 
+  it('recreates a pre-created session when its direct URL is not reachable', async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockRejectedValueOnce(new Error('fetch failed'))
+      .mockResolvedValue(new Response(JSON.stringify({ roots: [] }), { status: 200 })));
+
+    const tasksService = {
+      createTask: vi.fn()
+        .mockReturnValueOnce({ id: 'task_start_file', client_id: 'client-1' })
+        .mockReturnValueOnce({ id: 'task_frp_file', client_id: 'client-1' }),
+      getTask: vi.fn((taskId: string) => ({
+        id: taskId,
+        status: 'success',
+        result: taskId === 'task_start_file'
+          ? JSON.stringify({ running: true, host: '127.0.0.1', port: 45200, startedAt: 2000 })
+          : JSON.stringify({ ok: true }),
+      })),
+    };
+    const connectionManager = { sendToClient: vi.fn().mockReturnValue(true) };
+    const frpService = {
+      listMappings: vi.fn().mockReturnValue([]),
+      deleteMapping: vi.fn(),
+      createMapping: vi.fn().mockReturnValue({
+        id: 'pm_new',
+        client_id: 'client-1',
+        name: 'file-service-client-1-new0001',
+        proxy_type: 'tcp',
+        local_ip: '127.0.0.1',
+        local_port: 45200,
+        remote_port: 23010,
+        custom_domain: null,
+        status: 'inactive',
+        public_url: 'http://127.0.0.1:23010',
+        created_at: 2000,
+        updated_at: 2000,
+      }),
+      toApi: vi.fn((mapping) => ({ publicUrl: mapping.public_url, id: mapping.id, name: mapping.name, proxyType: mapping.proxy_type, remotePort: mapping.remote_port })),
+    };
+
+    const service = new ClientFileSessionsService({ tasksService, connectionManager, frpService } as never);
+    service.registerPreCreatedSession({
+      clientId: 'client-1',
+      token: 'stale-token',
+      localPort: 45123,
+      mappingId: 'pm-stale',
+      publicUrl: 'http://frps.example.com:23001',
+      startedAt: Date.now() - 1000,
+      expiresAt: Date.now() + 25 * 60 * 1000,
+    });
+
+    const session = await service.startSession('client-1');
+
+    expect(frpService.createMapping).toHaveBeenCalledTimes(1);
+    expect(session).toEqual(expect.objectContaining({
+      clientId: 'client-1',
+      mappingId: 'pm_new',
+      publicUrl: 'http://127.0.0.1:23010',
+    }));
+  });
+
   it('recreates session when pre-created session has expired', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ roots: [] }), { status: 200 })));
+
     const tasksService = {
       createTask: vi.fn()
         .mockReturnValueOnce({ id: 'task_start_file', client_id: 'client-1' })
@@ -196,6 +264,8 @@ describe('ClientFileSessionsService', () => {
   });
 
   it('cleans up old file service mappings in the background (fire-and-forget)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ roots: [] }), { status: 200 })));
+
     // When no pre-created session exists, startSession should create one from scratch
     // and clean up old mappings in the background
     let taskCounter = 0;

@@ -56,17 +56,11 @@ export class ClientFileSessionsService {
   async startSession(clientId: string, ttlMs = 30 * 60 * 1000): Promise<ClientFileSession> {
     const existing = this.getSession(clientId);
     if (existing) {
-      // Optimistic fast path: if a pre-created session exists, return it immediately
-      // without a health check. Pre-created sessions are registered right after the
-      // client connects, so they are very likely healthy. If the session turns out to
-      // be stale, the proxy layer will return an error and the frontend can retry.
-      if (existing.startedAt > 0) {
-        console.log(`[file-session] reusing pre-created session for ${clientId}, url=${existing.publicUrl}`);
+      const healthy = await this.isSessionHealthy(existing);
+      if (healthy) {
+        console.log(`[file-session] reusing healthy session for ${clientId}, url=${existing.publicUrl}`);
         return existing;
       }
-      // For non-pre-created sessions, do a health check
-      const healthy = await this.isSessionHealthy(existing);
-      if (healthy) return existing;
       this.sessions.delete(clientId);
       // Fire-and-forget cleanup of stale session; don't block the new session
       this.removeExistingFileServiceMappings(clientId).catch((err) => {
@@ -155,6 +149,7 @@ export class ClientFileSessionsService {
       startedAt: result.startedAt,
       expiresAt: Date.now() + ttlMs,
     };
+    await this.waitForSessionHealthy(session);
     this.sessions.set(clientId, session);
     return session;
   }
@@ -227,6 +222,15 @@ export class ClientFileSessionsService {
       console.warn(`[file-session] health check failed for ${session.clientId}:`, err instanceof Error ? err.message : err);
       return false;
     }
+  }
+
+  private async waitForSessionHealthy(session: ClientFileSession, timeoutMs = 10_000): Promise<void> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (await this.isSessionHealthy(session)) return;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`Timed out waiting for client file service tunnel ${session.publicUrl} to become reachable`);
   }
 
   private async removeExistingFileServiceMappings(clientId: string): Promise<void> {

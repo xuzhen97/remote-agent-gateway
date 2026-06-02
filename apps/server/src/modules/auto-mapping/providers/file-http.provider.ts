@@ -118,8 +118,8 @@ export class FileHttpAutoMappingProvider {
   }
 
   private async cleanupPendingMappings(clientId: string): Promise<void> {
-    const stmt = getDb().prepare('SELECT mapping_id FROM auto_mappings WHERE client_id = ? AND provider_name = ? AND status = ? ORDER BY created_at ASC');
-    stmt.bind([clientId, this.name, 'cleanup_pending']);
+    const stmt = getDb().prepare(`SELECT mapping_id FROM auto_mappings WHERE client_id = ? AND provider_name = ? AND status IN ('active', 'cleanup_pending') ORDER BY created_at ASC`);
+    stmt.bind([clientId, this.name]);
     const staleMappingIds: string[] = [];
     while (stmt.step()) {
       const row = stmt.getAsObject() as { mapping_id: string };
