@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { tasksService } from './tasks.service.js';
 import { CreateTaskPayloadSchema } from '@rag/shared';
@@ -91,5 +92,62 @@ export async function taskRoutes(app: FastifyInstance): Promise<void> {
       content: l.content,
       createdAt: l.created_at,
     })));
+  });
+
+  // Delete task
+  app.delete<{ Params: { taskId: string } }>('/api/tasks/:taskId', async (request, reply) => {
+    const { taskId } = request.params;
+    const result = tasksService.deleteTaskById(taskId);
+    if (!result.deletedTask) {
+      return reply.code(404).send({ error: 'Task not found' });
+    }
+
+    const actor = (request as unknown as { authRole: string }).authRole;
+    auditService.log({
+      actor,
+      action: 'task.delete',
+      targetType: 'task',
+      targetId: taskId,
+      detail: `Deleted task ${taskId} with ${result.deletedLogs} logs`,
+    });
+
+    return reply.send({
+      taskId,
+      deletedTask: result.deletedTask,
+      deletedLogs: result.deletedLogs,
+    });
+  });
+
+  // Bulk delete tasks
+  const BulkDeleteTasksPayloadSchema = z.object({
+    taskIds: z.array(z.string().min(1)).min(1),
+  });
+
+  app.post('/api/tasks/bulk-delete', async (request, reply) => {
+    const parsed = BulkDeleteTasksPayloadSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'Invalid payload', details: 'taskIds must be a non-empty array' });
+    }
+
+    const taskIds = [...new Set(parsed.data.taskIds.map((id) => id.trim()).filter(Boolean))];
+    if (!taskIds.length) {
+      return reply.code(400).send({ error: 'Invalid payload', details: 'taskIds must be a non-empty array' });
+    }
+
+    const result = tasksService.deleteTasksByIds(taskIds);
+    const actor = (request as unknown as { authRole: string }).authRole;
+    auditService.log({
+      actor,
+      action: 'task.bulk_delete',
+      targetType: 'task',
+      targetId: 'bulk',
+      detail: `Deleted ${result.deletedTasks} tasks (requested: ${taskIds.length}, logs: ${result.deletedLogs}): ${taskIds.join(', ')}`,
+    });
+
+    return reply.send({
+      requested: taskIds.length,
+      deletedTasks: result.deletedTasks,
+      deletedLogs: result.deletedLogs,
+    });
   });
 }
