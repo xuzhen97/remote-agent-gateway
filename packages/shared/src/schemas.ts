@@ -206,3 +206,11 @@ export const AgentOpenPortPayloadSchema = z.object({
 export const AgentClosePortPayloadSchema = z.object({
   mappingId: z.string().min(1),
 });
+
+export const AgentFileSessionPayloadSchema = z.object({
+  clientId: z.string().min(1),
+});
+
+export const AgentDeleteFileSessionPayloadSchema = z.object({
+  clientId: z.string().min(1),
+});
