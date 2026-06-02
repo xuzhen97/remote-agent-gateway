@@ -78,11 +78,13 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
         // Extract just the [[proxies]] section if present
         const proxyMatch = content.match(/\[\[proxies\]\]\s*\n([\s\S]*)/);
         if (proxyMatch) {
-          proxies.push(`[[proxies]]\n${proxyMatch[1].trim()}`);
+          const proxyContent = normalizeProxyContent(proxyMatch[1].trim(), file);
+          if (proxyContent) proxies.push(`[[proxies]]\n${proxyContent}`);
         }
         continue;
       }
-      proxies.push(`[[proxies]]\n${content}`);
+      const proxyContent = normalizeProxyContent(content, file);
+      if (proxyContent) proxies.push(`[[proxies]]\n${proxyContent}`);
     }
   }
 
@@ -136,6 +138,22 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
     console.error('[frpc-daemon] spawn failed:', err);
     return null;
   }
+}
+
+function normalizeProxyContent(content: string, file: string): string | null {
+  const typeMatch = content.match(/^\s*type\s*=\s*"([^"]+)"/m);
+  const proxyType = typeMatch?.[1];
+
+  if (proxyType === 'http' || proxyType === 'https') {
+    const hasDomainRoute = /^\s*(customDomains|subdomain)\s*=/m.test(content);
+    if (!hasDomainRoute) {
+      console.log(`[frpc-daemon] dropping invalid ${proxyType} proxy config without domain route: ${file}`);
+      return null;
+    }
+    return content.replace(/^\s*remotePort\s*=.*(?:\r?\n)?/gm, '').trim();
+  }
+
+  return content;
 }
 
 function getPidFilePath(workDir: string): string {

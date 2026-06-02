@@ -11,3 +11,5 @@ apps/client/workspace/
 apps/server/storage/
 bin/
 release/
+nul
+.playwright-mcp/

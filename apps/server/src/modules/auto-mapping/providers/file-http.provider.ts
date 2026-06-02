@@ -56,7 +56,7 @@ export class FileHttpAutoMappingProvider {
     const mapping = await this.deps.frpService.createMapping({
       clientId,
       name: `auto-file-http-${clientId}`,
-      proxyType: 'http',
+      proxyType: 'tcp',
       localIp: '127.0.0.1',
       localPort: startResult.port,
     });
@@ -65,7 +65,7 @@ export class FileHttpAutoMappingProvider {
     const frpPayload = {
       mappingId: mapping.id,
       name: mapping.name,
-      proxyType: 'http' as const,
+      proxyType: 'tcp' as const,
       localIp: '127.0.0.1',
       localPort: startResult.port,
       remotePort: mapping.remote_port,
@@ -109,7 +109,7 @@ export class FileHttpAutoMappingProvider {
       mappingId: mapping.id,
       localPort: startResult.port,
       name: mapping.name,
-      proxyType: 'http' as const,
+      proxyType: 'tcp' as const,
     };
   }
 

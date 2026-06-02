@@ -31,13 +31,13 @@ describe('FileHttpAutoMappingProvider', () => {
         id: 'pm-auto',
         client_id: 'client-1',
         name: 'auto-file-http-client-1',
-        proxy_type: 'http',
+        proxy_type: 'tcp',
         local_ip: '127.0.0.1',
         local_port: 45123,
         remote_port: 23001,
         custom_domain: null,
         status: 'inactive',
-        public_url: 'http://frps.example.com:23001',
+        public_url: 'frps.example.com:23001',
         created_at: 1000,
         updated_at: 1000,
       }),
@@ -63,20 +63,20 @@ describe('FileHttpAutoMappingProvider', () => {
     }));
     expect(frpService.createMapping).toHaveBeenCalledWith(expect.objectContaining({
       clientId: 'client-1',
-      proxyType: 'http',
+      proxyType: 'tcp',
       localPort: 45123,
       localIp: '127.0.0.1',
     }));
     expect(tasksService.createTask).toHaveBeenNthCalledWith(2, expect.objectContaining({
       clientId: 'client-1',
       type: 'frp_create_proxy',
-      payload: expect.objectContaining({ mappingId: 'pm-auto', remotePort: 23001 }),
+      payload: expect.objectContaining({ mappingId: 'pm-auto', proxyType: 'tcp', remotePort: 23001 }),
     }));
     expect(result).toEqual({
       mappingId: 'pm-auto',
       localPort: 45123,
       name: 'auto-file-http-client-1',
-      proxyType: 'http',
+      proxyType: 'tcp',
     });
 
     // Should register the pre-created file session
@@ -115,13 +115,13 @@ describe('FileHttpAutoMappingProvider', () => {
         id: 'pm-auto',
         client_id: 'client-1',
         name: 'auto-file-http-client-1',
-        proxy_type: 'http',
+        proxy_type: 'tcp',
         local_ip: '127.0.0.1',
         local_port: 45123,
         remote_port: 23001,
         custom_domain: null,
         status: 'inactive',
-        public_url: 'http://frps.example.com:23001',
+        public_url: 'frps.example.com:23001',
         created_at: 1000,
         updated_at: 1000,
       }),

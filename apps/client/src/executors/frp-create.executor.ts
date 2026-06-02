@@ -16,6 +16,10 @@ export async function executeFrpCreate(
   }
 
   const { mappingId, name, proxyType, localIp, localPort, remotePort, customDomain, serverAddr, serverPort, authToken } = payload;
+  if ((proxyType === 'http' || proxyType === 'https') && !customDomain) {
+    throw new Error('http/https FRP proxies require customDomain');
+  }
+
   const frpcWorkDir = path.resolve(config.frpcWorkDir ?? path.join(config.workspaceDir, 'frp'));
 
   const frpsAddr = serverAddr || new URL(config.apiBaseUrl).hostname;
@@ -33,7 +37,7 @@ export async function executeFrpCreate(
     `type = "${proxyType}"`,
     `localIP = "${localIp}"`,
     `localPort = ${localPort}`,
-    `remotePort = ${remotePort}`,
+    proxyType === 'tcp' ? `remotePort = ${remotePort}` : '',
     customDomain ? `customDomains = ["${customDomain}"]` : '',
   ].filter(Boolean).join('\n');
 
