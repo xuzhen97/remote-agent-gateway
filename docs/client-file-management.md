@@ -427,6 +427,17 @@ interface ClientFileSession {
 | GET | `/api/clients/:clientId/file-session` | 获取当前会话（不存在返回 404） |
 | POST | `/api/clients/:clientId/file-session/stop` | 停止文件会话 |
 
+### Agent 层入口（推荐）
+
+AI Agent 应优先使用 `/api/agent/*` 端点，统一 API 前缀和鉴权方式：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/agent/file-session` | 创建/复用文件会话，额外返回 `roots` 字段 |
+| DELETE | `/api/agent/file-session` | 停止文件会话 |
+
+Agent file-session 响应比普通会话多一个 `roots` 字段，减少一次请求。
+
 ### 直连操作（推荐，不占 server 带宽）
 
 AI Agent 和前端应**优先使用直连方式**操作文件，避免大文件数据经过 server 中转。

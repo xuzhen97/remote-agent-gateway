@@ -244,7 +244,7 @@ frp:
 
 ### AI Agent 高级接口
 
-这些接口封装了底层 task 概念，让 AI Agent 直接调用高层语义：
+这些接口封装了底层 task 概念，让 AI Agent 直接调用高层语义。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -252,6 +252,10 @@ frp:
 | `POST` | `/api/agent/push-file` | 推送已上传的文件到客户端 |
 | `POST` | `/api/agent/open-port` | 创建 FRP 端口映射 |
 | `POST` | `/api/agent/close-port` | 删除端口映射 |
+| `GET` | `/api/agent/clients` | 列出所有客户端 |
+| `GET` | `/api/agent/clients/:clientId` | 获取客户端详情 |
+| `POST` | `/api/agent/file-session` | 创建/复用文件会话（直连 FRP） |
+| `DELETE` | `/api/agent/file-session` | 停止文件会话 |
 | `GET` | `/api/agent/tasks/:id` | 查询任务状态（含日志） |
 
 ---
