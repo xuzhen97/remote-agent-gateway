@@ -1,207 +1,181 @@
 ---
 name: rag-agent
-description: Control remote machines via the Remote Agent Gateway platform. Use when you need to execute scripts, manage files, create port mappings, or query client status on remote machines. Triggers: user mentions remote machines, wants to run commands on another computer, needs to access files on a remote machine, or wants to expose a local port.
+description: "Use when a user needs to control remote machines through Remote Agent Gateway: list clients, run scripts or commands, manage files, create port mappings and tunnels, push files, or query task status."
 ---
 
-# Remote Agent Gateway — AI Agent Skill
+# Remote Agent Gateway Agent Skill
 
-Control remote machines via HTTP API. All endpoints use Bearer token auth with `AGENT_API_TOKEN`.
+Use the bundled **Node CLI** first. It reads one unified config and wraps the Gateway HTTP API so agents do not need to hand-write curl JSON.
 
-## Configuration
+## Pick the CLI Command
 
-Set these environment variables or provide them when asked:
+Prefer whichever command exists in the current project:
 
-- `RAG_SERVER_URL` — Gateway server URL (e.g. `http://localhost:3000`)
-- `RAG_AGENT_TOKEN` — Agent API token (the `AGENT_API_TOKEN` value from server config)
+```bash
+# If this is the remote-agent-gateway repository:
+RAG="node scripts/rag.mjs"
 
-All API calls: `Authorization: Bearer <RAG_AGENT_TOKEN>`
+# If this skill is installed in a target project:
+RAG="node .pi/skills/rag-agent/scripts/rag.mjs"
 
-## Typical Workflow
-
-```
-1. GET  /api/agent/clients              -> Find target machine
-2. POST /api/agent/file-session         -> Get direct file access URL + token
-3. Use {publicUrl} + Authorization header to operate files directly
-4. POST /api/agent/run-script           -> Execute commands (optional)
-5. POST /api/agent/open-port / close-port -> Manage tunnels (optional)
-6. GET  /api/agent/tasks/:taskId        -> Check task status
+# If user installed the CLI on PATH:
+RAG="rag"
 ```
 
-## API Reference
+Always start with:
+
+```bash
+$RAG config
+$RAG clients
+```
+
+## Unified Configuration
+
+Recommended configuration is user-level environment variables. This is safest and does not pollute the codebase.
+
+### Option 1: Environment Variables (Recommended ✅)
+
+Windows PowerShell:
+
+```powershell
+[Environment]::SetEnvironmentVariable("RAG_SERVER_URL", "http://your-server:3000", "User")
+[Environment]::SetEnvironmentVariable("RAG_AGENT_TOKEN", "test_agent_token", "User")
+```
+
+Restart the terminal or agent session after setting user-level variables.
+
+Current development default token is supported:
+
+```text
+test_agent_token
+```
+
+### Config Resolution Order
+
+The Node CLI resolves config in this order:
+
+1. CLI flags: `--server <url>` and `--token <token>`
+2. Environment variables: `RAG_SERVER_URL`, `RAG_AGENT_TOKEN`, `RAG_AGENT_API_TOKEN`, `AGENT_API_TOKEN`
+3. `.ragrc` in the current directory or parent directories
+4. `.env` in the current directory or parent directories
+5. `client.config.yaml`: `server.apiBaseUrl` + `server.token`
+6. `server.config.yaml`: `server.port` + `auth.agentApiToken`
+
+### Option 2: File-Based `.ragrc`
+
+```bash
+RAG_SERVER_URL=http://localhost:3000
+RAG_AGENT_TOKEN=test_agent_token
+```
+
+## Core Commands
 
 ### Clients
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/agent/clients` | List all clients (online + offline) |
-| GET | `/api/agent/clients/:clientId` | Get single client details |
-
-Response fields: `id`, `name`, `hostname`, `os`, `arch`, `tags[]`, `status`, `online`, `lastSeenAt`
-
-### File Session (Direct Connect)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/agent/file-session` | Create/reuse file session |
-| DELETE | `/api/agent/file-session` | Stop file session |
-
-**POST `/api/agent/file-session`**
-
-Request:
-```json
-{ "clientId": "client-1" }
+```bash
+$RAG clients
+$RAG client <clientId>
 ```
 
-Response:
-```json
-{
-  "clientId": "client-1",
-  "publicUrl": "http://frps.example.com:23001",
-  "token": "file_abc123",
-  "localPort": 45123,
-  "mappingId": "pm_file",
-  "startedAt": 1748800000000,
-  "expiresAt": 1748801800000,
-  "roots": [
-    { "id": "root-0", "label": "workspace", "path": "/home/user/workspace" }
-  ]
-}
+### Execute Remote Script
+
+```bash
+$RAG exec <clientId> 'console.log(process.platform)'
+$RAG exec-file <clientId> ./script.js
+$RAG task <taskId>
+$RAG wait <taskId> --interval 2000 --timeout 120000
 ```
 
-**After getting the session, operate files directly via `publicUrl`:**
+### Remote Files
 
-All direct requests need header: `Authorization: Bearer {token}`
+The CLI auto-creates and closes file sessions for these commands:
 
-| Method | URL | Description |
-|--------|-----|-------------|
-| GET | `{publicUrl}/v1/roots` | List browsable roots |
-| GET | `{publicUrl}/v1/list?rootId=root-0&path=.` | List directory |
-| GET | `{publicUrl}/v1/stat?rootId=root-0&path=file.txt` | File stat |
-| GET | `{publicUrl}/v1/read?rootId=root-0&path=file.txt` | Read file content |
-| GET | `{publicUrl}/v1/download?rootId=root-0&path=file.txt` | Download file |
-| PUT | `{publicUrl}/v1/write?rootId=root-0&path=file.txt` | Write file content |
-| POST | `{publicUrl}/v1/upload?rootId=root-0&path=.&filename=f` | Upload file |
-| POST | `{publicUrl}/v1/mkdir` | Create directory |
-| DELETE | `{publicUrl}/v1/delete?rootId=root-0&path=dir&recursive=true` | Delete |
-| POST | `{publicUrl}/v1/move` | Move/rename |
-| POST | `{publicUrl}/v1/copy` | Copy |
-
-**DELETE `/api/agent/file-session`**
-
-Request: `{ "clientId": "client-1" }`
-Response: `{ "success": true }`
-
-### Script Execution
-
-**POST `/api/agent/run-script`**
-
-```json
-{
-  "target": { "clientId": "client-1" },
-  "script": "console.log('hello')",
-  "timeoutMs": 30000
-}
+```bash
+$RAG ls <clientId> [path] [rootId]
+$RAG read <clientId> <path> [rootId]
+$RAG write <clientId> <path> 'content' [rootId]
+echo 'content' | $RAG write <clientId> <path> [rootId]
+cat app.jar | $RAG write <clientId> D:/apps/app.jar root-1  # stdin stays binary-safe
+$RAG mkdir <clientId> <path> [rootId]
+$RAG rm <clientId> <path> [rootId]
+$RAG mv <clientId> <from> <to> [rootId]
+$RAG cp <clientId> <from> <to> [rootId]
 ```
 
-Response: task object with `id`. Poll `GET /api/agent/tasks/:taskId` for result.
+Default `rootId` is `root-0`. Use `$RAG session <clientId>` to inspect available roots.
+
+### Manual File Session
+
+Use this for many file operations or direct API access:
+
+```bash
+$RAG session <clientId>          # returns publicUrl, token, roots
+$RAG session-close <clientId>
+```
 
 ### Port Mapping
 
-**POST `/api/agent/open-port`**
-
-```json
-{
-  "clientId": "client-1",
-  "name": "ssh",
-  "localPort": 22,
-  "remotePort": 2222,
-  "type": "tcp"
-}
+```bash
+$RAG open-port <clientId> <name> <localPort> [remotePort] [tcp|http|https]
+$RAG close-port <mappingId>
 ```
 
-**POST `/api/agent/close-port`**
+Examples:
 
-```json
-{ "mappingId": "pm_abc" }
-```
-
-### File Push (Server-Hosted Files)
-
-**POST `/api/agent/push-file`** — Push a file previously uploaded to server storage (`/api/files`) to a client.
-
-```json
-{
-  "clientId": "client-1",
-  "fileId": "file_xyz",
-  "targetPath": "/home/user/deploy.tar.gz"
-}
+```bash
+$RAG open-port client-1 ssh 22 2222 tcp
+$RAG open-port client-1 web 8080 8080 http
 ```
 
-### Task Status
+### Push Server-Stored File
 
-**GET `/api/agent/tasks/:taskId`**
-
-Returns task with logs:
-```json
-{
-  "id": "task_1",
-  "clientId": "client-1",
-  "type": "exec_script",
-  "status": "success",
-  "result": { ... },
-  "logs": [
-    { "stream": "stdout", "content": "hello\n", "createdAt": 1748800000000 }
-  ]
-}
+```bash
+$RAG push <clientId> <fileId> <targetPath>
 ```
 
-## Common Patterns
+## Agent Workflow
 
-### List remote files
-```
-1. GET /api/agent/clients -> pick online client
-2. POST /api/agent/file-session { "clientId": "client-1" }
-3. GET {publicUrl}/v1/roots -> see available roots
-4. GET {publicUrl}/v1/list?rootId=root-0&path=. -> browse files
-```
+1. Run `$RAG config` and verify `serverUrl` + masked token.
+2. Run `$RAG clients`; choose an online client.
+3. For commands/scripts, run `$RAG exec ...`, capture the returned `taskId`, then `$RAG wait <taskId>`.
+4. For files, use `$RAG ls/read/write/...`; for bulk operations, create a manual session.
+5. For tunnels, record the returned `mappingId` and close it when done.
 
-### Download a file from remote machine
-```
-1. POST /api/agent/file-session { "clientId": "client-1" }
-2. GET {publicUrl}/v1/read?rootId=root-0&path=config.yaml
-   -> Returns file content directly
-```
+## Fallback HTTP API
 
-### Upload a file to remote machine
-```
-1. POST /api/agent/file-session { "clientId": "client-1" }
-2. PUT {publicUrl}/v1/write?rootId=root-0&path=deploy.sh
-   Headers: Authorization: Bearer {token}, Content-Type: application/octet-stream
-   Body: file content
-```
-Or use upload for multi-part:
-```
-2. POST {publicUrl}/v1/upload?rootId=root-0&path=.&filename=deploy.sh
-   Headers: Authorization: Bearer {token}, Content-Type: application/octet-stream
-   Body: file content
+Only use curl if the Node CLI is unavailable.
+
+```bash
+AUTH="Authorization: Bearer $RAG_AGENT_TOKEN"
+BASE="$RAG_SERVER_URL"
+
+curl -sS -H "$AUTH" "$BASE/api/agent/clients"
+
+curl -sS -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"target":{"clientId":"client-1"},"script":"console.log(process.platform)","timeoutMs":60000}' \
+  "$BASE/api/agent/run-script"
+
+curl -sS -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"clientId":"client-1"}' "$BASE/api/agent/file-session"
 ```
 
-### Execute a remote script
-```
-1. POST /api/agent/run-script { "target": { "clientId": "client-1" }, "script": "ls -la" }
-2. GET /api/agent/tasks/{taskId} -> check result
-```
+## API-to-CLI Map
 
-### Expose a local port publicly
-```
-1. POST /api/agent/open-port { "clientId": "client-1", "name": "web", "localPort": 8080, "type": "tcp" }
-   -> Returns mapping with publicUrl
-2. When done: POST /api/agent/close-port { "mappingId": "pm_xxx" }
-```
+| API | CLI |
+|---|---|
+| `GET /api/agent/clients` | `$RAG clients` |
+| `GET /api/agent/clients/:id` | `$RAG client <id>` |
+| `POST /api/agent/run-script` | `$RAG exec <id> <script>` |
+| `GET /api/agent/tasks/:id` | `$RAG task <taskId>` |
+| `POST /api/agent/file-session` | `$RAG session <id>` |
+| `DELETE /api/agent/file-session` | `$RAG session-close <id>` |
+| Direct file `/v1/list/read/write/...` | `$RAG ls/read/write/...` |
+| `POST /api/agent/open-port` | `$RAG open-port ...` |
+| `POST /api/agent/close-port` | `$RAG close-port <mappingId>` |
+| `POST /api/agent/push-file` | `$RAG push <id> <fileId> <path>` |
 
 ## Notes
 
-- File sessions expire after 30 minutes. Re-call `POST /api/agent/file-session` to renew.
-- Direct file operations via `publicUrl` bypass the server - no server bandwidth consumed.
-- If direct connection to `publicUrl` is not possible, fall back to proxied endpoints at `/api/clients/:clientId/files/*`.
-- `push-file` pushes files from server storage, not from your local machine. For local file upload, use the direct `publicUrl` approach.
+- Node 22+ is recommended; the CLI uses built-in `fetch` and ESM.
+- The target project should keep `.ragrc` out of commits if it contains real tokens.
+- File sessions expire; CLI-managed file operations create/close sessions automatically.
