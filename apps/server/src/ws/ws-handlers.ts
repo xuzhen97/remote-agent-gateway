@@ -5,9 +5,10 @@ import { tasksService } from '../modules/tasks/tasks.service.js';
 import { connectionManager } from '../modules/connections/connections.manager.js';
 import { auditService } from '../modules/audit/audit.service.js';
 import { frpService, getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
+import { autoMappingService } from '../modules/auto-mapping/auto-mapping.service.js';
 import { saveDb } from '../db/index.js';
 
-export function handleWsMessage(ws: WebSocket, rawData: string): void {
+export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<void> {
   let message: { type: string; requestId?: string; payload: unknown };
   try {
     message = JSON.parse(rawData);
@@ -49,6 +50,12 @@ export function handleWsMessage(ws: WebSocket, rawData: string): void {
         };
       } catch (err) {
         console.warn('Skipping FRP registration payload:', err instanceof Error ? err.message : err);
+      }
+
+      try {
+        await autoMappingService.onClientOnline(info.clientId);
+      } catch (err) {
+        console.warn(`[auto-mapping] failed for ${info.clientId}:`, err instanceof Error ? err.message : err);
       }
 
       ws.send(JSON.stringify({
@@ -131,6 +138,10 @@ export function handleWsMessage(ws: WebSocket, rawData: string): void {
 export function handleWsClose(clientId: string): void {
   connectionManager.remove(clientId);
   clientsService.setOffline(clientId);
+
+  void autoMappingService.onClientOffline(clientId).catch((err) => {
+    console.warn(`[auto-mapping] cleanup-pending mark failed for ${clientId}:`, err instanceof Error ? err.message : err);
+  });
 
   auditService.log({
     actor: clientId,

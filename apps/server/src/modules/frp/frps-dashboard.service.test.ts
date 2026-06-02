@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { checkFrpsProxyRegistration } from './frps-dashboard.service.js';
+import { checkFrpsProxyRegistration, listFrpsProxies } from './frps-dashboard.service.js';
 
 const originalEnv = { ...process.env };
 
@@ -93,6 +93,48 @@ describe('frps dashboard registration checks', () => {
       dashboardReachable: true,
       reason: 'auth_failed',
       statusCode: 401,
+    }));
+  });
+
+  it('lists proxy summaries across tcp/http/https endpoints', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ proxies: [{ name: 'tcp-a', remotePort: 23001 }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ proxies: [{ name: 'http-a', remotePort: 23002 }] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ proxies: [{ name: 'https-a', remotePort: 23003 }] }), { status: 200 }));
+
+    const result = await listFrpsProxies({
+      scheme: 'http',
+      host: 'frps.example.com',
+      port: 7500,
+      user: 'admin',
+      password: 'secret',
+    });
+
+    expect(result).toEqual({
+      dashboardReachable: true,
+      proxies: [
+        { name: 'tcp-a', proxyType: 'tcp', remotePort: 23001 },
+        { name: 'http-a', proxyType: 'http', remotePort: 23002 },
+        { name: 'https-a', proxyType: 'https', remotePort: 23003 },
+      ],
+    });
+  });
+
+  it('returns dashboardReachable false when list endpoint fetch throws', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('connect ECONNREFUSED'));
+
+    const result = await listFrpsProxies({
+      scheme: 'http',
+      host: 'frps.example.com',
+      port: 7500,
+      user: 'admin',
+      password: 'secret',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      dashboardReachable: false,
+      proxies: [],
+      detail: expect.stringContaining('ECONNREFUSED'),
     }));
   });
 });

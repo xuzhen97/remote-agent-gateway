@@ -119,7 +119,7 @@ export async function agentRoutes(app: FastifyInstance): Promise<void> {
 
     const frpsInfo = getFrpsConnectionInfo();
 
-    const mapping = frpService.createMapping({
+    const mapping = await frpService.createMapping({
       clientId,
       name,
       proxyType: type,

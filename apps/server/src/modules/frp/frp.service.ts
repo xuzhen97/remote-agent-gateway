@@ -1,6 +1,7 @@
 import { getDb } from '../../db/index.js';
 import { v4 as uuid } from 'uuid';
 import { env, resolveFrpsHost, buildFrpPublicUrl } from '../../config/env.js';
+import { portAllocatorService } from '../ports/port-allocator.service.js';
 
 export interface PortMappingRow {
   id: string;
@@ -18,7 +19,7 @@ export interface PortMappingRow {
 }
 
 export class FrpService {
-  createMapping(params: {
+  async createMapping(params: {
     clientId: string;
     name: string;
     proxyType: string;
@@ -26,13 +27,17 @@ export class FrpService {
     localPort: number;
     remotePort?: number;
     customDomain?: string;
-  }): PortMappingRow {
+  }): Promise<PortMappingRow> {
     const db = getDb();
     const id = `pm_${uuid().slice(0, 8)}`;
     const now = Date.now();
 
-    // Auto-assign remote port if not specified
-    const remotePort = params.remotePort ?? this.getNextAvailablePort();
+    const remotePort = await portAllocatorService.allocate(
+      params.clientId,
+      typeof params.remotePort === 'number'
+        ? { preferredPort: params.remotePort }
+        : undefined,
+    );
     const publicUrl = buildFrpPublicUrl(remotePort, {
       proxyType: params.proxyType as 'tcp' | 'http' | 'https',
       customDomain: params.customDomain,
@@ -93,29 +98,17 @@ export class FrpService {
 
   deleteMapping(mappingId: string): void {
     const db = getDb();
+    const mapping = this.getMapping(mappingId);
     db.run('DELETE FROM port_mappings WHERE id = ?', [mappingId]);
+    if (mapping?.remote_port) {
+      portAllocatorService.release(mapping.remote_port);
+    }
   }
 
   deleteMappingsByClientId(clientId: string): number {
     const db = getDb();
     db.run('DELETE FROM port_mappings WHERE client_id = ?', [clientId]);
     return db.getRowsModified();
-  }
-
-  private getNextAvailablePort(): number {
-    const db = getDb();
-    const used = new Set<number>();
-    const stmt = db.prepare('SELECT remote_port FROM port_mappings');
-    while (stmt.step()) {
-      const row = stmt.getAsObject() as { remote_port: number };
-      if (row.remote_port) used.add(row.remote_port);
-    }
-    stmt.free();
-
-    for (let port = env.FRP_PORT_RANGE_START; port <= env.FRP_PORT_RANGE_END; port++) {
-      if (!used.has(port)) return port;
-    }
-    throw new Error('No available ports in FRP range');
   }
 
   toApi(mapping: PortMappingRow): Record<string, unknown> {

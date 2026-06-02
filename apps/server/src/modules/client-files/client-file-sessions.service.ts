@@ -76,7 +76,7 @@ export class ClientFileSessionsService {
     if (!dispatched) throw new Error(`Client ${clientId} is offline`);
 
     const result = await this.waitForStartResult(startTask.id);
-    const mapping = this.deps.frpService.createMapping({
+    const mapping = await this.deps.frpService.createMapping({
       clientId,
       name: mappingName,
       proxyType: 'tcp',

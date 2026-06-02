@@ -7,6 +7,7 @@ const { checkFrpsRegistrationMock } = vi.hoisted(() => ({
 
 vi.mock('../frp/frps-dashboard.service.js', () => ({
   checkFrpsProxyRegistration: checkFrpsRegistrationMock,
+  listFrpsProxies: vi.fn().mockResolvedValue({ dashboardReachable: true, proxies: [] }),
 }));
 
 describe('ClientFileSessionsService', () => {

@@ -26,16 +26,84 @@ export interface FrpsRegistrationCheckResult {
   detail?: string;
 }
 
+export interface FrpsProxySummary {
+  name: string;
+  proxyType: 'tcp' | 'http' | 'https';
+  remotePort?: number;
+}
+
+export interface FrpsProxyListResult {
+  dashboardReachable: boolean;
+  proxies: FrpsProxySummary[];
+  detail?: string;
+}
+
+function buildDashboardHeaders(dashboard: FrpsDashboardConfig) {
+  const auth = Buffer.from(`${dashboard.user}:${dashboard.password}`).toString('base64');
+  return {
+    Authorization: `Basic ${auth}`,
+  };
+}
+
+async function fetchProxyTypeList(
+  dashboard: FrpsDashboardConfig,
+  proxyType: 'tcp' | 'http' | 'https',
+): Promise<FrpsProxySummary[]> {
+  const url = `${dashboard.scheme}://${dashboard.host}:${dashboard.port}/api/proxy/${proxyType}`;
+  const response = await fetch(url, {
+    headers: buildDashboardHeaders(dashboard),
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Dashboard list ${proxyType} failed: HTTP ${response.status}`);
+  }
+
+  const body = await response.json() as {
+    proxies?: Array<{
+      name?: string;
+      remotePort?: number;
+      conf?: { remotePort?: number };
+    }>;
+  };
+
+  return (body.proxies ?? [])
+    .filter((proxy) => typeof proxy.name === 'string')
+    .map((proxy) => ({
+      name: proxy.name!,
+      proxyType,
+      remotePort: proxy.remotePort ?? proxy.conf?.remotePort,
+    }));
+}
+
+export async function listFrpsProxies(dashboard: FrpsDashboardConfig): Promise<FrpsProxyListResult> {
+  try {
+    const [tcp, http, https] = await Promise.all([
+      fetchProxyTypeList(dashboard, 'tcp'),
+      fetchProxyTypeList(dashboard, 'http'),
+      fetchProxyTypeList(dashboard, 'https'),
+    ]);
+
+    return {
+      dashboardReachable: true,
+      proxies: [...tcp, ...http, ...https],
+    };
+  } catch (err) {
+    return {
+      dashboardReachable: false,
+      proxies: [],
+      detail: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 export async function checkFrpsProxyRegistration(input: FrpsRegistrationCheckInput): Promise<FrpsRegistrationCheckResult> {
   const { dashboard, mapping } = input;
-  const auth = Buffer.from(`${dashboard.user}:${dashboard.password}`).toString('base64');
   const url = `${dashboard.scheme}://${dashboard.host}:${dashboard.port}/api/proxy/${mapping.proxyType}/${encodeURIComponent(mapping.name)}`;
 
   try {
     const response = await fetch(url, {
-      headers: {
-        Authorization: `Basic ${auth}`,
-      },
+      headers: buildDashboardHeaders(dashboard),
       signal: AbortSignal.timeout(5000),
     });
 

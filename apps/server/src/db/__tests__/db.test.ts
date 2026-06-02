@@ -114,4 +114,22 @@ describe('database schema', () => {
     const rows = queryAll(db, 'SELECT * FROM task_logs WHERE task_id = ?', ['task-test-1']);
     expect(rows).toHaveLength(0);
   });
+
+  it('inserts and updates an auto mapping record', () => {
+    const now = Date.now();
+    run(db, `INSERT INTO auto_mappings (id, client_id, provider_name, mapping_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['am-test-1', 'test-client-1', 'file-http', 'pm-test-1', 'active', now, now]);
+
+    let row = queryOne(db, 'SELECT * FROM auto_mappings WHERE id = ?', ['am-test-1']) as Record<string, unknown>;
+    expect(row).toBeDefined();
+    expect(row.provider_name).toBe('file-http');
+    expect(row.status).toBe('active');
+
+    run(db, 'UPDATE auto_mappings SET status = ?, updated_at = ? WHERE id = ?', ['cleanup_pending', now + 1, 'am-test-1']);
+    row = queryOne(db, 'SELECT status FROM auto_mappings WHERE id = ?', ['am-test-1']) as Record<string, unknown>;
+    expect(row.status).toBe('cleanup_pending');
+
+    run(db, 'DELETE FROM auto_mappings WHERE id = ?', ['am-test-1']);
+    expect(queryAll(db, 'SELECT * FROM auto_mappings WHERE id = ?', ['am-test-1'])).toHaveLength(0);
+  });
 });

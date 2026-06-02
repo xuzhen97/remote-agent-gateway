@@ -30,15 +30,31 @@ export async function frpRoutes(app: FastifyInstance): Promise<void> {
 
     const frpsInfo = getFrpsConnectionInfo();
 
-    const mapping = frpService.createMapping({
-      clientId,
-      name,
-      proxyType,
-      localIp,
-      localPort,
-      remotePort,
-      customDomain,
-    });
+    let mapping;
+    try {
+      mapping = await frpService.createMapping({
+        clientId,
+        name,
+        proxyType,
+        localIp,
+        localPort,
+        remotePort,
+        customDomain,
+      });
+    } catch (err) {
+      if ((err as { name?: string }).name === 'PortConflictError') {
+        const conflict = err as { source: string; port: number };
+        return reply.code(409).send({
+          error: 'Remote port already in use',
+          source: conflict.source,
+          port: conflict.port,
+        });
+      }
+      if ((err as { name?: string }).name === 'NoAvailablePortError') {
+        return reply.code(409).send({ error: 'No available ports in FRP range' });
+      }
+      throw err;
+    }
 
     auditService.log({
       actor: (request as unknown as { authRole: string }).authRole,

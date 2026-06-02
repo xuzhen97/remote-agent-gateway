@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import { frpRoutes } from './frp.routes.js';
 
@@ -8,7 +8,7 @@ vi.mock('../auth/auth.middleware.js', () => ({
   },
 }));
 
-const { checkRegistrationMock } = vi.hoisted(() => ({
+const { checkRegistrationMock, createMappingMock } = vi.hoisted(() => ({
   checkRegistrationMock: vi.fn().mockResolvedValue({
     registered: true,
     dashboardReachable: true,
@@ -17,6 +17,7 @@ const { checkRegistrationMock } = vi.hoisted(() => ({
     name: 'proxy-a',
     remotePort: 20000,
   }),
+  createMappingMock: vi.fn(),
 }));
 
 vi.mock('./frps-dashboard.service.js', () => ({
@@ -35,7 +36,7 @@ vi.mock('../../config/env.js', () => ({
 
 vi.mock('./frp.service.js', () => ({
   frpService: {
-    createMapping: vi.fn(),
+    createMapping: createMappingMock,
     listMappings: vi.fn(() => []),
     toApi: vi.fn((mapping) => ({
       id: mapping.id,
@@ -68,10 +69,14 @@ vi.mock('./frp.service.js', () => ({
 
 vi.mock('../audit/audit.service.js', () => ({ auditService: { log: vi.fn() } }));
 vi.mock('../connections/connections.manager.js', () => ({ connectionManager: { sendToClient: vi.fn() } }));
-vi.mock('../tasks/tasks.service.js', () => ({ tasksService: { createTask: vi.fn() } }));
+vi.mock('../tasks/tasks.service.js', () => ({ tasksService: { createTask: vi.fn(() => ({ id: 'task-1' })) } }));
 vi.mock('../clients/clients.service.js', () => ({ clientsService: { getClient: vi.fn(() => ({ id: 'client-1' })) } }));
 
-describe('frp routes registration check endpoint', () => {
+describe('frp routes', () => {
+  beforeEach(() => {
+    createMappingMock.mockReset();
+  });
+
   it('checks registration status through the frps dashboard service', async () => {
     const app = Fastify();
     await app.register(frpRoutes);
@@ -100,6 +105,37 @@ describe('frp routes registration check endpoint', () => {
       proxyType: 'tcp',
       name: 'proxy-a',
       remotePort: 20000,
+    });
+  });
+
+  it('returns 409 when the requested remote port is already occupied', async () => {
+    createMappingMock.mockRejectedValueOnce(Object.assign(new Error('Remote port already in use'), {
+      name: 'PortConflictError',
+      source: 'dashboard',
+      port: 23001,
+    }));
+
+    const app = Fastify();
+    await app.register(frpRoutes);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/port-mappings',
+      payload: {
+        clientId: 'client-1',
+        name: 'preview',
+        proxyType: 'tcp',
+        localIp: '127.0.0.1',
+        localPort: 3000,
+        remotePort: 23001,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({
+      error: 'Remote port already in use',
+      source: 'dashboard',
+      port: 23001,
     });
   });
 });

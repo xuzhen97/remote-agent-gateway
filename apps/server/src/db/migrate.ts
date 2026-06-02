@@ -64,6 +64,16 @@ export function migrate(db: Database): void {
       updated_at INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS auto_mappings (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      provider_name TEXT NOT NULL,
+      mapping_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       actor TEXT,
