@@ -38,6 +38,11 @@ await esbuild.build({
   minify: false,
   sourcemap: true,
   external: [],
+  // Suppress harmless warning: import.meta.dirname is a dead fallback in CJS
+  // (the typeof __dirname check always takes the CJS branch when bundled)
+  logOverride: {
+    'empty-import-meta': 'silent',
+  },
 });
 
 // Copy sql.js wasm
