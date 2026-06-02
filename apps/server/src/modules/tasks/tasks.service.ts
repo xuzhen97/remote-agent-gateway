@@ -115,6 +115,40 @@ export class TasksService {
     return results;
   }
 
+  deleteTaskById(taskId: string): { deletedTask: boolean; deletedLogs: number } {
+    const db = getDb();
+    const task = this.getTask(taskId);
+    if (!task) {
+      return { deletedTask: false, deletedLogs: 0 };
+    }
+
+    db.run('DELETE FROM task_logs WHERE task_id = ?', [taskId]);
+    const deletedLogs = db.getRowsModified();
+
+    db.run('DELETE FROM tasks WHERE id = ?', [taskId]);
+    const deletedTask = db.getRowsModified() > 0;
+
+    return { deletedTask, deletedLogs };
+  }
+
+  deleteTasksByIds(taskIds: string[]): { deletedTasks: number; deletedLogs: number } {
+    const db = getDb();
+    const ids = [...new Set(taskIds.map((id) => id.trim()).filter(Boolean))];
+    if (!ids.length) {
+      return { deletedTasks: 0, deletedLogs: 0 };
+    }
+
+    const placeholders = ids.map(() => '?').join(', ');
+
+    db.run(`DELETE FROM task_logs WHERE task_id IN (${placeholders})`, ids);
+    const deletedLogs = db.getRowsModified();
+
+    db.run(`DELETE FROM tasks WHERE id IN (${placeholders})`, ids);
+    const deletedTasks = db.getRowsModified();
+
+    return { deletedTasks, deletedLogs };
+  }
+
   deleteTasksByClientId(clientId: string): { deletedTasks: number; deletedLogs: number } {
     const db = getDb();
 
