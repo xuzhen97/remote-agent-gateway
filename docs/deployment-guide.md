@@ -159,9 +159,45 @@ ls -la bin/frp*
 # 应看到: frps, frpc
 ```
 
-> **网络受限环境？** 如果服务器无法访问 GitHub，可以先在能上网的机器下载对应平台的 FRP release，然后手动复制 `frps` / `frpc` 到服务器的 `bin/` 目录。
+### GitHub 加速（解决国内网络问题）
+
+如果服务器在国内或无法直连 GitHub，使用镜像加速：
+
+**Linux/macOS:**
+
+```bash
+# 方式 1：使用 --mirror 自动尝试多个加速地址
+./download-frp.sh --mirror
+
+# 方式 2：指定自定义镜像
+FRP_MIRROR=https://ghfast.top/ ./download-frp.sh
+
+# 方式 3：通过环境变量永久设置
+export FRP_MIRROR=https://ghfast.top/
+./download-frp.sh
+```
+
+**Windows:**
+
+```cmd
+REM 方式 1：使用 --mirror
+download-frp.bat --mirror
+
+REM 方式 2：指定自定义镜像
+set FRP_MIRROR=https://ghfast.top/ && download-frp.bat
+```
+
+**内置镜像列表**（按优先级尝试）：
+
+| 镜像地址 | 说明 |
+|---------|------|
+| `https://ghfast.top/` | ghproxy 加速 |
+| `https://gh-proxy.com/` | ghproxy 备用 |
+| `https://gh.llkk.cc/` | 第三方加速 |
+
+> 如果以上镜像都不可用，可以自行搜索 "github 加速" 找到最新的可用地址，通过 `FRP_MIRROR` 环境变量指定。
 >
-> 下载地址：https://github.com/fatedier/frp/releases/tag/v0.69.1
+> FRP 直链下载地址：`https://github.com/fatedier/frp/releases/tag/v0.69.1`
 
 ### 4. 配置并启动
 
