@@ -6,7 +6,6 @@ import { env, envSource } from './config/env.js';
 import { initDb, saveDb, getDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
-import { frpRoutes } from './modules/frp/frp.routes.js';
 import { clientHttpAdminRoutes } from './modules/client-http/client-http-admin.routes.js';
 import { clientHttpPortRoutes } from './modules/client-http/client-http-port.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
@@ -85,7 +84,6 @@ async function main(): Promise<void> {
   // Register routes
   await app.register(clientRoutes);
   await app.register(fileRoutes);
-  await app.register(frpRoutes);
   await app.register(clientHttpAdminRoutes);
   await app.register(clientHttpPortRoutes);
 
