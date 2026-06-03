@@ -41,6 +41,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
   const [writePath, setWritePath] = useState('');
   const [writeContent, setWriteContent] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Discover client HTTP endpoint
   useEffect(() => {
@@ -79,7 +80,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       .then((d) => setEntries(d?.data?.entries ?? d?.entries ?? []))
       .catch(() => message.error('Failed to list directory'))
       .finally(() => setLoading(false));
-  }, [baseUrl, token, rootId, currentPath]);
+  }, [baseUrl, token, rootId, currentPath, reloadKey]);
 
   const handleNavigate = (dir: FileEntry) => {
     if (dir.type === 'directory') {
@@ -111,7 +112,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error?.message ?? 'Delete failed'); }
       message.success('Deleted');
-      setCurrentPath((p) => p); // trigger reload
+      setReloadKey((k) => k + 1);
     } catch (err: any) { message.error(err.message); }
   };
 
@@ -127,7 +128,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       message.success('Created');
       setMkdirOpen(false);
       setMkdirName('');
-      setCurrentPath((p) => p);
+      setReloadKey((k) => k + 1);
     } catch { message.error('Failed to create directory'); }
   };
 
@@ -144,7 +145,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       setWriteOpen(false);
       setWriteContent('');
       setWritePath('');
-      setCurrentPath((prev) => prev);
+      setReloadKey((k) => k + 1);
     } catch { message.error('Write failed'); }
   };
 
@@ -237,7 +238,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
               if (!res.ok) throw new Error('Upload failed');
               message.success('Uploaded');
               setUploadOpen(false);
-              setCurrentPath((p) => p);
+              setReloadKey((k) => k + 1);
               (onSuccess as any)?.();
             } catch (err: any) {
               message.error(err.message);
