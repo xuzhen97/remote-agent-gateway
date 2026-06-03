@@ -1,36 +1,22 @@
-import type {
-  ClientInfo,
-  TaskType,
-  TaskStatus,
-  TaskPayloadMap,
-} from './types.js';
+import type { ClientInfo, ClientHttpControl, ClientHttpReadyPayload, ClientHttpFailedPayload } from './types.js';
 
-// WebSocket message types
 export type ClientMessageType =
   | 'client.register'
   | 'client.heartbeat'
   | 'client.http_ready'
-  | 'client.http_failed'
-  | 'task.log'
-  | 'task.result';
+  | 'client.http_failed';
 
 export type ServerMessageType =
   | 'server.ack'
-  | 'server.error'
-  | 'task.dispatch';
+  | 'server.error';
 
-// Base message envelope
 export interface WsMessage<T extends string, P = unknown> {
   type: T;
   requestId?: string;
   payload: P;
 }
 
-// Client → Server messages
-export type ClientRegisterMessage = WsMessage<
-  'client.register',
-  ClientInfo
->;
+export type ClientRegisterMessage = WsMessage<'client.register', ClientInfo>;
 
 export type ClientHeartbeatMessage = WsMessage<
   'client.heartbeat',
@@ -42,70 +28,24 @@ export type ClientHeartbeatMessage = WsMessage<
   }
 >;
 
-export type TaskLogMessage = WsMessage<
-  'task.log',
-  {
-    taskId: string;
-    stream: 'stdout' | 'stderr';
-    content: string;
-  }
->;
-
-export type TaskResultMessage = WsMessage<
-  'task.result',
-  {
-    taskId: string;
-    status: TaskStatus;
-    result?: unknown;
-    error?: string;
-  }
->;
-
-export type ClientHttpReadyMessage = WsMessage<
-  'client.http_ready',
-  import('./types.js').ClientHttpReadyPayload
->;
-
-export type ClientHttpFailedMessage = WsMessage<
-  'client.http_failed',
-  import('./types.js').ClientHttpFailedPayload
->;
+export type ClientHttpReadyMessage = WsMessage<'client.http_ready', ClientHttpReadyPayload>;
+export type ClientHttpFailedMessage = WsMessage<'client.http_failed', ClientHttpFailedPayload>;
 
 export type ClientMessage =
   | ClientRegisterMessage
   | ClientHeartbeatMessage
   | ClientHttpReadyMessage
-  | ClientHttpFailedMessage
-  | TaskLogMessage
-  | TaskResultMessage;
+  | ClientHttpFailedMessage;
 
-// Server → Client messages
 export interface ServerAckPayload {
   message: string;
   frp?: { serverAddr: string; serverPort: number; authToken: string };
-  httpControl?: import('./types.js').ClientHttpControl;
+  httpControl?: ClientHttpControl;
 }
 
-export type ServerAckMessage = WsMessage<
-  'server.ack',
-  ServerAckPayload
->;
-
-export type ServerErrorMessage = WsMessage<
-  'server.error',
-  { code: string; message: string }
->;
-
-export type TaskDispatchMessage = WsMessage<
-  'task.dispatch',
-  {
-    taskId: string;
-    taskType: TaskType;
-    payload: TaskPayloadMap[TaskType];
-  }
->;
+export type ServerAckMessage = WsMessage<'server.ack', ServerAckPayload>;
+export type ServerErrorMessage = WsMessage<'server.error', { code: string; message: string }>;
 
 export type ServerMessage =
   | ServerAckMessage
-  | ServerErrorMessage
-  | TaskDispatchMessage;
+  | ServerErrorMessage;
