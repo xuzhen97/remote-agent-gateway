@@ -166,7 +166,12 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
 function syncMappingsFromStore(workDir: string, mappingsDir: string): void {
   const storePath = path.join(workDir, 'frp-mappings.json');
   if (!fs.existsSync(storePath)) {
-    return; // No JSON store yet — keep existing .toml files as-is
+    for (const file of fs.readdirSync(mappingsDir)) {
+      if (!file.endsWith('.toml')) continue;
+      console.log(`[frpc-daemon] removing stale mapping file without store: ${file}`);
+      try { fs.unlinkSync(path.join(mappingsDir, file)); } catch { /* ok */ }
+    }
+    return;
   }
 
   let store: { id: string; name: string; type: string; localHost: string; localPort: number; remotePort?: number; customDomain?: string }[] = [];

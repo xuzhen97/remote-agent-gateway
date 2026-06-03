@@ -52,6 +52,10 @@ function makeWorkDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'rag-frpc-daemon-'));
 }
 
+function writeStore(workDir: string, mappings: Array<{ id: string; name: string; type: string; localHost: string; localPort: number; remotePort?: number; customDomain?: string }>): void {
+  fs.writeFileSync(path.join(workDir, 'frp-mappings.json'), JSON.stringify(mappings, null, 2));
+}
+
 function writeMapping(workDir: string, file: string, lines: string[]): void {
   const mappingsDir = path.join(workDir, 'mappings');
   fs.mkdirSync(mappingsDir, { recursive: true });
@@ -66,6 +70,14 @@ function writeTcpMapping(workDir: string, file = 'pm_test.toml'): void {
     'localPort = 3000',
     'remotePort = 23000',
   ]);
+  writeStore(workDir, [{
+    id: file.replace(/\.toml$/, ''),
+    name: 'file-service-client-1',
+    type: 'tcp',
+    localHost: '127.0.0.1',
+    localPort: 3000,
+    remotePort: 23000,
+  }]);
 }
 
 describe('frpc daemon orphan cleanup', () => {
@@ -92,6 +104,33 @@ describe('frpc daemon orphan cleanup', () => {
       'customDomains = ["preview.example.com"]',
     ]);
     writeTcpMapping(workDir, 'pm_tcp.toml');
+    writeStore(workDir, [
+      {
+        id: 'pm_stale_http',
+        name: 'auto-file-http-client-1',
+        type: 'http',
+        localHost: '127.0.0.1',
+        localPort: 3000,
+        remotePort: 23000,
+      },
+      {
+        id: 'pm_http_domain',
+        name: 'web-preview-client-1',
+        type: 'http',
+        localHost: '127.0.0.1',
+        localPort: 3002,
+        remotePort: 23002,
+        customDomain: 'preview.example.com',
+      },
+      {
+        id: 'pm_tcp',
+        name: 'file-service-client-1',
+        type: 'tcp',
+        localHost: '127.0.0.1',
+        localPort: 3000,
+        remotePort: 23000,
+      },
+    ]);
 
     spawnMock.mockReturnValue(makeFakeProcess(9876));
     setFrpsInfo({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' });
