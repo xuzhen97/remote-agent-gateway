@@ -20,6 +20,7 @@ interface StartOptions {
   frpcPath?: string;
   frpcWorkDir?: string;
   job: { maxConcurrent: number; defaultTimeoutMs: number; maxTimeoutMs: number; logBufferLines: number };
+  taskAuditStorePath?: string;
 }
 
 export interface ControlHttpServerState {

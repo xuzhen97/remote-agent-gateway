@@ -52,6 +52,7 @@ export interface ClientConfig {
   jobDefaultTimeoutMs: number;
   jobMaxTimeoutMs: number;
   jobLogBufferLines: number;
+  taskAuditStorePath: string;
 }
 
 function parseCliConfigPath(flagName: string): string | undefined {
@@ -133,6 +134,7 @@ function normalizeYamlConfig(raw: z.infer<typeof ClientYamlSchema>, configPath: 
     jobDefaultTimeoutMs: raw.http.job.defaultTimeoutMs,
     jobMaxTimeoutMs: raw.http.job.maxTimeoutMs,
     jobLogBufferLines: raw.http.job.logBufferLines,
+    taskAuditStorePath: path.resolve(configDir, '.rag/task-audit.jsonl'),
   };
 }
 

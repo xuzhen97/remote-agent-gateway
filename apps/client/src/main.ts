@@ -42,6 +42,7 @@ async function main(): Promise<void> {
         maxTimeoutMs: config.jobMaxTimeoutMs,
         logBufferLines: config.jobLogBufferLines,
       },
+      taskAuditStorePath: config.taskAuditStorePath,
     });
     console.log(`HTTP control service started on ${httpState.host}:${httpState.port}`);
   } catch (err) {
@@ -89,6 +90,7 @@ async function main(): Promise<void> {
                 maxTimeoutMs: config.jobMaxTimeoutMs,
                 logBufferLines: config.jobLogBufferLines,
               },
+              taskAuditStorePath: config.taskAuditStorePath,
             });
           } catch (err) {
             console.warn('Failed to restart HTTP with coordinated token:', err instanceof Error ? err.message : err);
