@@ -2,7 +2,6 @@ import { loadConfig } from './config/client.config.js';
 import { ConnectionManager } from './core/connection.js';
 import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
-import { dispatchTask } from './core/task-dispatcher.js';
 import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-daemon.js';
 import { startControlHttpServer, stopControlHttpServer } from './runtime/control-http/server.js';
 import type { ServerAckPayload } from '@rag/shared';
@@ -140,11 +139,9 @@ async function main(): Promise<void> {
         console.error('Server error:', (message.payload as Record<string, unknown>)?.message);
         break;
 
-      case 'task.dispatch': {
-        const payload = message.payload as { taskId: string; taskType: string; payload: unknown };
-        dispatchTask(conn, config, payload);
+      case 'task.dispatch':
+        console.warn('Ignoring legacy task.dispatch message; use client HTTP APIs instead');
         break;
-      }
 
       default:
         console.log('Unknown message type:', message.type);

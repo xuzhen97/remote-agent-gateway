@@ -8,12 +8,6 @@ vi.mock('../auth/auth.middleware.js', () => ({
   },
 }));
 
-const { createTaskMock, sendToClientMock, getFrpsInfoMock } = vi.hoisted(() => ({
-  createTaskMock: vi.fn(() => ({ id: 'task_frpc_start' })),
-  sendToClientMock: vi.fn(),
-  getFrpsInfoMock: vi.fn(() => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frps-token' })),
-}));
-
 vi.mock('./clients.service.js', () => ({
   clientsService: {
     listClients: vi.fn(() => []),
@@ -23,16 +17,9 @@ vi.mock('./clients.service.js', () => ({
   },
 }));
 
-vi.mock('../tasks/tasks.service.js', () => ({
-  tasksService: {
-    createTask: createTaskMock,
-  },
-}));
-
 vi.mock('../connections/connections.manager.js', () => ({
   connectionManager: {
     isOnline: vi.fn(() => true),
-    sendToClient: sendToClientMock,
   },
 }));
 
@@ -40,39 +27,15 @@ vi.mock('../audit/audit.service.js', () => ({
   auditService: { log: vi.fn() },
 }));
 
-vi.mock('../frp/frp.service.js', () => ({
-  getFrpsConnectionInfo: getFrpsInfoMock,
-}));
-
-describe('client routes frpc control', () => {
-  it('dispatches frpc_start with explicit frps connection info', async () => {
+describe('client routes', () => {
+  it('does not register legacy frpc control routes', async () => {
     const app = Fastify();
     await app.register(clientRoutes);
 
-    const response = await app.inject({ method: 'POST', url: '/api/clients/client-1/frpc/start' });
+    const startResponse = await app.inject({ method: 'POST', url: '/api/clients/client-1/frpc/start' });
+    const stopResponse = await app.inject({ method: 'POST', url: '/api/clients/client-1/frpc/stop' });
 
-    expect(response.statusCode).toBe(200);
-    expect(createTaskMock).toHaveBeenCalledWith({
-      clientId: 'client-1',
-      type: 'frpc_start',
-      payload: {
-        serverAddr: 'frps.example.com',
-        serverPort: 7000,
-        authToken: 'frps-token',
-      },
-    });
-    expect(sendToClientMock).toHaveBeenCalledWith('client-1', {
-      type: 'task.dispatch',
-      requestId: 'task_frpc_start',
-      payload: {
-        taskId: 'task_frpc_start',
-        taskType: 'frpc_start',
-        payload: {
-          serverAddr: 'frps.example.com',
-          serverPort: 7000,
-          authToken: 'frps-token',
-        },
-      },
-    });
+    expect(startResponse.statusCode).toBe(404);
+    expect(stopResponse.statusCode).toBe(404);
   });
 });
