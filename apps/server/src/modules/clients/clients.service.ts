@@ -141,7 +141,10 @@ export class ClientsService {
       clientHttpRemotePort: client.http_remote_port,
       capabilities: client.capabilities ? JSON.parse(client.capabilities) : null,
     };
-    if (options?.includeHttpToken && client.http_token) {
+    // Only expose token when the client confirmed it's using it (httpReady).
+    // This avoids a race condition where the frontend gets the newly derived token
+    // while the client is still restarting with the old/bootstrap token, causing 403.
+    if (options?.includeHttpToken && client.http_token && client.http_ready === 1) {
       result.clientHttpToken = client.http_token;
     }
     return result;

@@ -43,15 +43,39 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
   const [uploadOpen, setUploadOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Discover client HTTP endpoint
+  // Discover client HTTP endpoint — poll until httpReady, then fetch token.
   useEffect(() => {
-    getClient(api, clientId).then((c) => {
-      if (c.clientHttpBaseUrl && c.clientHttpToken) {
-        setBaseUrl(c.clientHttpBaseUrl);
-        setToken(c.clientHttpToken);
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 30;
+
+    const tryDiscover = async () => {
+      try {
+        const c = await getClient(api, clientId);
+        if (cancelled) return;
+
+        // Only use the HTTP endpoint when the client confirmed readiness.
+        // This avoids 403 errors during the token-coordination race window.
+        if (c.clientHttpBaseUrl && c.clientHttpToken && c.httpReady) {
+          setBaseUrl(c.clientHttpBaseUrl);
+          setToken(c.clientHttpToken);
+          setInitLoading(false);
+          return;
+        }
+
+        attempts++;
+        if (attempts >= maxAttempts) {
+          setInitLoading(false);
+          return;
+        }
+        setTimeout(tryDiscover, 1000);
+      } catch {
+        setInitLoading(false);
       }
-      setInitLoading(false);
-    }).catch(() => setInitLoading(false));
+    };
+
+    tryDiscover();
+    return () => { cancelled = true; };
   }, [api, clientId]);
 
   // Load roots

@@ -36,6 +36,15 @@ function handleFailure(res: ServerResponse, err: unknown): void {
   sendError(res, mapped.status, mapped.code, mapped.message);
 }
 
+/** Ensure a directory exists, skipping creation when it already exists.
+ *  On Windows, mkdirSync on a drive root (e.g. D:\\) throws EPERM even with
+ *  recursive:true, so we gate the call behind an existence check. */
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
 export function registerFileRoutes(router: ControlHttpRouter, options: {
   token: string;
   workspaceDir: string;
@@ -103,7 +112,7 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const rootId = queryRootId(url);
       const clientPath = queryPath(url);
       const fullPath = resolveRootPath(roots, rootId, clientPath);
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      ensureDir(path.dirname(fullPath));
       const body = await readBody(req);
       fs.writeFileSync(fullPath, body);
       sendOk(res, { rootId, path: clientPath, size: body.length });
@@ -118,7 +127,7 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const filename = url.searchParams.get('filename');
       if (!filename || filename.includes('/') || filename.includes('\\')) return sendError(res, 400, 'INVALID_REQUEST', 'Invalid filename');
       const targetDir = resolveRootPath(roots, rootId, targetPath);
-      fs.mkdirSync(targetDir, { recursive: true });
+      ensureDir(targetDir);
       const body = await readBody(req);
       const fullPath = path.join(targetDir, filename);
       fs.writeFileSync(fullPath, body);
@@ -157,7 +166,7 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const to = resolveRootPath(roots, payload.rootId, payload.to);
       if (!fs.existsSync(from)) return sendError(res, 404, 'NOT_FOUND', 'Source not found');
       if (fs.existsSync(to) && !payload.overwrite) return sendError(res, 409, 'CONFLICT', 'Destination exists');
-      fs.mkdirSync(path.dirname(to), { recursive: true });
+      ensureDir(path.dirname(to));
       if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true });
       fs.renameSync(from, to);
       sendOk(res, { rootId: payload.rootId, from: payload.from, to: payload.to });
@@ -172,7 +181,7 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const to = resolveRootPath(roots, payload.rootId, payload.to);
       if (!fs.existsSync(from)) return sendError(res, 404, 'NOT_FOUND', 'Source not found');
       if (fs.existsSync(to) && !payload.overwrite) return sendError(res, 409, 'CONFLICT', 'Destination exists');
-      fs.mkdirSync(path.dirname(to), { recursive: true });
+      ensureDir(path.dirname(to));
       fs.cpSync(from, to, { recursive: true, force: payload.overwrite === true });
       sendOk(res, { rootId: payload.rootId, from: payload.from, to: payload.to });
     } catch (err) { handleFailure(res, err); }
