@@ -16,7 +16,7 @@ type Route =
   | { page: 'clients' }
   | { page: 'client-detail'; clientId: string }
   | { page: 'client-files'; clientId: string; clientName: string }
-  | { page: 'mappings'; clientId: string; clientName: string };
+  | { page: 'mappings'; clientId?: string; clientName?: string };
 
 export function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('rag_token'));
@@ -118,6 +118,7 @@ export function App() {
         onNavigate={(key) => {
           if (key === 'dashboard') setRoute({ page: 'dashboard' });
           else if (key === 'clients') setRoute({ page: 'clients' });
+          else if (key === 'mappings') setRoute({ page: 'mappings' });
         }}
         onLogout={handleLogout}
       >
