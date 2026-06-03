@@ -12,6 +12,7 @@ import { clientHttpPortRoutes } from './modules/client-http/client-http-port.rou
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
+import { cleanupStaleFrpsProxies } from './modules/frp/frps-cleanup.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -37,6 +38,13 @@ async function main(): Promise<void> {
     clientsService.setOffline(client.id);
   }
   saveDb();
+
+  // Clean up stale frps proxies left over from unclean shutdowns
+  if (env.FRP_MODE === 'remote') {
+    cleanupStaleFrpsProxies().catch((err: unknown) => {
+      console.warn('[frps-cleanup] background cleanup failed:', err instanceof Error ? err.message : err);
+    });
+  }
 
   // Create Fastify instance
   // In bundled mode, pino worker threads can't resolve internal modules.
