@@ -5,11 +5,9 @@ import multipart from '@fastify/multipart';
 import { env, envSource } from './config/env.js';
 import { initDb, saveDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
-import { taskRoutes } from './modules/tasks/tasks.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
-import { clientFilesRoutes } from './modules/client-files/client-files.routes.js';
 import { frpRoutes } from './modules/frp/frp.routes.js';
-import { agentRoutes } from './modules/agent/agent.routes.js';
+import { clientHttpAdminRoutes } from './modules/client-http/client-http-admin.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -69,11 +67,9 @@ async function main(): Promise<void> {
 
   // Register routes
   await app.register(clientRoutes);
-  await app.register(taskRoutes);
   await app.register(fileRoutes);
-  await app.register(clientFilesRoutes);
   await app.register(frpRoutes);
-  await app.register(agentRoutes);
+  await app.register(clientHttpAdminRoutes);
 
   // Register WebSocket
   await registerWsRoutes(app);
