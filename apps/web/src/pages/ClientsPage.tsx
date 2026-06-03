@@ -12,9 +12,10 @@ interface ClientsPageProps {
   onViewDetail: (clientId: string) => void;
   onOpenFiles: (clientId: string) => void;
   onOpenMappings: (clientId: string) => void;
+  onOpenTasks?: (clientId: string, clientName: string) => void;
 }
 
-export function ClientsPage({ api, onViewDetail, onOpenFiles, onOpenMappings }: ClientsPageProps) {
+export function ClientsPage({ api, onViewDetail, onOpenFiles, onOpenMappings, onOpenTasks }: ClientsPageProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,6 +59,7 @@ export function ClientsPage({ api, onViewDetail, onOpenFiles, onOpenMappings }: 
                 <Button size="small" icon={<EyeOutlined />} onClick={() => onViewDetail(record.id)}>详情</Button>
                 <Button size="small" onClick={() => onOpenFiles(record.id)}>文件</Button>
                 <Button size="small" onClick={() => onOpenMappings(record.id)}>映射</Button>
+                <Button size="small" onClick={() => onOpenTasks?.(record.id, record.name)}>任务</Button>
               </Space>
             ),
           },

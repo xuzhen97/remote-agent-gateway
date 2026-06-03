@@ -4,6 +4,7 @@ import {
   DashboardOutlined,
   CloudServerOutlined,
   LinkOutlined,
+  OrderedListOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 
@@ -19,6 +20,7 @@ interface AppLayoutProps {
 const menuItems = [
   { key: 'dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: 'clients', icon: <CloudServerOutlined />, label: '客户端' },
+  { key: 'tasks', icon: <OrderedListOutlined />, label: '任务' },
   { key: 'mappings', icon: <LinkOutlined />, label: '端口映射' },
 ];
 

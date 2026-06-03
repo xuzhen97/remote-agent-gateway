@@ -17,6 +17,7 @@ const statusColor: Record<string, string> = {
   inactive: 'default',
   error: 'red',
   cancelled: 'default',
+  sync_failed: 'orange',
 };
 
 const statusIcons: Record<string, React.ReactNode> = {

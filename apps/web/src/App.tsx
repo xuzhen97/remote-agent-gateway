@@ -8,6 +8,7 @@ import { ClientsPage } from './pages/ClientsPage';
 import { ClientDetailPage } from './pages/ClientDetailPage';
 import { MappingsPage } from './pages/MappingsPage';
 import { ClientFilesPage } from './pages/ClientFilesPage';
+import { TasksPage } from './pages/TasksPage';
 import { createApiClient, type Api } from './api/http';
 import { getClient } from './api/clients';
 
@@ -16,6 +17,7 @@ type Route =
   | { page: 'clients' }
   | { page: 'client-detail'; clientId: string }
   | { page: 'client-files'; clientId: string; clientName: string }
+  | { page: 'tasks'; clientId?: string; clientName?: string }
   | { page: 'mappings'; clientId?: string; clientName?: string };
 
 export function App() {
@@ -71,6 +73,7 @@ export function App() {
               .then((c) => setRoute({ page: 'mappings', clientId: id, clientName: c.name }))
               .catch(() => setRoute({ page: 'mappings', clientId: id, clientName: id }));
           }}
+          onOpenTasks={(id, name) => setRoute({ page: 'tasks', clientId: id, clientName: name })}
         />
       );
       break;
@@ -95,6 +98,10 @@ export function App() {
         />
       );
       break;
+    case 'tasks':
+      navKey = 'tasks';
+      content = <TasksPage api={api} initialClientId={route.clientId} initialClientName={route.clientName} />;
+      break;
     case 'mappings':
       navKey = 'mappings';
       content = (
@@ -118,6 +125,7 @@ export function App() {
         onNavigate={(key) => {
           if (key === 'dashboard') setRoute({ page: 'dashboard' });
           else if (key === 'clients') setRoute({ page: 'clients' });
+          else if (key === 'tasks') setRoute({ page: 'tasks' });
           else if (key === 'mappings') setRoute({ page: 'mappings' });
         }}
         onLogout={handleLogout}
