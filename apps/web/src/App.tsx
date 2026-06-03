@@ -96,7 +96,7 @@ export function App() {
       );
       break;
     case 'mappings':
-      navKey = 'clients';
+      navKey = 'mappings';
       content = (
         <MappingsPage
           api={api}
