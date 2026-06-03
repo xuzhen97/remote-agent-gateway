@@ -75,6 +75,9 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
 
   fs.mkdirSync(mappingsDir, { recursive: true });
 
+  // Sync with JSON store: delete stale .toml files that don't match current state
+  syncMappingsFromStore(workDir, mappingsDir);
+
   // Clean up old-format full-config files on each rebuild
   if (fs.existsSync(mappingsDir)) {
     for (const file of fs.readdirSync(mappingsDir)) {
@@ -157,6 +160,50 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
   } catch (err) {
     console.error('[frpc-daemon] spawn failed:', err);
     return null;
+  }
+}
+
+function syncMappingsFromStore(workDir: string, mappingsDir: string): void {
+  const storePath = path.join(workDir, 'frp-mappings.json');
+  if (!fs.existsSync(storePath)) {
+    return; // No JSON store yet — keep existing .toml files as-is
+  }
+
+  let store: { id: string; name: string; type: string; localHost: string; localPort: number; remotePort?: number; customDomain?: string }[] = [];
+  try {
+    store = JSON.parse(fs.readFileSync(storePath, 'utf-8'));
+  } catch {
+    return;
+  }
+
+  const validIds = new Set(store.map((mapping) => mapping.id));
+
+  // Remove .toml files that don't have a matching entry in the JSON store
+  for (const file of fs.readdirSync(mappingsDir)) {
+    if (!file.endsWith('.toml')) continue;
+    const mappingId = file.replace(/\.toml$/, '');
+    if (!validIds.has(mappingId)) {
+      console.log(`[frpc-daemon] removing stale mapping file: ${file}`);
+      try { fs.unlinkSync(path.join(mappingsDir, file)); } catch { /* ok */ }
+    }
+  }
+
+  // Write fresh .toml files for each business mapping
+  for (const mapping of store) {
+    const filePath = path.join(mappingsDir, `${mapping.id}.toml`);
+    const lines = [
+      `name = "${mapping.name}"`,
+      `type = "${mapping.type}"`,
+      `localIP = "${mapping.localHost}"`,
+      `localPort = ${mapping.localPort}`,
+    ];
+    if (typeof mapping.remotePort === 'number' && mapping.type === 'tcp') {
+      lines.push(`remotePort = ${mapping.remotePort}`);
+    }
+    if (mapping.customDomain) {
+      lines.push(`customDomains = ["${mapping.customDomain}"]`);
+    }
+    fs.writeFileSync(filePath, lines.join('\n') + '\n');
   }
 }
 
