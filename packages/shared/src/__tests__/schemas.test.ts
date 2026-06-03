@@ -19,6 +19,9 @@ import {
   ClientJobCommandPayloadSchema,
   ClientJobScriptPayloadSchema,
   ClientFrpMappingCreatePayloadSchema,
+  ClientTaskAuditMirrorRecordSchema,
+  ClientTaskAuditLocalRecordSchema,
+  TaskHistoryQuerySchema,
 } from '../schemas.js';
 
 describe('ClientRegisterPayloadSchema', () => {
@@ -98,6 +101,74 @@ describe('client file management schemas', () => {
     expect(() => ClientFilePathPayloadSchema.parse({ path: 'C:\\Windows\\win.ini' })).toThrow();
     expect(() => ClientFileRootPayloadSchema.parse({ rootId: '' })).toThrow();
     expect(() => ClientFileRootPathPayloadSchema.parse({ rootId: 'root-0', path: '../secret.txt' })).toThrow();
+  });
+});
+
+describe('task audit schemas', () => {
+  it('accepts a local record with sync metadata', () => {
+    const value = ClientTaskAuditLocalRecordSchema.parse({
+      recordId: 'rec_01',
+      clientId: 'client-1',
+      requestId: 'req_01',
+      resourceType: 'file',
+      actionType: 'file.write',
+      method: 'PUT',
+      path: '/files/write',
+      targetId: 'workspace:src/index.ts',
+      sourceType: 'web-console',
+      actorType: 'admin-token',
+      actorLabel: 'web-console/admin-token',
+      requestSummary: { rootId: 'workspace', path: 'src/index.ts', size: 123 },
+      resultSummary: { size: 123 },
+      status: 'success',
+      httpStatus: 200,
+      startedAt: 1710000000000,
+      finishedAt: 1710000000100,
+      durationMs: 100,
+      syncStatus: 'pending',
+      reportedAt: 1710000000101,
+    });
+
+    expect(value.syncStatus).toBe('pending');
+  });
+
+  it('accepts mirrored query filters', () => {
+    const value = TaskHistoryQuerySchema.parse({
+      clientId: 'client-1',
+      status: 'failed',
+      resourceType: 'file',
+      actionType: 'file.write',
+      sourceType: 'web-console',
+      page: '2',
+      pageSize: '20',
+    });
+
+    expect(value.page).toBe(2);
+    expect(value.pageSize).toBe(20);
+  });
+
+  it('rejects invalid audit statuses', () => {
+    expect(() => ClientTaskAuditMirrorRecordSchema.parse({
+      recordId: 'rec_01',
+      clientId: 'client-1',
+      requestId: 'req_01',
+      resourceType: 'file',
+      actionType: 'file.write',
+      method: 'PUT',
+      path: '/files/write',
+      targetId: 'workspace:src/index.ts',
+      sourceType: 'web-console',
+      actorType: 'admin-token',
+      actorLabel: 'web-console/admin-token',
+      requestSummary: {},
+      resultSummary: {},
+      status: 'running',
+      httpStatus: 200,
+      startedAt: 1710000000000,
+      finishedAt: 1710000000100,
+      durationMs: 100,
+      reportedAt: 1710000000101,
+    })).toThrow();
   });
 });
 

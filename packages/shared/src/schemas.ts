@@ -163,3 +163,16 @@ export const ClientFrpMappingCreatePayloadSchema = z.object({
   remotePort: z.number().int().min(1).max(65535).nullable().optional(),
   customDomain: z.string().optional(),
 });
+
+export {
+  TaskResourceTypeSchema,
+  TaskActionTypeSchema,
+  TaskStatusSchema,
+  TaskSourceTypeSchema,
+  TaskActorTypeSchema,
+  TaskSyncStatusSchema,
+  TaskSummaryJsonSchema,
+  ClientTaskAuditMirrorRecordSchema,
+  ClientTaskAuditLocalRecordSchema,
+  TaskHistoryQuerySchema,
+} from './task-audit.js';

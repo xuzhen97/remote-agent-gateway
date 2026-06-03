@@ -174,3 +174,42 @@ export interface AuditLog {
   detail?: string;
   createdAt: number;
 }
+
+export interface ClientTaskHistoryItem {
+  recordId: string;
+  clientId: string;
+  clientNameSnapshot?: string;
+  requestId: string;
+  jobId?: string | null;
+  resourceType: 'job' | 'file' | 'frp_mapping';
+  actionType:
+    | 'job.command'
+    | 'job.script'
+    | 'job.cancel'
+    | 'file.write'
+    | 'file.upload'
+    | 'file.mkdir'
+    | 'file.delete'
+    | 'file.move'
+    | 'file.copy'
+    | 'frp_mapping.create'
+    | 'frp_mapping.delete';
+  method: string;
+  path: string;
+  targetId: string;
+  sourceType: 'web-console' | 'agent-api' | 'server-proxy' | 'direct-client-http' | 'unknown';
+  actorType: 'admin-token' | 'agent-token' | 'client-token' | 'unknown-token';
+  actorLabel: string;
+  querySummary?: Record<string, unknown>;
+  requestSummary: Record<string, unknown>;
+  resultSummary: Record<string, unknown>;
+  status: 'success' | 'failed' | 'cancelled';
+  httpStatus: number;
+  startedAt: number;
+  finishedAt: number;
+  durationMs: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  reportedAt: number;
+  receivedAt?: number;
+}
