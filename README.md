@@ -1,44 +1,57 @@
 # Remote Agent Gateway
 
-> 面向 AI Agent 的远程机器控制、文件分发、脚本执行和端口映射平台。
+> 面向 AI Agent 的远程机器控制、文件管理、脚本执行和端口映射平台。
 
-统一的服务端 API，让 AI Agent（Claude Code、Codex、VCP 等）可以控制多台无公网 IP 的客户端机器——执行脚本、推送文件、创建临时端口映射。
+统一的服务端 API 用于**发现客户端、协调配置和提供轻量管理入口**；实际的数据与操作流量通过 `frps -> frpc -> client HTTP` 直达客户端机器，不占用 server 应用层带宽。AI Agent（Claude Code、Codex、VCP 等）通过 server 拿到 `clientHttpBaseUrl + clientHttpToken` 后，直接调用 client HTTP 完成脚本执行、文件管理和映射管理。
 
 ---
 
 ## 架构
 
-```
-┌──────────────────────────────────────────────────┐
-│                  AI Agent / CLI                   │
-│            HTTP API (Bearer Token)                │
-└─────────────────────┬────────────────────────────┘
-                      │
-┌─────────────────────▼────────────────────────────┐
-│              Server (公网机器)                     │
-│  Fastify + WebSocket + SQLite + 文件存储          │
-│                                                   │
-│  /api/clients    客户端管理                        │
-│  /api/tasks      任务 CRUD + 日志                  │
-│  /api/files      文件上传/下载                      │
-│  /api/port-mappings   FRP 端口映射                 │
-│  /api/agent/*    AI Agent 高级接口                 │
-│  /ws/client      WebSocket 长连接                  │
-└──────┬──────────────────────────────┬────────────┘
-       │ WebSocket (客户端主动连接)     │
-       ▼                              ▼
-┌──────────────┐            ┌──────────────┐
-│  Client #1   │            │  Client #2   │
-│  内网机器     │            │  内网机器     │
-│              │            │              │
-│  执行脚本     │            │  执行脚本     │
-│  执行命令     │            │  执行命令     │
-│  接收文件     │            │  接收文件     │
-│  管理 frpc   │            │  管理 frpc   │
-└──────────────┘            └──────────────┘
+```text
+控制面: client <──WebSocket──> server
+数据面: AI Agent / Browser <──HTTP/SSE via frps/frpc──> client HTTP service
 ```
 
-**核心思路：** 客户端没有公网 IP → 客户端主动通过 WebSocket 连接服务端 → 服务端通过长连接下发任务。
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     AI Agent / Browser                      │
+│                                                             │
+│  1. 调 server discovery API                                 │
+│  2. 直连 client HTTP / SSE                                  │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 Server (公网机器 / 控制面)                   │
+│  Fastify + WebSocket + SQLite                               │
+│                                                             │
+│  /api/clients                  客户端发现                    │
+│  /api/clients/:id/http/*       轻量管理编排                  │
+│  /api/client-http/ports/*      业务映射端口分配              │
+│  /ws/client                    注册 / 心跳 / 配置协调        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ WebSocket control plane
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Client (内网机器 / 数据面)                  │
+│  local HTTP control service                                 │
+│  - /jobs/*      脚本 / 命令异步任务 + SSE                   │
+│  - /files/*     文件管理                                     │
+│  - /frp/*       业务映射管理                                 │
+│  - single frpc  唯一 FRP 客户端进程                          │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ frps/frpc tunnel
+                           ▼
+                     http://<publicHost>:<remotePort>
+```
+
+**核心思路：**
+
+- server 只负责 discovery、token/端口协调、轻量管理编排。
+- client 启动后常驻一个本地 HTTP 控制服务。
+- AI Agent 与管理后台通过 frps/frpc 直接访问 client HTTP。
+- 旧的 WebSocket task 下发体系已经移除，不再作为正式能力存在。
 
 ---
 
@@ -48,44 +61,42 @@
 remote-agent-gateway/
 ├── packages/shared/          # 共享类型、Zod Schema、WebSocket 协议
 │   └── src/
-│       ├── types.ts          # TaskType, TaskStatus, ClientInfo 等
-│       ├── protocol.ts       # WS 消息类型定义
-│       └── schemas.ts        # Zod 校验规则
+│       ├── types.ts          # client HTTP / file / mapping 共享类型
+│       ├── protocol.ts       # WS 控制面消息定义
+│       └── schemas.ts        # 新体系运行时校验规则
 │
 ├── apps/server/              # 服务端：Fastify + WebSocket + SQLite
 │   └── src/
 │       ├── main.ts           # 入口：启动 HTTP + WS 服务
-│       ├── config/env.ts     # 环境变量 Zod 校验
+│       ├── config/           # YAML 配置加载与 env 导出
 │       ├── db/               # SQLite（sql.js WASM）
-│       │   ├── index.ts      # 数据库初始化 + 持久化
-│       │   └── migrate.ts    # 建表迁移
 │       ├── modules/
 │       │   ├── auth/         # Token 鉴权中间件
-│       │   ├── clients/      # 客户端注册、心跳、在线状态
+│       │   ├── clients/      # 客户端 discovery / 在线状态
+│       │   ├── client-http/  # 轻量管理编排 / 端口分配 / token 协调
 │       │   ├── connections/  # WebSocket 连接池管理
-│       │   ├── tasks/        # 任务创建、状态、日志
-│       │   ├── files/        # 文件上传、存储、SHA256
-│       │   ├── frp/          # FRP 端口映射 CRUD
-│       │   ├── audit/        # 审计日志
-│       │   └── agent/        # AI Agent 高级 API
-│       └── ws/               # WebSocket 消息处理
+│       │   ├── files/        # server 侧文件仓库存储
+│       │   ├── frp/          # FRPS dashboard / 端口分配 / cleanup
+│       │   └── audit/        # 审计日志
+│       └── ws/               # register / heartbeat / http_ready 协调
 │
 ├── apps/client/              # 客户端 Agent
 │   └── src/
-│       ├── main.ts           # 入口：连接 → 注册 → 心跳 → 等待任务
+│       ├── main.ts           # 入口：启动本地 HTTP → 注册 → 心跳
 │       ├── config/           # client.config.yaml 加载与解析
-│       ├── core/             # 连接管理、注册、心跳、任务分发
-│       ├── executors/        # 5 种执行器
-│       │   ├── exec-script.executor.ts    # Node.js/Python/Bash 脚本
-│       │   ├── exec-command.executor.ts   # Shell 命令
-│       │   ├── push-file.executor.ts      # 从服务端下载文件
-│       │   ├── frp-create.executor.ts     # 启动 frpc 进程
-│       │   └── frp-remove.executor.ts     # 停止 frpc 进程
 │       └── runtime/
-│           └── workspace.ts   # 工作区路径安全限制
+│           ├── control-http/ # /jobs/* /files/* /frp/* 新体系入口
+│           ├── frpc-daemon.ts# 唯一 frpc 进程管理
+│           └── workspace.ts  # 工作区路径安全限制
+│
+├── apps/web/                 # React + Ant Design 管理后台
+│   └── src/
+│       ├── pages/            # Dashboard / Clients / Files / Mappings
+│       ├── api/              # server discovery 与轻量管理 API
+│       └── components/       # 布局与通用组件
 │
 ├── scripts/                  # 构建脚本
-│   └── build-all.ts          # esbuild 打包 → dist/
+│   └── build-all.ts          # server/client/web 分发构建
 │
 └── dist/                     # 分发包（构建产出）
     ├── server.bundle.cjs     # 服务端单文件
@@ -116,26 +127,39 @@ pnpm install
 ```bash
 # 1. 配置服务端
 cp server.config.example.yaml server.config.yaml
-# 编辑 server.config.yaml，至少修改 auth.adminToken 和 auth.agentApiToken
+# 编辑 server.config.yaml，至少修改：
+# - auth.adminToken
+# - auth.agentApiToken
+# - frp.connectHost / publicHost / token / dashboard
+# - clientHttp.tokenSecret
 
-# 2. 启动服务端
-pnpm dev:server
-# → http://localhost:3000
-
-# 3. 配置客户端（另一台机器或本机）
+# 2. 配置客户端（另一台机器或本机）
 cp client.config.example.yaml client.config.yaml
-# 编辑 client.config.yaml，填写 server.wsUrl、server.apiBaseUrl 和 server.token
+# 编辑 client.config.yaml，填写：
+# - server.wsUrl
+# - server.apiBaseUrl
+# - server.token
+# - workspace.allowedRoots
+# - http.host / http.port
 
-# 4. 启动客户端
-pnpm dev:client
-# → 连接服务端，注册，等待任务
+# 3. 一键启动 server + client
+pnpm dev
+# → server: http://127.0.0.1:3000
+# → client: 注册并启动本地 HTTP control service
+
+# 4. （可选）单独启动 React 前端开发服务
+pnpm dev:web
+# → http://127.0.0.1:5174
 ```
 
 ### 测试
 
 ```bash
-pnpm test          # 全量测试（26 个）
-pnpm typecheck     # 类型检查
+pnpm --filter @rag/shared test
+pnpm --filter @rag/server test
+pnpm --filter @rag/client test
+pnpm --filter @rag/web test
+pnpm typecheck
 ```
 
 ---
@@ -151,152 +175,97 @@ pnpm typecheck     # 类型检查
 | `GET` | `/api/clients` | 列出所有客户端 |
 | `GET` | `/api/clients/:id` | 获取单个客户端详情 |
 
-### 任务管理
+### Server 文件仓库
+
+这些接口只负责 **server 本地文件仓库**，适合上传发布包、脚本模板或需要复用的静态文件；它们**不会**直接把文件推送到 client，也不再触发旧 task 执行流。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/tasks` | 创建任务 |
-| `GET` | `/api/tasks` | 列出任务（支持 `?clientId=&status=&limit=`） |
-| `GET` | `/api/tasks/:id` | 任务详情 |
-| `GET` | `/api/tasks/:id/logs` | 任务实时日志 |
+| `POST` | `/api/files` | 上传文件到 server 仓库（multipart） |
+| `GET` | `/api/files` | 列出 server 仓库文件 |
+| `GET` | `/api/files/:id/download` | 从 server 仓库下载文件 |
 
-**创建任务示例：**
+### Client discovery / 轻量管理 API
 
-```json
-{
-  "clientId": "win-dev-01",
-  "type": "exec_script",
-  "payload": {
-    "runtime": "node",
-    "script": "console.log('hello from client')",
-    "timeoutMs": 60000
-  }
-}
+当前正式的 server API 只负责客户端发现与轻量管理编排：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/clients` | 列出所有客户端（不返回 client HTTP token） |
+| `GET` | `/api/clients/:id` | 获取客户端详情（返回 `clientHttpBaseUrl` / `clientHttpToken`） |
+| `GET` | `/api/clients/:id/http/health` | 通过 server 轻量调用 client HTTP 健康检查 |
+| `GET` | `/api/clients/:id/http/frp/mappings` | 通过 server 查看该 client 当前映射 |
+| `POST` | `/api/clients/:id/http/frp/mappings` | 通过 server 创建该 client 的业务映射 |
+| `DELETE` | `/api/clients/:id/http/frp/mappings/:mappingId` | 通过 server 删除该 client 的业务映射 |
+| `POST` | `/api/client-http/ports/allocate` | 为 client 业务映射分配端口（内部轻量分配接口） |
+| `DELETE` | `/api/client-http/ports/:mappingId` | 删除业务映射记录（内部轻量删除接口） |
+
+### Client HTTP API（正式数据面）
+
+client 启动后会暴露一个常驻 HTTP 控制服务：
+
+```text
+http://<frpsPublicHost>:<clientHttpRemotePort>
 ```
 
-### 文件管理
+server discovery 返回这个地址与对应 token 后，AI Agent / Browser 直接调用这些接口。
+
+#### Job API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/files` | 上传文件（multipart） |
-| `GET` | `/api/files` | 列出文件 |
-| `GET` | `/api/files/:id/download` | 下载文件 |
+| `POST` | `/jobs/command` | 创建命令执行 job |
+| `POST` | `/jobs/script` | 创建脚本执行 job |
+| `GET` | `/jobs/:jobId` | 查询 job 状态 |
+| `GET` | `/jobs/:jobId/logs` | 拉取 job 历史日志 |
+| `GET` | `/jobs/:jobId/events` | SSE 实时日志 / 状态流 |
+| `POST` | `/jobs/:jobId/cancel` | 取消 job |
 
-### 客户端文件管理
-
-这些接口通过 WebSocket 启动客户端本地文件 HTTP 服务，并通过 FRP 暴露的数据面传输文件内容。客户端通过 `allowedRoots` 声明可浏览根目录；前端和服务端使用 `rootId + path` 组合来定位文件，而不是直接传递任意绝对路径。
-
-客户端配置示例：
-
-```yaml
-client:
-  id: dev-client-01
-  name: Development Machine
-  tags:
-    - dev
-
-server:
-  wsUrl: ws://localhost:3000/ws/client
-  apiBaseUrl: http://localhost:3000
-  token: test_agent_token
-
-workspace:
-  dir: ./workspace
-  allowedRoots:
-    - ./workspace
-
-frp:
-  binPath: ./bin/frpc
-  workDir: ./frp
-```
+#### File API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/clients/:clientId/file-session/start` | 启动客户端文件服务并创建 FRP 映射 |
-| `GET` | `/api/clients/:clientId/file-session` | 查看文件服务会话 |
-| `POST` | `/api/clients/:clientId/file-session/stop` | 停止文件服务会话 |
-| `GET` | `/api/clients/:clientId/files/roots` | 获取当前客户端允许浏览的根目录列表 |
-| `GET` | `/api/clients/:clientId/files?rootId=...&path=.` | 列出目录 |
-| `GET` | `/api/clients/:clientId/files/stat?rootId=...&path=...` | 查看文件信息 |
-| `GET` | `/api/clients/:clientId/files/read?rootId=...&path=...` | 读取文件内容 |
-| `GET` | `/api/clients/:clientId/files/download?rootId=...&path=...` | 下载文件 |
-| `PUT` | `/api/clients/:clientId/files/write?rootId=...&path=...` | 写入文件 |
-| `POST` | `/api/clients/:clientId/files/upload?rootId=...&path=...&filename=...` | 上传文件到当前根目录路径 |
-| `POST` | `/api/clients/:clientId/files/mkdir` | 创建目录（body 含 `rootId`, `path`） |
-| `DELETE` | `/api/clients/:clientId/files?rootId=...&path=...` | 删除文件或目录 |
-| `POST` | `/api/clients/:clientId/files/move` | 移动或重命名（body 含 `rootId`, `from`, `to`） |
-| `POST` | `/api/clients/:clientId/files/copy` | 复制文件或目录（body 含 `rootId`, `from`, `to`） |
+| `GET` | `/files/roots` | 获取 `allowedRoots` 列表 |
+| `GET` | `/files?rootId=...&path=.` | 列目录 |
+| `GET` | `/files/stat?rootId=...&path=...` | 查看文件信息 |
+| `GET` | `/files/read?rootId=...&path=...` | 读取文件内容 |
+| `GET` | `/files/download?rootId=...&path=...` | 下载文件 |
+| `PUT` | `/files/write?rootId=...&path=...` | 写入文件 |
+| `POST` | `/files/upload?rootId=...&path=...&filename=...` | 上传文件 |
+| `POST` | `/files/mkdir` | 创建目录 |
+| `DELETE` | `/files?rootId=...&path=...` | 删除文件或目录 |
+| `POST` | `/files/move` | 移动/重命名 |
+| `POST` | `/files/copy` | 复制文件或目录 |
 
-错误语义：
-
-- `400`：路径非法、越界到允许根目录之外、`rootId` 不存在
-- `403`：当前客户端进程无权限访问
-- `404`：文件或目录不存在
-- `409`：目标已存在或操作冲突
-
-### 端口映射
+#### FRP Mapping API
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `POST` | `/api/port-mappings` | 创建映射 |
-| `GET` | `/api/port-mappings` | 列出映射 |
-| `DELETE` | `/api/port-mappings/:id` | 删除映射 |
+| `GET` | `/frp/mappings` | 查看当前 client 的系统/业务映射 |
+| `POST` | `/frp/mappings` | 创建业务映射 |
+| `DELETE` | `/frp/mappings/:id` | 删除业务映射（系统 control 映射只读） |
 
-### AI Agent 高级接口
-
-这些接口封装了底层 task 概念，让 AI Agent 直接调用高层语义。
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `POST` | `/api/agent/run-script` | 在目标客户端执行脚本 |
-| `POST` | `/api/agent/push-file` | 推送已上传的文件到客户端 |
-| `POST` | `/api/agent/open-port` | 创建 FRP 端口映射 |
-| `POST` | `/api/agent/close-port` | 删除端口映射 |
-| `GET` | `/api/agent/clients` | 列出所有客户端 |
-| `GET` | `/api/agent/clients/:clientId` | 获取客户端详情 |
-| `POST` | `/api/agent/file-session` | 创建/复用文件会话（直连 FRP） |
-| `DELETE` | `/api/agent/file-session` | 停止文件会话 |
-| `GET` | `/api/agent/tasks/:id` | 查询任务状态（含日志） |
-
----
-
-## 任务类型
-
-| 类型 | 说明 | 关键 payload |
-|------|------|-------------|
-| `health_check` | 心跳检测 | — |
-| `exec_script` | 执行脚本（Node/Python/Bash） | `runtime`, `script`, `timeoutMs` |
-| `exec_command` | 执行 Shell 命令 | `command`, `args`, `cwd` |
-| `push_file` | 推送文件到客户端 | `fileId`, `targetPath`, `fileName` |
-| `frp_create_proxy` | 创建 FRP 端口映射 | `name`, `proxyType`, `localPort`, `remotePort` |
-| `frp_remove_proxy` | 删除 FRP 端口映射 | `mappingId` |
-
-任务状态流转：`pending` → `dispatched` → `running` → `success` / `failed` / `cancelled`
-
----
-
-## WebSocket 协议
+### WebSocket 协议（仅控制面）
 
 客户端通过 `/ws/client?clientId=xxx&token=xxx` 建立长连接。
 
-### 客户端 → 服务端
+#### 客户端 → 服务端
 
 | 消息类型 | 说明 |
 |----------|------|
-| `client.register` | 注册客户端信息（OS、arch、tags） |
-| `client.heartbeat` | 周期心跳（CPU、内存、uptime） |
-| `task.log` | 任务实时日志（stdout/stderr） |
-| `task.result` | 任务结果（exitCode、error） |
+| `client.register` | 注册 client 元信息 + 本地 HTTP 信息 |
+| `client.heartbeat` | 周期心跳 |
+| `client.http_ready` | client HTTP + FRP control tunnel 就绪 |
+| `client.http_failed` | client HTTP 或 control tunnel 启动失败 |
 
-### 服务端 → 客户端
+#### 服务端 → 客户端
 
 | 消息类型 | 说明 |
 |----------|------|
-| `server.ack` | 确认消息 |
+| `server.ack` | 注册/心跳/控制面确认消息 |
 | `server.error` | 错误信息 |
-| `task.dispatch` | 下发任务 |
 
-详细消息格式见 `packages/shared/src/protocol.ts`。
+> 旧的 `task.dispatch / task.log / task.result` 已移除，不再是正式能力。
 
 ---
 
@@ -304,12 +273,13 @@ frp:
 
 | 层面 | 措施 |
 |------|------|
-| **API 鉴权** | Bearer Token，区分 admin/agent 角色 |
+| **Server API 鉴权** | Bearer Token，区分 admin/agent 角色 |
+| **Client HTTP 鉴权** | 每个 client 独立 `clientHttpToken` |
 | **客户端认证** | clientId + token 通过 WebSocket 连接参数传递 |
-| **路径限制** | 所有文件操作强制在 workspaceDir 下（防路径穿越） |
-| **端口限制** | 只允许映射 20000-25000 范围内的端口 |
-| **脚本限制** | 最大 1MB、超时 300s、日志 5MB、默认禁止 shell |
-| **审计日志** | 记录所有关键操作（任务创建、文件上传、端口映射） |
+| **路径限制** | 文件操作严格限制在 `workspace.allowedRoots` 内 |
+| **端口限制** | FRP 业务端口只在配置范围内分配 |
+| **脚本限制** | job 超时、并发数、日志缓冲上限可配置 |
+| **审计日志** | 记录 discovery、映射管理、server 仓库等关键操作 |
 
 ---
 
@@ -446,58 +416,27 @@ CMD ["node", "server.bundle.cjs"]
 
 ## 如何扩展
 
-### 添加新的任务类型
+### 添加新的 client HTTP 能力
 
-**1. 定义类型** — `packages/shared/src/types.ts`
+现在的正式扩展方式不再是“新增 task 类型”，而是：
 
-```ts
-export interface MyNewPayload {
-  // 你的 payload 字段
-}
-export type TaskPayloadMap = {
-  // ...existing
-  my_new_task: MyNewPayload;
-};
-```
+1. 在 `packages/shared/src/types.ts` / `schemas.ts` 定义新的 client HTTP payload
+2. 在 `apps/client/src/runtime/control-http/` 下增加新的 route handler
+3. 如有需要，在 `apps/server/src/modules/client-http/` 下增加对应的轻量管理编排接口
+4. 在 `apps/web/src/pages/` / `api/` 中补充前端入口
 
-**2. 添加 Zod Schema** — `packages/shared/src/schemas.ts`
+例如新增一个新的 client HTTP 路由：
 
 ```ts
-export const MyNewPayloadSchema = z.object({
-  // Zod 校验规则
+router.add('POST', /^\/my-feature$/, async (req, res) => {
+  if (!requireBearerToken(req, res, token)) return;
+  const payload = await readJson<MyPayload>(req);
+  const result = await doSomething(payload);
+  sendOk(res, result);
 });
 ```
 
-**3. 服务端：创建任务** — 已有路由会通过 `CreateTaskPayloadSchema` 接受新类型。
-
-**4. 客户端：添加执行器** — `apps/client/src/executors/my-new.executor.ts`
-
-```ts
-import type { ConnectionManager } from '../core/connection.js';
-import type { ClientConfig } from '../config/client.config.js';
-import type { MyNewPayload } from '@rag/shared';
-
-export async function executeMyNewTask(
-  conn: ConnectionManager,
-  config: ClientConfig,
-  taskId: string,
-  payload: MyNewPayload,
-): Promise<unknown> {
-  // 实现你的任务逻辑
-  // 使用 conn.send({ type: 'task.log', ... }) 回传日志
-  return { success: true };
-}
-```
-
-**5. 注册执行器** — `apps/client/src/core/task-dispatcher.ts`
-
-```ts
-case 'my_new_task':
-  result = await executeMyNewTask(conn, config, taskId, payload as MyNewPayload);
-  break;
-```
-
-### 添加新的 API 路由
+### 添加新的 server 轻量管理 API
 
 服务端 `modules/<name>/` 下的每个模块都遵循同一模式：
 
@@ -531,7 +470,7 @@ await app.register(myRoutes);
 | 数据库 | sql.js (SQLite WASM) | 零依赖、纯 JS |
 | 校验 | Zod | 类型安全 + 运行时校验 |
 | 日志 | Pino | 开发模式彩色输出 |
-| 测试 | Vitest | 26 单元 + 17 E2E + 10 FRP 隧道测试 |
+| 测试 | Vitest | shared/client/server/web 分包测试 + 独立构建验证 |
 | 构建 | esbuild + tsx | 单文件分发 |
 | 包管理 | pnpm | Monorepo workspace |
 
@@ -540,16 +479,18 @@ await app.register(myRoutes);
 ## 开发命令
 
 ```bash
+pnpm dev               # 一键启动 server + client
 pnpm dev:server        # 启动服务端（热重载）
 pnpm dev:client        # 启动客户端（热重载）
-pnpm test              # 单元测试（26 个）
-pnpm test:e2e          # E2E 全链路测试（自动启停）
-pnpm test:e2e:verbose  # E2E 详细输出
-pnpm test:frp          # FRP 隧道穿透测试（自动启停）
-pnpm test:frp:verbose  # FRP 测试详细输出
+pnpm dev:web           # 启动 React 管理台（Vite）
+pnpm --filter @rag/shared test
+pnpm --filter @rag/server test
+pnpm --filter @rag/client test
+pnpm --filter @rag/web test
 pnpm typecheck         # 类型检查
 pnpm build             # 编译所有包
 pnpm build:dist        # 构建分发包
+pnpm build:web         # 构建 React 管理台
 pnpm build:dist:server # 只构建服务端
 pnpm build:dist:client # 只构建客户端
 pnpm download:frp      # 下载 FRP 二进制（frps + frpc）
@@ -617,13 +558,17 @@ pnpm download:frp
 #   binPath: ./bin/frpc
 #   workDir: ./frp
 
-# 4. 通过 API 创建映射
-curl -X POST http://server:3000/api/agent/open-port \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId":"my-client","name":"web","localPort":3000,"type":"tcp"}'
+# 4. 启动 client 后，先通过 discovery 获取 clientHttpBaseUrl + clientHttpToken
+curl http://server:3000/api/clients/my-client \
+  -H "Authorization: Bearer <admin-or-agent-token>"
 
-# 5. 访问公网地址
+# 5. 直接调用 client HTTP 创建业务映射
+curl -X POST http://your-server-ip:20003/frp/mappings \
+  -H "Authorization: Bearer <client-http-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"web","type":"tcp","localHost":"127.0.0.1","localPort":3000}'
+
+# 6. 访问公网地址
 curl http://your-server-ip:20000
 # 如果使用 http/https + customDomain，publicUrl 会按协议生成，例如：
 #   http://preview.example.com
