@@ -1,7 +1,7 @@
 import { env } from '../../config/env.js';
+import { getDb } from '../../db/index.js';
 import { listFrpsProxies, type FrpsDashboardConfig } from './frps-dashboard.service.js';
 import { clientsService } from '../clients/clients.service.js';
-import { frpService } from './frp.service.js';
 
 /**
  * Delete a single proxy from the frps dashboard.
@@ -58,9 +58,26 @@ export async function cleanupStaleFrpsProxies(): Promise<{ removed: string[]; er
   }
 
   // Business port mappings
-  for (const mapping of frpService.listMappings()) {
-    if (mapping.name) knownNames.add(mapping.name);
+  const db = getDb();
+  const mappingStmt = db.prepare('SELECT name FROM port_mappings WHERE name IS NOT NULL');
+  while (mappingStmt.step()) {
+    const row = mappingStmt.getAsObject() as { name: string };
+    knownNames.add(row.name);
   }
+  mappingStmt.free();
+
+  // Auto-mapping proxies
+  const autoMappingStmt = db.prepare(`
+    SELECT DISTINCT pm.name
+    FROM auto_mappings am
+    JOIN port_mappings pm ON pm.id = am.mapping_id
+    WHERE pm.name IS NOT NULL
+  `);
+  while (autoMappingStmt.step()) {
+    const row = autoMappingStmt.getAsObject() as { name: string };
+    knownNames.add(row.name);
+  }
+  autoMappingStmt.free();
 
   const removed: string[] = [];
   const errors: string[] = [];
