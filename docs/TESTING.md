@@ -122,6 +122,27 @@ await test('你的测试名称', async () => {
 
 `test()` 函数第二个参数返回 `true` 表示通过，`false` 或抛异常表示失败。
 
+## 任务审计与历史验证
+
+```bash
+# Shared schemas
+pnpm --filter @rag/shared test -- schemas.test.ts
+
+# Client audit components
+pnpm --filter @rag/client test -- task-audit-store.test.ts task-audit-redaction.test.ts task-audit-reporter.test.ts
+
+# Server task history mirror
+pnpm --filter @rag/server test -- tasks.service.test.ts tasks.routes.test.ts client-http-admin.service.test.ts
+
+# Web task page
+pnpm --filter @rag/web test -- tasks.test.ts TasksPage.test.tsx
+
+# Type checking
+pnpm typecheck
+```
+
+预期：所有测试通过，类型检查无错误。
+
 ## 故障排查
 
 | 症状 | 可能原因 | 解决 |
