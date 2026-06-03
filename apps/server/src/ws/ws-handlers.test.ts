@@ -82,15 +82,7 @@ describe('ws handlers registration lifecycle', () => {
     expect(autoOfflineMock).not.toHaveBeenCalled();
   });
 
-  it('ignores task.log messages for tasks that were already deleted', async () => {
-    const { tasksService } = await import('../modules/tasks/tasks.service.js');
-    const addLogMock = vi.mocked(tasksService.addLog);
-    const getTaskMock = vi.mocked(tasksService.getTask);
-
-    addLogMock.mockReset();
-    getTaskMock.mockReset();
-    getTaskMock.mockReturnValue(undefined);
-
+  it('rejects legacy task.log messages', async () => {
     const ws = { send: wsSendMock } as never;
 
     await handleWsMessage(ws, JSON.stringify({
@@ -103,9 +95,9 @@ describe('ws handlers registration lifecycle', () => {
       },
     }));
 
-    expect(getTaskMock).toHaveBeenCalledWith('task_deleted');
-    expect(addLogMock).not.toHaveBeenCalled();
-    expect(wsSendMock).not.toHaveBeenCalledWith(expect.stringContaining('server.error'));
+    const sent = JSON.parse(wsSendMock.mock.calls.at(-1)![0]);
+    expect(sent.type).toBe('server.error');
+    expect(sent.payload.code).toBe('TASKS_DISABLED');
   });
 });
 
