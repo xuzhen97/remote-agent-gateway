@@ -1,11 +1,12 @@
 import type { WebSocket } from 'ws';
-import { ClientRegisterPayloadSchema, ClientHeartbeatPayloadSchema, TaskLogPayloadSchema, TaskResultPayloadSchema } from '@rag/shared';
+import { ClientRegisterPayloadSchema, ClientHeartbeatPayloadSchema, ClientHttpReadyPayloadSchema, ClientHttpFailedPayloadSchema, TaskLogPayloadSchema, TaskResultPayloadSchema } from '@rag/shared';
 import { clientsService } from '../modules/clients/clients.service.js';
 import { tasksService } from '../modules/tasks/tasks.service.js';
 import { connectionManager } from '../modules/connections/connections.manager.js';
 import { auditService } from '../modules/audit/audit.service.js';
 import { frpService, getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
 import { autoMappingService } from '../modules/auto-mapping/auto-mapping.service.js';
+import { clientHttpCoordinatorService } from '../modules/client-http/client-http-coordinator.service.js';
 import { saveDb } from '../db/index.js';
 
 export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<void> {
@@ -52,10 +53,20 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
         console.warn('Skipping FRP registration payload:', err instanceof Error ? err.message : err);
       }
 
-      try {
-        await autoMappingService.onClientOnline(info.clientId);
-      } catch (err) {
-        console.warn(`[auto-mapping] failed for ${info.clientId}:`, err instanceof Error ? err.message : err);
+      // Coordinate client HTTP control endpoint
+      if (info.http && info.capabilities?.httpControl) {
+        try {
+          const httpControl = await clientHttpCoordinatorService.coordinate(info.clientId, info.http, info.capabilities);
+          ackPayload.httpControl = {
+            localHost: httpControl.localHost,
+            localPort: httpControl.localPort,
+            remotePort: httpControl.remotePort,
+            publicBaseUrl: httpControl.publicBaseUrl,
+            token: httpControl.token,
+          };
+        } catch (err) {
+          console.warn('HTTP coordination failed:', err instanceof Error ? err.message : err);
+        }
       }
 
       ws.send(JSON.stringify({
@@ -63,6 +74,12 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
         requestId: message.requestId,
         payload: ackPayload,
       }));
+
+      try {
+        await autoMappingService.onClientOnline(info.clientId);
+      } catch (err) {
+        console.warn(`[auto-mapping] failed for ${info.clientId}:`, err instanceof Error ? err.message : err);
+      }
       break;
     }
 
@@ -77,6 +94,41 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
       clientsService.updateHeartbeat(clientId, { cpu, memory, uptime });
 
       ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'Heartbeat received' } }));
+      break;
+    }
+
+    case 'client.http_ready': {
+      const parsed = ClientHttpReadyPayloadSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'INVALID_PAYLOAD', message: parsed.error.message } }));
+        return;
+      }
+
+      const { clientId, baseUrl, remotePort } = parsed.data;
+      clientsService.markHttpReady(clientId, baseUrl, remotePort);
+      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'HTTP endpoint ready' } }));
+      saveDb();
+      break;
+    }
+
+    case 'client.http_failed': {
+      const parsed = ClientHttpFailedPayloadSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'INVALID_PAYLOAD', message: parsed.error.message } }));
+        return;
+      }
+
+      const { clientId, reason } = parsed.data;
+      clientsService.markHttpFailed(clientId);
+      auditService.log({
+        actor: clientId,
+        action: 'client.http_failed',
+        targetType: 'client',
+        targetId: clientId,
+        detail: reason,
+      });
+      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'HTTP endpoint failure recorded' } }));
+      saveDb();
       break;
     }
 
