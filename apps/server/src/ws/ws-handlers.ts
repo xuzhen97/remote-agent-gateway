@@ -5,7 +5,6 @@ import { tasksService } from '../modules/tasks/tasks.service.js';
 import { connectionManager } from '../modules/connections/connections.manager.js';
 import { auditService } from '../modules/audit/audit.service.js';
 import { frpService, getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
-import { autoMappingService } from '../modules/auto-mapping/auto-mapping.service.js';
 import { clientHttpCoordinatorService } from '../modules/client-http/client-http-coordinator.service.js';
 import { saveDb } from '../db/index.js';
 
@@ -75,11 +74,6 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
         payload: ackPayload,
       }));
 
-      try {
-        await autoMappingService.onClientOnline(info.clientId);
-      } catch (err) {
-        console.warn(`[auto-mapping] failed for ${info.clientId}:`, err instanceof Error ? err.message : err);
-      }
       break;
     }
 
@@ -196,10 +190,6 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
 export function handleWsClose(clientId: string): void {
   connectionManager.remove(clientId);
   clientsService.setOffline(clientId);
-
-  void autoMappingService.onClientOffline(clientId).catch((err) => {
-    console.warn(`[auto-mapping] cleanup-pending mark failed for ${clientId}:`, err instanceof Error ? err.message : err);
-  });
 
   auditService.log({
     actor: clientId,
