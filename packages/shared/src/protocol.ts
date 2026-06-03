@@ -9,6 +9,8 @@ import type {
 export type ClientMessageType =
   | 'client.register'
   | 'client.heartbeat'
+  | 'client.http_ready'
+  | 'client.http_failed'
   | 'task.log'
   | 'task.result';
 
@@ -59,16 +61,34 @@ export type TaskResultMessage = WsMessage<
   }
 >;
 
+export type ClientHttpReadyMessage = WsMessage<
+  'client.http_ready',
+  import('./types.js').ClientHttpReadyPayload
+>;
+
+export type ClientHttpFailedMessage = WsMessage<
+  'client.http_failed',
+  import('./types.js').ClientHttpFailedPayload
+>;
+
 export type ClientMessage =
   | ClientRegisterMessage
   | ClientHeartbeatMessage
+  | ClientHttpReadyMessage
+  | ClientHttpFailedMessage
   | TaskLogMessage
   | TaskResultMessage;
 
 // Server → Client messages
+export interface ServerAckPayload {
+  message: string;
+  frp?: { serverAddr: string; serverPort: number; authToken: string };
+  httpControl?: import('./types.js').ClientHttpControl;
+}
+
 export type ServerAckMessage = WsMessage<
   'server.ack',
-  { message: string }
+  ServerAckPayload
 >;
 
 export type ServerErrorMessage = WsMessage<

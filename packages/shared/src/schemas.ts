@@ -14,6 +14,18 @@ export const ClientRegisterPayloadSchema = z.object({
   arch: z.string().optional(),
   version: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  http: z.object({
+    localHost: z.string().min(1).default('127.0.0.1'),
+    localPort: z.number().int().min(1).max(65535),
+    protocol: z.literal('http').default('http'),
+  }).optional(),
+  capabilities: z.object({
+    httpControl: z.boolean(),
+    jobs: z.boolean(),
+    sse: z.boolean(),
+    files: z.boolean(),
+    frpMappings: z.boolean(),
+  }).optional(),
 });
 
 // Task payloads
@@ -213,4 +225,77 @@ export const AgentFileSessionPayloadSchema = z.object({
 
 export const AgentDeleteFileSessionPayloadSchema = z.object({
   clientId: z.string().min(1),
+});
+
+// ── Client HTTP control schemas ──
+
+export const ClientHttpInfoSchema = z.object({
+  localHost: z.string().min(1).default('127.0.0.1'),
+  localPort: z.number().int().min(1).max(65535),
+  protocol: z.literal('http').default('http'),
+});
+
+export const ClientHttpCapabilitiesSchema = z.object({
+  httpControl: z.boolean(),
+  jobs: z.boolean(),
+  sse: z.boolean(),
+  files: z.boolean(),
+  frpMappings: z.boolean(),
+});
+
+export const FrpConnectionInfoSchema = z.object({
+  serverAddr: z.string().min(1),
+  serverPort: z.number().int().min(1).max(65535),
+  authToken: z.string().min(1),
+});
+
+export const ClientHttpControlSchema = z.object({
+  localHost: z.string().min(1),
+  localPort: z.number().int().min(1).max(65535),
+  remotePort: z.number().int().min(1).max(65535),
+  publicBaseUrl: z.string().url(),
+  token: z.string().min(16),
+});
+
+export const ServerAckPayloadSchema = z.object({
+  message: z.string().min(1),
+  frp: FrpConnectionInfoSchema.optional(),
+  httpControl: ClientHttpControlSchema.optional(),
+});
+
+export const ClientHttpReadyPayloadSchema = z.object({
+  clientId: z.string().min(1),
+  remotePort: z.number().int().min(1).max(65535),
+  baseUrl: z.string().url(),
+});
+
+export const ClientHttpFailedPayloadSchema = z.object({
+  clientId: z.string().min(1),
+  remotePort: z.number().int().min(1).max(65535).optional(),
+  reason: z.string().min(1),
+});
+
+export const ClientJobCommandPayloadSchema = z.object({
+  command: z.string().min(1),
+  args: z.array(z.string()).optional().default([]),
+  cwd: z.string().optional(),
+  timeoutMs: z.number().int().positive().max(1_800_000).optional(),
+  env: z.record(z.string()).optional(),
+});
+
+export const ClientJobScriptPayloadSchema = z.object({
+  runtime: z.enum(['node', 'python', 'bash', 'powershell']).optional().default('node'),
+  script: z.string().min(1).max(1_000_000),
+  cwd: z.string().optional(),
+  timeoutMs: z.number().int().positive().max(1_800_000).optional(),
+  env: z.record(z.string()).optional(),
+});
+
+export const ClientFrpMappingCreatePayloadSchema = z.object({
+  name: z.string().min(1).max(128),
+  type: z.enum(['tcp', 'http', 'https']),
+  localHost: z.string().min(1).default('127.0.0.1'),
+  localPort: z.number().int().min(1).max(65535),
+  remotePort: z.number().int().min(1).max(65535).nullable().optional(),
+  customDomain: z.string().optional(),
 });

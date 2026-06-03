@@ -19,6 +19,14 @@ import {
   ClientFileRootMkdirPayloadSchema,
   ClientFileRootMovePayloadSchema,
   ClientFileRootCopyPayloadSchema,
+  ClientHttpCapabilitiesSchema,
+  ClientHttpInfoSchema,
+  ClientHttpReadyPayloadSchema,
+  ClientHttpFailedPayloadSchema,
+  ServerAckPayloadSchema,
+  ClientJobCommandPayloadSchema,
+  ClientJobScriptPayloadSchema,
+  ClientFrpMappingCreatePayloadSchema,
 } from '../schemas.js';
 
 describe('TaskTypeSchema', () => {
@@ -240,5 +248,65 @@ describe('client file management schemas', () => {
     expect(() => ClientFilePathPayloadSchema.parse({ path: 'C:\\Windows\\win.ini' })).toThrow();
     expect(() => ClientFileRootPayloadSchema.parse({ rootId: '' })).toThrow();
     expect(() => ClientFileRootPathPayloadSchema.parse({ rootId: 'root-0', path: '../secret.txt' })).toThrow();
+  });
+});
+
+describe('client HTTP control schemas', () => {
+  it('accepts registration with HTTP metadata and capabilities', () => {
+    const parsed = ClientRegisterPayloadSchema.parse({
+      clientId: 'dev-client-01',
+      name: 'Development Machine',
+      http: { localHost: '127.0.0.1', localPort: 17890, protocol: 'http' },
+      capabilities: { httpControl: true, jobs: true, sse: true, files: true, frpMappings: true },
+    });
+
+    expect(parsed.http?.localPort).toBe(17890);
+    expect(parsed.capabilities?.sse).toBe(true);
+  });
+
+  it('validates server ack HTTP control payload', () => {
+    const parsed = ServerAckPayloadSchema.parse({
+      message: 'registered',
+      frp: { serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' },
+      httpControl: {
+        localHost: '127.0.0.1',
+        localPort: 17890,
+        remotePort: 20317,
+        publicBaseUrl: 'http://frps.example.com:20317',
+        token: 'client-token-client-token',
+      },
+    });
+
+    expect(parsed.httpControl?.remotePort).toBe(20317);
+  });
+
+  it('validates ready and failed payloads', () => {
+    expect(ClientHttpReadyPayloadSchema.parse({
+      clientId: 'dev-client-01',
+      remotePort: 20317,
+      baseUrl: 'http://frps.example.com:20317',
+    }).remotePort).toBe(20317);
+
+    expect(ClientHttpFailedPayloadSchema.parse({
+      clientId: 'dev-client-01',
+      remotePort: 20317,
+      reason: 'frpc exited',
+    }).reason).toContain('frpc');
+  });
+
+  it('validates job and mapping payloads', () => {
+    expect(ClientJobCommandPayloadSchema.parse({ command: 'node', args: ['-v'] }).command).toBe('node');
+    expect(ClientJobScriptPayloadSchema.parse({ runtime: 'node', script: 'console.log(1)' }).runtime).toBe('node');
+    expect(ClientFrpMappingCreatePayloadSchema.parse({
+      name: 'vite',
+      type: 'tcp',
+      localHost: '127.0.0.1',
+      localPort: 5173,
+    }).localPort).toBe(5173);
+  });
+
+  it('rejects invalid local ports', () => {
+    expect(() => ClientHttpInfoSchema.parse({ localHost: '127.0.0.1', localPort: 70000, protocol: 'http' })).toThrow();
+    expect(() => ClientHttpCapabilitiesSchema.parse({ httpControl: true, jobs: true, sse: true, files: true, frpMappings: true })).not.toThrow();
   });
 });
