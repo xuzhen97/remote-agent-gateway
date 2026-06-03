@@ -17,7 +17,7 @@ const { Title, Text } = Typography;
 
 interface FileEntry { name: string; path: string; type: string; size: number; mtimeMs: number }
 
-interface Root { id: string; label: string; path: string }
+interface Root { id: string }
 
 interface ClientFilesPageProps {
   api: Api;
@@ -29,7 +29,6 @@ interface ClientFilesPageProps {
 export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFilesPageProps) {
   const [baseUrl, setBaseUrl] = useState('');
   const [token, setToken] = useState('');
-  const [roots, setRoots] = useState<Root[]>([]);
   const [rootId, setRootId] = useState('');
   const [currentPath, setCurrentPath] = useState('.');
   const [entries, setEntries] = useState<FileEntry[]>([]);
@@ -61,7 +60,6 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       .then((r) => r.json())
       .then((d) => {
         const list: Root[] = d?.data?.roots ?? d?.roots ?? [];
-        setRoots(list);
         if (list.length > 0 && !rootId) setRootId(list[0].id);
       })
       .catch(() => message.error('Failed to load roots'))
@@ -90,9 +88,6 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
   const handleDownload = (entry: FileEntry) => {
     if (!baseUrl || !token) return;
     const url = `${baseUrl}/files/download?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(entry.path)}`;
-    const a = document.createElement('a');
-    a.href = url;
-    // Pass token via a fetch-then-blob approach
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.blob())
       .then((blob) => {
@@ -219,7 +214,6 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
           customRequest={async ({ file, onSuccess, onError }) => {
             try {
               const f = file as File;
-              const pathParam = currentPath === '.' ? '' : `/${currentPath}`;
               const res = await fetch(`${baseUrl}/files/upload?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(currentPath)}&filename=${encodeURIComponent(f.name)}`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },

@@ -7,8 +7,9 @@ import { rebuildFrpcDaemon } from '../frpc-daemon.js';
 import type { ClientConfig } from '../../config/client.config.js';
 
 const CONTROL_ID = 'http-control';
+const DEFAULT_LOCAL_HOST = '127.0.0.1';
 
-export function registerFrpRoutes(router: ControlHttpRouter, options: {
+interface FrpRouteOptions {
   token: string;
   clientId: string;
   apiBaseUrl?: string;
@@ -16,88 +17,42 @@ export function registerFrpRoutes(router: ControlHttpRouter, options: {
   frpcWorkDir?: string;
   frpcPath?: string;
   workspaceDir?: string;
-}): void {
-  const workDir = options.frpcWorkDir ?? options.workspaceDir ?? '.';
+}
 
-  function listAll() {
-    const business = loadMappings(workDir).map((m) => ({ ...m, kind: 'business' as const }));
-    const system = {
-      id: CONTROL_ID,
-      name: `rag-${options.clientId}-http-control`,
-      type: 'tcp' as const,
-      localHost: '127.0.0.1',
-      localPort: 0,
-      kind: 'system' as const,
-      protected: true,
-    };
-    return [system, ...business];
-  }
+interface CreateMappingRequest {
+  name: string;
+  type: 'tcp' | 'http' | 'https';
+  localHost?: string;
+  localPort: number;
+  remotePort?: number | null;
+  customDomain?: string;
+}
+
+interface AllocatedMapping {
+  id: string;
+  remotePort?: number;
+  publicUrl?: string;
+}
+
+export function registerFrpRoutes(router: ControlHttpRouter, options: FrpRouteOptions): void {
+  const workDir = options.frpcWorkDir ?? options.workspaceDir ?? '.';
 
   router.add('GET', /^\/frp\/mappings$/, (req, res) => {
     if (!requireBearerToken(req, res, options.token)) return;
-    sendOk(res, { mappings: listAll() });
+    sendOk(res, { mappings: listMappings(options, workDir) });
   });
 
   router.add('POST', /^\/frp\/mappings$/, async (req, res) => {
     if (!requireBearerToken(req, res, options.token)) return;
+
     try {
-      const payload = await readJson<{
-        name: string;
-        type: 'tcp' | 'http' | 'https';
-        localHost?: string;
-        localPort: number;
-        remotePort?: number | null;
-        customDomain?: string;
-      }>(req);
-
-      let allocated: { id: string; remotePort?: number; publicUrl?: string };
-
-      if (options.apiBaseUrl && options.serverToken) {
-        const resp = await fetch(`${options.apiBaseUrl}/api/client-http/ports/allocate`, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${options.serverToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            clientId: options.clientId,
-            name: payload.name,
-            proxyType: payload.type,
-            localIp: payload.localHost ?? '127.0.0.1',
-            localPort: payload.localPort,
-            remotePort: payload.remotePort ?? undefined,
-            customDomain: payload.customDomain,
-          }),
-        });
-        if (!resp.ok) {
-          const errBody: any = await resp.json().catch(() => ({}));
-          throw new Error(errBody?.error ?? `Server returned ${resp.status}`);
-        }
-        const data: any = await resp.json();
-        allocated = { id: data.id, remotePort: data.remotePort, publicUrl: data.publicUrl };
-      } else {
-        allocated = { id: `pm_${randomUUID().slice(0, 8)}`, remotePort: payload.remotePort ?? undefined };
-      }
-
-      const mapping: ClientBusinessMapping = {
-        id: allocated.id,
-        kind: 'business',
-        name: payload.name,
-        type: payload.type,
-        localHost: payload.localHost ?? '127.0.0.1',
-        localPort: payload.localPort,
-        remotePort: allocated.remotePort,
-        customDomain: payload.customDomain,
-        publicUrl: allocated.publicUrl,
-      };
+      const payload = await readJson<CreateMappingRequest>(req);
+      const allocated = await allocateMapping(options, payload);
+      const mapping = buildBusinessMapping(payload, allocated);
 
       addMapping(workDir, mapping);
-
-      if (options.frpcPath) {
-        rebuildFrpcDaemon({ frpcPath: options.frpcPath, frpcWorkDir: options.frpcWorkDir } as ClientConfig);
-      }
-
-      sendOk(res, { ...mapping, kind: 'business' });
+      rebuildIfConfigured(options);
+      sendOk(res, mapping);
     } catch (err) {
       sendError(res, 400, 'FRP_CONFIG_ERROR', err instanceof Error ? err.message : String(err));
     }
@@ -105,29 +60,93 @@ export function registerFrpRoutes(router: ControlHttpRouter, options: {
 
   router.add('DELETE', /^\/frp\/mappings\/[^/]+$/, (req, res, url) => {
     if (!requireBearerToken(req, res, options.token)) return;
-    const mappingId = url.pathname.split('/')[3];
 
+    const mappingId = url.pathname.split('/')[3];
     if (mappingId === CONTROL_ID) {
       return sendError(res, 409, 'CONFLICT', 'Cannot delete protected HTTP control mapping');
     }
 
-    const before = loadMappings(workDir).find((m) => m.id === mappingId);
-    if (!before) return sendError(res, 404, 'NOT_FOUND', 'Mapping not found');
+    const mapping = loadMappings(workDir).find((entry) => entry.id === mappingId);
+    if (!mapping) return sendError(res, 404, 'NOT_FOUND', 'Mapping not found');
 
     removeMapping(workDir, mappingId);
-
-    // Notify server so it can delete the DB record
-    if (options.apiBaseUrl && options.serverToken) {
-      fetch(`${options.apiBaseUrl}/api/client-http/ports/${encodeURIComponent(mappingId)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${options.serverToken}` },
-      }).catch(() => {});
-    }
-
-    if (options.frpcPath) {
-      rebuildFrpcDaemon({ frpcPath: options.frpcPath, frpcWorkDir: options.frpcWorkDir } as ClientConfig);
-    }
-
+    deleteServerMapping(options, mappingId);
+    rebuildIfConfigured(options);
     sendOk(res, { id: mappingId, deleted: true });
   });
+}
+
+function listMappings(options: FrpRouteOptions, workDir: string): unknown[] {
+  return [buildSystemMapping(options.clientId), ...loadMappings(workDir)];
+}
+
+function buildSystemMapping(clientId: string): Record<string, unknown> {
+  return {
+    id: CONTROL_ID,
+    name: `rag-${clientId}-http-control`,
+    type: 'tcp',
+    localHost: DEFAULT_LOCAL_HOST,
+    localPort: 0,
+    kind: 'system',
+    protected: true,
+  };
+}
+
+async function allocateMapping(options: FrpRouteOptions, payload: CreateMappingRequest): Promise<AllocatedMapping> {
+  if (!options.apiBaseUrl || !options.serverToken) {
+    return { id: `pm_${randomUUID().slice(0, 8)}`, remotePort: payload.remotePort ?? undefined };
+  }
+
+  const response = await fetch(`${options.apiBaseUrl}/api/client-http/ports/allocate`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.serverToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      clientId: options.clientId,
+      name: payload.name,
+      proxyType: payload.type,
+      localIp: payload.localHost ?? DEFAULT_LOCAL_HOST,
+      localPort: payload.localPort,
+      remotePort: payload.remotePort ?? undefined,
+      customDomain: payload.customDomain,
+    }),
+  });
+
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({})) as { error?: string };
+    throw new Error(errBody.error ?? `Server returned ${response.status}`);
+  }
+
+  const data = await response.json() as { id: string; remotePort?: number; publicUrl?: string };
+  return { id: data.id, remotePort: data.remotePort, publicUrl: data.publicUrl };
+}
+
+function buildBusinessMapping(payload: CreateMappingRequest, allocated: AllocatedMapping): ClientBusinessMapping {
+  return {
+    id: allocated.id,
+    kind: 'business',
+    name: payload.name,
+    type: payload.type,
+    localHost: payload.localHost ?? DEFAULT_LOCAL_HOST,
+    localPort: payload.localPort,
+    remotePort: allocated.remotePort,
+    customDomain: payload.customDomain,
+    publicUrl: allocated.publicUrl,
+  };
+}
+
+function deleteServerMapping(options: FrpRouteOptions, mappingId: string): void {
+  if (!options.apiBaseUrl || !options.serverToken) return;
+
+  fetch(`${options.apiBaseUrl}/api/client-http/ports/${encodeURIComponent(mappingId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${options.serverToken}` },
+  }).catch(() => undefined);
+}
+
+function rebuildIfConfigured(options: FrpRouteOptions): void {
+  if (!options.frpcPath) return;
+  rebuildFrpcDaemon({ frpcPath: options.frpcPath, frpcWorkDir: options.frpcWorkDir } as ClientConfig);
 }
