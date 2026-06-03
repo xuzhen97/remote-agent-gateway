@@ -20,7 +20,7 @@ export async function clientRoutes(app: FastifyInstance): Promise<void> {
     if (!client) {
       return reply.code(404).send({ error: 'Client not found' });
     }
-    return reply.send(clientsService.toApi(client));
+    return reply.send(clientsService.toApi(client, { includeHttpToken: true }));
   });
 
   // FRP daemon control

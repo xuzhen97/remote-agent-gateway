@@ -84,4 +84,28 @@ export function migrate(db: Database): void {
       created_at INTEGER NOT NULL
     );
   `);
+
+  // Idempotent column additions for client HTTP control plane
+  addColumnIfMissing(db, 'clients', 'http_local_host', 'TEXT');
+  addColumnIfMissing(db, 'clients', 'http_local_port', 'INTEGER');
+  addColumnIfMissing(db, 'clients', 'http_remote_port', 'INTEGER');
+  addColumnIfMissing(db, 'clients', 'http_base_url', 'TEXT');
+  addColumnIfMissing(db, 'clients', 'http_token', 'TEXT');
+  addColumnIfMissing(db, 'clients', 'http_ready', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'clients', 'http_last_ready_at', 'INTEGER');
+  addColumnIfMissing(db, 'clients', 'capabilities', 'TEXT');
+  addColumnIfMissing(db, 'port_mappings', 'kind', "TEXT DEFAULT 'business'");
+  addColumnIfMissing(db, 'port_mappings', 'protected', 'INTEGER DEFAULT 0');
+  addColumnIfMissing(db, 'port_mappings', 'source', "TEXT DEFAULT 'client_http'");
+}
+
+function addColumnIfMissing(db: Database, table: string, column: string, definition: string): void {
+  const stmt = db.prepare(`PRAGMA table_info(${table})`);
+  const columns = new Set<string>();
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as { name: string };
+    columns.add(row.name);
+  }
+  stmt.free();
+  if (!columns.has(column)) db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

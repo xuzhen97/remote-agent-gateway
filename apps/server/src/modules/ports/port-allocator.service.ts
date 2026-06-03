@@ -125,6 +125,23 @@ export class PortAllocatorService {
     return true;
   }
 
+  async isAvailableForClientHttp(port: number, clientId: string): Promise<boolean> {
+    try {
+      this.assertInRange(port);
+    } catch {
+      return false;
+    }
+
+    const db = getDb();
+    const stmt = db.prepare('SELECT id FROM clients WHERE http_remote_port = ? AND id != ?');
+    stmt.bind([port, clientId]);
+    const usedByOtherClient = stmt.step();
+    stmt.free();
+    if (usedByOtherClient) return false;
+
+    return this.isAvailable(port);
+  }
+
   async getUsage(): Promise<PortUsageReport> {
     const dashboardState = await this.loadDashboardState();
     return {
@@ -170,6 +187,14 @@ export class PortAllocatorService {
       if (typeof row.remote_port === 'number') used.add(row.remote_port);
     }
     stmt.free();
+
+    const clientStmt = db.prepare('SELECT http_remote_port FROM clients WHERE http_remote_port IS NOT NULL');
+    while (clientStmt.step()) {
+      const row = clientStmt.getAsObject() as { http_remote_port: number };
+      if (typeof row.http_remote_port === 'number') used.add(row.http_remote_port);
+    }
+    clientStmt.free();
+
     return used;
   }
 

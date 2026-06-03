@@ -22,6 +22,9 @@ export const env = {
   FRPS_BIN_PATH: serverConfig.frp.binPath,
   FRP_PORT_RANGE_START: serverConfig.frp.portRange.start,
   FRP_PORT_RANGE_END: serverConfig.frp.portRange.end,
+  CLIENT_HTTP_TOKEN_SECRET: serverConfig.clientHttp.tokenSecret,
+  CLIENT_HTTP_TOKEN_VERSION: serverConfig.clientHttp.tokenVersion,
+  CLIENT_HTTP_REQUEST_TIMEOUT_MS: serverConfig.clientHttp.requestTimeoutMs,
 } as const;
 
 export type FrpEnvLike = Pick<typeof env, 'FRP_MODE' | 'FRPS_HOST' | 'FRPS_PUBLIC_HOST' | 'SERVER_HOST'>;
@@ -66,4 +69,10 @@ export function buildFrpPublicUrl(
   options?: { proxyType?: 'tcp' | 'http' | 'https'; customDomain?: string },
 ): string {
   return buildFrpPublicUrlForEnv(env, remotePort, options);
+}
+
+export function buildClientHttpPublicUrl(remotePort: number): string {
+  const host = env.FRPS_PUBLIC_HOST || env.FRPS_HOST;
+  if (!host) throw new Error('FRPS_PUBLIC_HOST or FRPS_HOST is required');
+  return `http://${host}:${remotePort}`;
 }

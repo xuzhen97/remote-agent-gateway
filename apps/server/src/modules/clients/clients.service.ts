@@ -17,6 +17,14 @@ export interface ClientRow {
   last_seen_at: number | null;
   created_at: number;
   updated_at: number;
+  http_local_host: string | null;
+  http_local_port: number | null;
+  http_remote_port: number | null;
+  http_base_url: string | null;
+  http_token: string | null;
+  http_ready: number | null;
+  http_last_ready_at: number | null;
+  capabilities: string | null;
 }
 
 export class ClientsService {
@@ -91,8 +99,36 @@ export class ClientsService {
     db.run('UPDATE clients SET status = ?, last_seen_at = ?, updated_at = ? WHERE id = ?', ['online', now, now, clientId]);
   }
 
-  toApi(client: ClientRow): Record<string, unknown> {
-    return {
+  updateHttpEndpoint(clientId: string, patch: {
+    localHost: string;
+    localPort: number;
+    remotePort: number;
+    baseUrl: string;
+    token: string;
+    capabilities?: unknown;
+    ready?: boolean;
+  }): void {
+    const db = getDb();
+    db.run(
+      `UPDATE clients SET http_local_host = ?, http_local_port = ?, http_remote_port = ?, http_base_url = ?, http_token = ?, http_ready = ?, capabilities = ?, updated_at = ? WHERE id = ?`,
+      [patch.localHost, patch.localPort, patch.remotePort, patch.baseUrl, patch.token, patch.ready ? 1 : 0, patch.capabilities ? JSON.stringify(patch.capabilities) : null, Date.now(), clientId],
+    );
+  }
+
+  markHttpReady(clientId: string, baseUrl: string, remotePort: number): void {
+    const now = Date.now();
+    getDb().run(
+      `UPDATE clients SET http_ready = 1, http_base_url = ?, http_remote_port = ?, http_last_ready_at = ?, updated_at = ? WHERE id = ?`,
+      [baseUrl, remotePort, now, now, clientId],
+    );
+  }
+
+  markHttpFailed(clientId: string): void {
+    getDb().run('UPDATE clients SET http_ready = 0, updated_at = ? WHERE id = ?', [Date.now(), clientId]);
+  }
+
+  toApi(client: ClientRow, options?: { includeHttpToken?: boolean }): Record<string, unknown> {
+    const result: Record<string, unknown> = {
       id: client.id,
       name: client.name,
       hostname: client.hostname,
@@ -104,7 +140,15 @@ export class ClientsService {
       online: connectionManager.isOnline(client.id),
       lastSeenAt: client.last_seen_at,
       createdAt: client.created_at,
+      httpReady: client.http_ready === 1,
+      clientHttpBaseUrl: client.http_base_url,
+      clientHttpRemotePort: client.http_remote_port,
+      capabilities: client.capabilities ? JSON.parse(client.capabilities) : null,
     };
+    if (options?.includeHttpToken && client.http_token) {
+      result.clientHttpToken = client.http_token;
+    }
+    return result;
   }
 }
 

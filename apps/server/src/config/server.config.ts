@@ -35,6 +35,11 @@ const ServerConfigSchema = z.object({
       end: z.coerce.number().int().default(25000),
     }),
   }),
+  clientHttp: z.object({
+    tokenSecret: z.string().min(16).default('change-me-client-http-secret'),
+    tokenVersion: z.coerce.number().int().positive().default(1),
+    requestTimeoutMs: z.coerce.number().int().positive().default(10_000),
+  }).default({}),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema> & {
