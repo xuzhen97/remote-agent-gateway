@@ -79,12 +79,23 @@ if (!fs.existsSync(path.join(DIST, 'server.config.yaml')) && fs.existsSync(path.
   fs.copyFileSync(path.join(ROOT, 'server.config.yaml'), path.join(DIST, 'server.config.yaml'));
 }
 
-// Copy web console
-const webSrc = path.join(ROOT, 'apps', 'server', 'src', 'web');
+// Copy React web console
+console.log('[web] Building React admin console...');
+import { execFileSync } from 'node:child_process';
+const webBuildSrc = path.join(ROOT, 'apps', 'web', 'dist');
+try {
+  execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--filter', '@rag/web', 'build'], { cwd: ROOT, stdio: 'inherit', shell: true });
+} catch {
+  console.warn('  Admin console build failed; falling back to legacy web dir');
+  const webSrcFallback = path.join(ROOT, 'apps', 'server', 'src', 'web');
+  if (fs.existsSync(webSrcFallback)) fs.cpSync(webSrcFallback, path.join(DIST, 'web'), { recursive: true });
+  return;
+}
 const webDst = path.join(DIST, 'web');
-if (fs.existsSync(webSrc)) {
-  fs.cpSync(webSrc, webDst, { recursive: true });
-  console.log('  Copied web console');
+if (fs.existsSync(webBuildSrc)) {
+  fs.rmSync(webDst, { recursive: true, force: true });
+  fs.cpSync(webBuildSrc, webDst, { recursive: true });
+  console.log('  Copied React web console');
 }
 
 console.log('  server.bundle.js ready');

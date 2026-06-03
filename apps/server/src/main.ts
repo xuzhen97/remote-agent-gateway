@@ -74,23 +74,54 @@ async function main(): Promise<void> {
   // Register WebSocket
   await registerWsRoutes(app);
 
-  // Web console — serve index.html
+  // Web console — serve React SPA (or legacy index.html fallback)
   const webDir = path.resolve(
     typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname,
     'web',
   );
-  // Bundled mode: web files are embedded; use inline fallback
   const webIndexPath = path.join(webDir, 'index.html');
   const hasWeb = fs.existsSync(webIndexPath);
 
+  const contentTypeMap: Record<string, string> = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon',
+  };
+
+  function sendWebAsset(reply: any, filePath: string) {
+    const ext = path.extname(filePath);
+    reply.header('Content-Type', contentTypeMap[ext] ?? 'application/octet-stream');
+    return reply.send(fs.readFileSync(filePath));
+  }
+
   app.get('/', async (_req, reply) => {
-    if (hasWeb) {
-      reply.header('Content-Type', 'text/html; charset=utf-8');
-      return reply.send(fs.readFileSync(webIndexPath, 'utf-8'));
-    }
+    if (hasWeb) return sendWebAsset(reply, webIndexPath);
     return reply.redirect('/api/health');
   });
   app.get('/admin', async (_req, reply) => reply.redirect('/'));
+
+  // SPA asset and fallback routes
+  app.get('/assets/*', async (request, reply) => {
+    const wildcard = (request.params as { '*': string })['*'];
+    if (!wildcard) return reply.callNotFound();
+    const filePath = path.resolve(webDir, 'assets', wildcard);
+    if (!filePath.startsWith(path.resolve(webDir, 'assets')) || !fs.existsSync(filePath)) {
+      return reply.callNotFound();
+    }
+    return sendWebAsset(reply, filePath);
+  });
+
+  // SPA fallback — serve index.html for unknown paths if React is present
+  app.setNotFoundHandler(async (request, reply) => {
+    const url = (request as unknown as { raw: { url?: string } }).raw?.url ?? '/';
+    if (hasWeb && !url.startsWith('/api') && !url.startsWith('/ws')) {
+      return sendWebAsset(reply, webIndexPath);
+    }
+    return reply.code(404).send({ error: 'Not found' });
+  });
 
   // Health check
   app.get('/api/health', async () => ({ status: 'ok', timestamp: Date.now() }));
