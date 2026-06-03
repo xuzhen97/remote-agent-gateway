@@ -4,8 +4,12 @@ import { resolveConfig, maskToken } from './config/config.js';
 import { ServerApi } from './http/server-api.js';
 import { CliError } from './http/http-error.js';
 import { errorEnvelope, exitCodeFor, successEnvelope, writeJson } from './output/json-output.js';
+import { ClientHttpApi } from './http/client-http.js';
 import { registerClientsCommands } from './commands/clients.js';
 import { registerDoctorCommand } from './commands/doctor.js';
+import { registerFilesCommands } from './commands/files.js';
+import { registerFrpCommands } from './commands/frp.js';
+import { registerJobsCommands } from './commands/jobs.js';
 import { registerTasksCommands } from './commands/tasks.js';
 
 const VERSION = '0.1.0';
@@ -51,6 +55,15 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
   registerClientsCommands(program, deps);
   registerTasksCommands(program, deps);
   registerDoctorCommand(program, deps);
+
+  async function discoverClientHttp(clientId: string): Promise<ClientHttpApi> {
+    const discovered = await deps.serverApi.discoverClientHttp(clientId);
+    return new ClientHttpApi({ baseUrl: discovered.baseUrl, token: discovered.token });
+  }
+
+  registerJobsCommands(program, { discoverClientHttp, write });
+  registerFilesCommands(program, { discoverClientHttp, write });
+  registerFrpCommands(program, { discoverClientHttp, write });
 
   return program;
 }

@@ -2,6 +2,9 @@ import { Command } from 'commander';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerClientsCommands } from './clients.js';
 import { registerDoctorCommand } from './doctor.js';
+import { registerFilesCommands } from './files.js';
+import { registerFrpCommands } from './frp.js';
+import { registerJobsCommands } from './jobs.js';
 import { registerTasksCommands } from './tasks.js';
 
 const serverApi = {
@@ -94,5 +97,61 @@ describe('read-only CLI commands', () => {
     expect(result.data.files.rootsCount).toBe(1);
     expect(result.data.frp.mappingsCount).toBe(0);
     expect(result.data.server.reachable).toBe(true);
+  });
+});
+
+describe('client direct command groups', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('runs jobs run with -- command args', async () => {
+    const outputs: unknown[] = [];
+    const clientHttp = { createCommandJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'queued' }) };
+    const program = new Command();
+    program.exitOverride();
+    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+
+    await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--', 'node', '-v'], { from: 'user' });
+
+    expect(clientHttp.createCommandJob).toHaveBeenCalledWith({ command: 'node', args: ['-v'] });
+    expect(outputs[0]).toEqual({ ok: true, data: { jobId: 'job_1', status: 'queued' } });
+  });
+
+  it('runs files read with JSON content by default', async () => {
+    const outputs: unknown[] = [];
+    const clientHttp = { readFile: vi.fn().mockResolvedValue('hello') };
+    const program = new Command();
+    program.exitOverride();
+    registerFilesCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value), writeRaw: (value) => outputs.push(value) });
+
+    await program.parseAsync(['files', 'read', '--client', 'client-1', '--root', 'root-0', '--path', 'README.md'], { from: 'user' });
+
+    expect(outputs[0]).toEqual({ ok: true, data: { rootId: 'root-0', path: 'README.md', content: 'hello' } });
+  });
+
+  it('runs files read --raw as raw output', async () => {
+    const outputs: unknown[] = [];
+    const clientHttp = { readFile: vi.fn().mockResolvedValue('hello') };
+    const program = new Command();
+    program.exitOverride();
+    registerFilesCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value), writeRaw: (value) => outputs.push(value) });
+
+    await program.parseAsync(['files', 'read', '--client', 'client-1', '--root', 'root-0', '--path', 'README.md', '--raw'], { from: 'user' });
+
+    expect(outputs[0]).toBe('hello');
+  });
+
+  it('runs frp create', async () => {
+    const outputs: unknown[] = [];
+    const clientHttp = { createMapping: vi.fn().mockResolvedValue({ id: 'pm_1' }) };
+    const program = new Command();
+    program.exitOverride();
+    registerFrpCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+
+    await program.parseAsync(['frp', 'create', '--client', 'client-1', '--name', 'web', '--type', 'tcp', '--local-port', '3000'], { from: 'user' });
+
+    expect(clientHttp.createMapping).toHaveBeenCalledWith({ name: 'web', type: 'tcp', localHost: '127.0.0.1', localPort: 3000, remotePort: undefined, customDomain: undefined });
+    expect(outputs[0]).toEqual({ ok: true, data: { id: 'pm_1' } });
   });
 });
