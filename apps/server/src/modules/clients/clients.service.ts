@@ -2,7 +2,6 @@ import { getDb } from '../../db/index.js';
 import type { ClientInfo } from '@rag/shared';
 import { connectionManager } from '../connections/connections.manager.js';
 import { frpService } from '../frp/frp.service.js';
-import { tasksService } from '../tasks/tasks.service.js';
 
 export interface ClientRow {
   id: string;
@@ -88,7 +87,10 @@ export class ClientsService {
   } {
     const db = getDb();
     const deletedMappings = frpService.deleteMappingsByClientId(clientId);
-    const { deletedTasks, deletedLogs } = tasksService.deleteTasksByClientId(clientId);
+    db.run('DELETE FROM task_logs WHERE task_id IN (SELECT id FROM tasks WHERE client_id = ?)', [clientId]);
+    const deletedLogs = db.getRowsModified();
+    db.run('DELETE FROM tasks WHERE client_id = ?', [clientId]);
+    const deletedTasks = db.getRowsModified();
     db.run('DELETE FROM clients WHERE id = ?', [clientId]);
     return { deletedMappings, deletedTasks, deletedLogs };
   }

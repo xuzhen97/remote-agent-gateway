@@ -4,8 +4,6 @@ import { handleWsClose, handleWsMessage } from './ws-handlers.js';
 const {
   upsertClientMock,
   registerConnectionMock,
-  autoOnlineMock,
-  autoOfflineMock,
   wsSendMock,
   setOfflineMock,
   removeConnectionMock,
@@ -14,8 +12,6 @@ const {
 } = vi.hoisted(() => ({
   upsertClientMock: vi.fn(),
   registerConnectionMock: vi.fn(),
-  autoOnlineMock: vi.fn().mockResolvedValue(undefined),
-  autoOfflineMock: vi.fn().mockResolvedValue(undefined),
   wsSendMock: vi.fn(),
   setOfflineMock: vi.fn(),
   removeConnectionMock: vi.fn(),
@@ -36,18 +32,12 @@ vi.mock('../modules/connections/connections.manager.js', () => ({
   connectionManager: { register: registerConnectionMock, remove: removeConnectionMock },
 }));
 vi.mock('../modules/audit/audit.service.js', () => ({ auditService: { log: vi.fn() } }));
-vi.mock('../modules/tasks/tasks.service.js', () => ({ tasksService: { updateTaskStatus: vi.fn(), addLog: vi.fn(), getTask: vi.fn() } }));
-vi.mock('../modules/frp/frp.service.js', () => ({ frpService: { getMapping: vi.fn(), updateMappingStatus: vi.fn(), deleteMapping: vi.fn() }, getFrpsConnectionInfo: vi.fn(() => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' })) }));
-vi.mock('../modules/auto-mapping/auto-mapping.service.js', () => ({
-  autoMappingService: { onClientOnline: autoOnlineMock, onClientOffline: autoOfflineMock },
-}));
+vi.mock('../modules/frp/frp.service.js', () => ({ getFrpsConnectionInfo: vi.fn(() => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' })) }));
 vi.mock('../db/index.js', () => ({ saveDb: vi.fn() }));
 
 describe('ws handlers registration lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    autoOnlineMock.mockResolvedValue(undefined);
-    autoOfflineMock.mockResolvedValue(undefined);
   });
 
   it('sends registration ack with FRP config', async () => {
@@ -71,7 +61,6 @@ describe('ws handlers registration lifecycle', () => {
     expect(registerConnectionMock).toHaveBeenCalledWith('client-1', ws);
     const ackCall = wsSendMock.mock.calls.find(([payload]) => String(payload).includes('server.ack'));
     expect(ackCall?.[0]).toContain('frps.example.com');
-    expect(autoOnlineMock).not.toHaveBeenCalled();
   });
 
   it('marks client offline on websocket close without auto-mapping cleanup', async () => {
@@ -79,7 +68,6 @@ describe('ws handlers registration lifecycle', () => {
     await Promise.resolve();
     expect(removeConnectionMock).toHaveBeenCalledWith('client-1');
     expect(setOfflineMock).toHaveBeenCalledWith('client-1');
-    expect(autoOfflineMock).not.toHaveBeenCalled();
   });
 
   it('rejects legacy task.log messages', async () => {
