@@ -125,19 +125,6 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
       break;
     }
 
-    case 'task.log':
-    case 'task.result': {
-      ws.send(JSON.stringify({
-        type: 'server.error',
-        requestId: message.requestId,
-        payload: {
-          code: 'TASKS_DISABLED',
-          message: 'Legacy WebSocket task execution is disabled; use client HTTP APIs instead',
-        },
-      }));
-      break;
-    }
-
     default: {
       ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'UNKNOWN_TYPE', message: `Unknown message type: ${message.type}` } }));
     }

@@ -139,10 +139,6 @@ async function main(): Promise<void> {
         console.error('Server error:', (message.payload as Record<string, unknown>)?.message);
         break;
 
-      case 'task.dispatch':
-        console.warn('Ignoring legacy task.dispatch message; use client HTTP APIs instead');
-        break;
-
       default:
         console.log('Unknown message type:', message.type);
     }

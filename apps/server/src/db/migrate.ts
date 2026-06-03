@@ -17,28 +17,6 @@ export function migrate(db: Database): void {
       updated_at INTEGER NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      client_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      status TEXT NOT NULL,
-      payload TEXT NOT NULL,
-      result TEXT,
-      error TEXT,
-      created_by TEXT,
-      created_at INTEGER NOT NULL,
-      started_at INTEGER,
-      finished_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS task_logs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      task_id TEXT NOT NULL,
-      stream TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS files (
       id TEXT PRIMARY KEY,
       original_name TEXT NOT NULL,
@@ -60,16 +38,6 @@ export function migrate(db: Database): void {
       custom_domain TEXT,
       status TEXT NOT NULL DEFAULT 'inactive',
       public_url TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS auto_mappings (
-      id TEXT PRIMARY KEY,
-      client_id TEXT NOT NULL,
-      provider_name TEXT NOT NULL,
-      mapping_id TEXT NOT NULL,
-      status TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     );

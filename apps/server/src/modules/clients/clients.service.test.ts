@@ -30,21 +30,6 @@ function insertMapping(params: { id: string; clientId: string; remotePort: numbe
   );
 }
 
-function insertTask(params: { id: string; clientId: string }): void {
-  const now = 1_000_000;
-  state.db!.run(
-    `INSERT INTO tasks (id, client_id, type, status, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    [params.id, params.clientId, 'exec_script', 'pending', '{}', now],
-  );
-}
-
-function insertTaskLog(params: { taskId: string; content: string }): void {
-  state.db!.run(
-    `INSERT INTO task_logs (task_id, stream, content, created_at) VALUES (?, ?, ?, ?)`,
-    [params.taskId, 'stdout', params.content, 1_000_000],
-  );
-}
-
 describe('ClientsService', () => {
   let service: ClientsService;
 
@@ -69,53 +54,32 @@ describe('ClientsService', () => {
     expect(service.getClient('stale-online')).toBeDefined();
   });
 
-  it('deletes a client and all related mappings, tasks, and task logs, leaving other clients intact', () => {
+  it('deletes a client and related mappings, leaving other clients intact', () => {
     insertClient({ id: 'offline-client', status: 'offline', updatedAt: 1_000_000 });
     insertClient({ id: 'other-client', status: 'offline', updatedAt: 1_000_000 });
     insertMapping({ id: 'pm_offline', clientId: 'offline-client', remotePort: 20001 });
     insertMapping({ id: 'pm_other', clientId: 'other-client', remotePort: 20002 });
-    insertTask({ id: 'task_offline', clientId: 'offline-client' });
-    insertTask({ id: 'task_other', clientId: 'other-client' });
-    insertTaskLog({ taskId: 'task_offline', content: 'offline-log' });
-    insertTaskLog({ taskId: 'task_other', content: 'other-log' });
 
     const summary = service.deleteClientCascade('offline-client');
 
-    expect(summary).toEqual({ deletedMappings: 1, deletedTasks: 1, deletedLogs: 1 });
+    expect(summary).toEqual({ deletedMappings: 1 });
     expect(service.getClient('offline-client')).toBeUndefined();
     expect(service.getClient('other-client')).toBeDefined();
 
-    // Verify target data is gone
     const pmResult = state.db!.exec("SELECT id FROM port_mappings WHERE client_id = 'offline-client'");
     expect(pmResult.length).toBe(0);
 
-    const taskResult = state.db!.exec("SELECT id FROM tasks WHERE client_id = 'offline-client'");
-    expect(taskResult.length).toBe(0);
-
-    const logResult = state.db!.exec("SELECT id FROM task_logs WHERE task_id = 'task_offline'");
-    expect(logResult.length).toBe(0);
-
-    // Verify other client data is untouched
     const pmOther = state.db!.exec("SELECT id FROM port_mappings WHERE client_id = 'other-client'");
     expect(pmOther[0].values).toEqual([['pm_other']]);
-
-    const taskOther = state.db!.exec("SELECT id FROM tasks WHERE client_id = 'other-client'");
-    expect(taskOther[0].values).toEqual([['task_other']]);
-
-    const logOther = state.db!.exec("SELECT content FROM task_logs WHERE task_id = 'task_other'");
-    expect(logOther[0].values).toEqual([['other-log']]);
   });
 
   it('does not delete unrelated data when deleting a missing client', () => {
-    // Insert some data for another client to ensure it stays
     insertClient({ id: 'other-client', status: 'offline', updatedAt: 1_000_000 });
-    insertTask({ id: 'task_other', clientId: 'other-client' });
 
     const summary = service.deleteClientCascade('missing-client');
 
-    expect(summary).toEqual({ deletedMappings: 0, deletedTasks: 0, deletedLogs: 0 });
+    expect(summary).toEqual({ deletedMappings: 0 });
     expect(service.getClient('missing-client')).toBeUndefined();
-    // Other data untouched
     expect(service.getClient('other-client')).toBeDefined();
   });
 

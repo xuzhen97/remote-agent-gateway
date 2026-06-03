@@ -70,23 +70,6 @@ describe('ws handlers registration lifecycle', () => {
     expect(setOfflineMock).toHaveBeenCalledWith('client-1');
   });
 
-  it('rejects legacy task.log messages', async () => {
-    const ws = { send: wsSendMock } as never;
-
-    await handleWsMessage(ws, JSON.stringify({
-      type: 'task.log',
-      requestId: 'log_1',
-      payload: {
-        taskId: 'task_deleted',
-        stream: 'stdout',
-        content: 'still running on client',
-      },
-    }));
-
-    const sent = JSON.parse(wsSendMock.mock.calls.at(-1)![0]);
-    expect(sent.type).toBe('server.error');
-    expect(sent.payload.code).toBe('TASKS_DISABLED');
-  });
 });
 
 describe('client HTTP control over WS', () => {

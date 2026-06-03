@@ -82,17 +82,11 @@ export class ClientsService {
 
   deleteClientCascade(clientId: string): {
     deletedMappings: number;
-    deletedTasks: number;
-    deletedLogs: number;
   } {
     const db = getDb();
     const deletedMappings = frpService.deleteMappingsByClientId(clientId);
-    db.run('DELETE FROM task_logs WHERE task_id IN (SELECT id FROM tasks WHERE client_id = ?)', [clientId]);
-    const deletedLogs = db.getRowsModified();
-    db.run('DELETE FROM tasks WHERE client_id = ?', [clientId]);
-    const deletedTasks = db.getRowsModified();
     db.run('DELETE FROM clients WHERE id = ?', [clientId]);
-    return { deletedMappings, deletedTasks, deletedLogs };
+    return { deletedMappings };
   }
 
   updateHeartbeat(clientId: string, info?: { cpu?: number; memory?: number; uptime?: number }): void {
