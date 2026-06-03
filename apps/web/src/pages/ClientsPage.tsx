@@ -10,9 +10,11 @@ const { Title, Text } = Typography;
 interface ClientsPageProps {
   api: Api;
   onViewDetail: (clientId: string) => void;
+  onOpenFiles: (clientId: string) => void;
+  onOpenMappings: (clientId: string) => void;
 }
 
-export function ClientsPage({ api, onViewDetail }: ClientsPageProps) {
+export function ClientsPage({ api, onViewDetail, onOpenFiles, onOpenMappings }: ClientsPageProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,9 +52,13 @@ export function ClientsPage({ api, onViewDetail }: ClientsPageProps) {
               cap ? <Space size={4}>{Object.entries(cap).filter(([, v]) => v).map(([k]) => <Tag key={k} style={{ fontSize: 10 }}>{k}</Tag>)}</Space> : '-',
           },
           {
-            title: '操作', key: 'actions', width: 100,
+            title: '操作', key: 'actions', width: 250,
             render: (_: unknown, record: ClientSummary) => (
-              <Button size="small" icon={<EyeOutlined />} onClick={() => onViewDetail(record.id)}>详情</Button>
+              <Space size={4}>
+                <Button size="small" icon={<EyeOutlined />} onClick={() => onViewDetail(record.id)}>详情</Button>
+                <Button size="small" onClick={() => onOpenFiles(record.id)}>文件</Button>
+                <Button size="small" onClick={() => onOpenMappings(record.id)}>映射</Button>
+              </Space>
             ),
           },
         ]}
