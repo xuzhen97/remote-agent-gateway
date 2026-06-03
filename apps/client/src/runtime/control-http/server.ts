@@ -5,6 +5,8 @@ import { requireBearerToken } from './auth.js';
 import { sendJson, sendOk, sendError, setCorsHeaders } from './response.js';
 import { registerJobRoutes } from './job-routes.js';
 import { JobManager } from './job-manager.js';
+import { registerFileRoutes } from './file-routes.js';
+import { registerFrpRoutes } from './frp-routes.js';
 
 interface StartOptions {
   clientId: string;
@@ -13,6 +15,10 @@ interface StartOptions {
   token: string;
   workspaceDir: string;
   allowedRoots: string[];
+  apiBaseUrl?: string;
+  serverToken?: string;
+  frpcPath?: string;
+  frpcWorkDir?: string;
   job: { maxConcurrent: number; defaultTimeoutMs: number; maxTimeoutMs: number; logBufferLines: number };
 }
 
@@ -44,6 +50,16 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
   });
 
   registerJobRoutes(router, jobManager, options.token);
+  registerFileRoutes(router, { token: options.token, workspaceDir: options.workspaceDir, allowedRoots: options.allowedRoots });
+  registerFrpRoutes(router, {
+    token: options.token,
+    clientId: options.clientId,
+    apiBaseUrl: options.apiBaseUrl,
+    serverToken: options.serverToken,
+    frpcPath: options.frpcPath,
+    frpcWorkDir: options.frpcWorkDir,
+    workspaceDir: options.workspaceDir,
+  });
 
   activeServer = http.createServer(async (req, res) => {
     try {

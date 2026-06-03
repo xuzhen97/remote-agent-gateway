@@ -33,6 +33,10 @@ async function main(): Promise<void> {
       token: 'bootstrap-token',
       workspaceDir: config.workspaceDir,
       allowedRoots: config.allowedRoots,
+      apiBaseUrl: config.apiBaseUrl,
+      serverToken: config.token,
+      frpcPath: config.frpcPath,
+      frpcWorkDir: config.frpcWorkDir,
       job: {
         maxConcurrent: config.jobMaxConcurrent,
         defaultTimeoutMs: config.jobDefaultTimeoutMs,
@@ -76,6 +80,10 @@ async function main(): Promise<void> {
               token: control.token,
               workspaceDir: config.workspaceDir,
               allowedRoots: config.allowedRoots,
+              apiBaseUrl: config.apiBaseUrl,
+              serverToken: config.token,
+              frpcPath: config.frpcPath,
+              frpcWorkDir: config.frpcWorkDir,
               job: {
                 maxConcurrent: config.jobMaxConcurrent,
                 defaultTimeoutMs: config.jobDefaultTimeoutMs,

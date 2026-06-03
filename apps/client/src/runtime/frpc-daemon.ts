@@ -12,6 +12,7 @@ import type { ClientConfig } from '../config/client.config.js';
 
 let daemonProcess: ChildProcess | null = null;
 let lastFrpsInfo: { serverAddr: string; serverPort: number; authToken: string } | null = null;
+let lastProtectedProxy: FrpcProxyConfig | undefined;
 const PID_FILE_NAME = 'frpc-daemon.pid';
 
 export interface FrpcProxyConfig {
@@ -66,8 +67,10 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
   const mappingsDir = path.join(workDir, 'mappings');
   const proxies: string[] = [];
 
-  if (protectedProxy) {
-    proxies.unshift(serializeProxy(protectedProxy));
+  const effectiveProtected = protectedProxy ?? lastProtectedProxy;
+  if (effectiveProtected) {
+    proxies.unshift(serializeProxy(effectiveProtected));
+    lastProtectedProxy = effectiveProtected;
   }
 
   fs.mkdirSync(mappingsDir, { recursive: true });
