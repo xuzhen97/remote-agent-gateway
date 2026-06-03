@@ -2,7 +2,14 @@ import { env } from '../../config/env.js';
 import { clientsService } from '../clients/clients.service.js';
 
 export class ClientHttpAdminService {
-  async request(clientId: string, input: { method: string; path: string; body?: unknown }): Promise<{ status: number; body: unknown }> {
+  constructor(private readonly fetchImpl: typeof fetch = fetch) {}
+
+  async request(clientId: string, input: {
+    method: string;
+    path: string;
+    body?: unknown;
+    auditContext?: { sourceType: 'web-console' | 'agent-api' | 'server-proxy'; actorType: 'admin-token' | 'agent-token' };
+  }): Promise<{ status: number; body: unknown }> {
     const client = clientsService.getClient(clientId);
     if (!client?.http_base_url || !client.http_token) {
       return { status: 409, body: { ok: false, error: { code: 'CLIENT_HTTP_UNAVAILABLE', message: 'Client HTTP endpoint is not ready' } } };
@@ -11,11 +18,15 @@ export class ClientHttpAdminService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), env.CLIENT_HTTP_REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${client.http_base_url}${input.path}`, {
+      const response = await this.fetchImpl(`${client.http_base_url}${input.path}`, {
         method: input.method,
         headers: {
           Authorization: `Bearer ${client.http_token}`,
           ...(input.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(input.auditContext ? {
+            'x-rag-source': input.auditContext.sourceType,
+            'x-rag-actor-type': input.auditContext.actorType,
+          } : {}),
         },
         body: input.body ? JSON.stringify(input.body) : undefined,
         signal: controller.signal,

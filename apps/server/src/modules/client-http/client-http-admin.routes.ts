@@ -17,13 +17,30 @@ export async function clientHttpAdminRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.post<{ Params: { clientId: string }; Body: unknown }>('/api/clients/:clientId/http/frp/mappings', async (request, reply) => {
-    const result = await clientHttpAdminService.request(request.params.clientId, { method: 'POST', path: '/frp/mappings', body: request.body });
+    const auditContext = {
+      sourceType: 'web-console' as const,
+      actorType: ((request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token') as const,
+    };
+    const result = await clientHttpAdminService.request(request.params.clientId, {
+      method: 'POST',
+      path: '/frp/mappings',
+      body: request.body,
+      auditContext,
+    });
     auditService.log({ actor: (request as unknown as { authRole: string }).authRole, action: 'client_http.frp_mapping.create', targetType: 'client', targetId: request.params.clientId });
     return reply.code(result.status).send(result.body);
   });
 
   app.delete<{ Params: { clientId: string; mappingId: string } }>('/api/clients/:clientId/http/frp/mappings/:mappingId', async (request, reply) => {
-    const result = await clientHttpAdminService.request(request.params.clientId, { method: 'DELETE', path: `/frp/mappings/${encodeURIComponent(request.params.mappingId)}` });
+    const auditContext = {
+      sourceType: 'web-console' as const,
+      actorType: ((request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token') as const,
+    };
+    const result = await clientHttpAdminService.request(request.params.clientId, {
+      method: 'DELETE',
+      path: `/frp/mappings/${encodeURIComponent(request.params.mappingId)}`,
+      auditContext,
+    });
     auditService.log({ actor: (request as unknown as { authRole: string }).authRole, action: 'client_http.frp_mapping.delete', targetType: 'port_mapping', targetId: request.params.mappingId });
     return reply.code(result.status).send(result.body);
   });
