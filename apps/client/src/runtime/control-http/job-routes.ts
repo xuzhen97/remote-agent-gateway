@@ -4,6 +4,7 @@ import type { ControlHttpRouter } from './router.js';
 import { readJson, sendError, sendOk, setCorsHeaders } from './response.js';
 import { requireBearerToken } from './auth.js';
 import type { JobManager, JobEvent } from './job-manager.js';
+import type { TaskAuditExecutor } from './task-audit.js';
 
 function writeSse(res: ServerResponse, item: JobEvent): void {
   if (typeof item.id === 'number') res.write(`id: ${item.id}\n`);
@@ -11,13 +12,26 @@ function writeSse(res: ServerResponse, item: JobEvent): void {
   res.write(`data: ${JSON.stringify(item.data)}\n\n`);
 }
 
-export function registerJobRoutes(router: ControlHttpRouter, manager: JobManager, token: string): void {
+export function registerJobRoutes(
+  router: ControlHttpRouter,
+  manager: JobManager,
+  token: string,
+  audit: TaskAuditExecutor,
+  options: { clientId: string },
+): void {
   router.add('POST', /^\/jobs\/command$/, async (req, res) => {
     if (!requireBearerToken(req, res, token)) return;
     try {
       const payload = ClientJobCommandPayloadSchema.parse(await readJson(req));
-      const job = manager.createCommand(payload);
-      sendOk(res, { jobId: job.jobId, status: job.status });
+      const body = await audit.execute({
+        req, actionType: 'job.command', resourceType: 'job',
+        method: 'POST', path: '/jobs/command', payload,
+        run: async () => {
+          const job = manager.createCommand(payload);
+          return { httpStatus: 200, resultSummary: { jobId: job.jobId, status: job.status }, targetId: job.jobId, status: 'success', body: { jobId: job.jobId, status: job.status } };
+        },
+      });
+      sendOk(res, body);
     } catch (err) {
       sendError(res, 400, 'INVALID_REQUEST', err instanceof Error ? err.message : String(err));
     }
@@ -27,8 +41,15 @@ export function registerJobRoutes(router: ControlHttpRouter, manager: JobManager
     if (!requireBearerToken(req, res, token)) return;
     try {
       const payload = ClientJobScriptPayloadSchema.parse(await readJson(req));
-      const job = manager.createScript(payload);
-      sendOk(res, { jobId: job.jobId, status: job.status });
+      const body = await audit.execute({
+        req, actionType: 'job.script', resourceType: 'job',
+        method: 'POST', path: '/jobs/script', payload,
+        run: async () => {
+          const job = manager.createScript(payload);
+          return { httpStatus: 200, resultSummary: { jobId: job.jobId, status: job.status }, targetId: job.jobId, status: 'success', body: { jobId: job.jobId, status: job.status } };
+        },
+      });
+      sendOk(res, body);
     } catch (err) {
       sendError(res, 400, 'INVALID_REQUEST', err instanceof Error ? err.message : String(err));
     }
@@ -50,11 +71,19 @@ export function registerJobRoutes(router: ControlHttpRouter, manager: JobManager
     sendOk(res, { jobId, ...manager.getLogs(jobId, sinceSeq, limit) });
   });
 
-  router.add('POST', /^\/jobs\/[^/]+\/cancel$/, (req, res, url) => {
+  router.add('POST', /^\/jobs\/[^/]+\/cancel$/, async (req, res, url) => {
     if (!requireBearerToken(req, res, token)) return;
     try {
       const jobId = url.pathname.split('/')[2];
-      sendOk(res, manager.cancel(jobId));
+      const body = await audit.execute({
+        req, actionType: 'job.cancel', resourceType: 'job',
+        method: 'POST', path: `/jobs/${jobId}/cancel`, payload: { jobId },
+        run: async () => {
+          const result = manager.cancel(jobId);
+          return { httpStatus: 200, resultSummary: { status: result.status }, targetId: jobId, status: 'success', body: result };
+        },
+      });
+      sendOk(res, body);
     } catch (err) {
       sendError(res, 404, 'NOT_FOUND', err instanceof Error ? err.message : String(err));
     }

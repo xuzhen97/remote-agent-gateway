@@ -7,6 +7,9 @@ import { registerJobRoutes } from './job-routes.js';
 import { JobManager } from './job-manager.js';
 import { registerFileRoutes } from './file-routes.js';
 import { registerFrpRoutes } from './frp-routes.js';
+import { createTaskAuditStore } from './task-audit-store.js';
+import { createTaskAuditReporter } from './task-audit-reporter.js';
+import { createTaskAuditExecutor } from './task-audit.js';
 
 interface StartOptions {
   clientId: string;
@@ -50,8 +53,17 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
     sendOk(res, { clientId: options.clientId, status: 'ready', version: '0.1.0', httpReady: true, frpcRunning: false });
   });
 
-  registerJobRoutes(router, jobManager, options.token);
-  registerFileRoutes(router, { token: options.token, workspaceDir: options.workspaceDir, allowedRoots: options.allowedRoots });
+  const store = createTaskAuditStore(options.taskAuditStorePath ?? '.rag/task-audit.jsonl');
+  const reporter = createTaskAuditReporter({
+    apiBaseUrl: options.apiBaseUrl,
+    serverToken: options.serverToken,
+    clientName: options.clientId,
+    store,
+  });
+  const audit = createTaskAuditExecutor({ clientId: options.clientId, store, reporter });
+
+  registerJobRoutes(router, jobManager, options.token, audit, { clientId: options.clientId });
+  registerFileRoutes(router, { token: options.token, workspaceDir: options.workspaceDir, allowedRoots: options.allowedRoots, clientId: options.clientId }, audit);
   registerFrpRoutes(router, {
     token: options.token,
     clientId: options.clientId,
@@ -60,7 +72,7 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
     frpcPath: options.frpcPath,
     frpcWorkDir: options.frpcWorkDir,
     workspaceDir: options.workspaceDir,
-  });
+  }, audit);
 
   activeServer = http.createServer(async (req, res) => {
     try {

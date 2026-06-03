@@ -5,6 +5,7 @@ import { readJson, sendError, sendOk } from './response.js';
 import { requireBearerToken } from './auth.js';
 import { rebuildFrpcDaemon } from '../frpc-daemon.js';
 import type { ClientConfig } from '../../config/client.config.js';
+import type { TaskAuditExecutor } from './task-audit.js';
 
 const CONTROL_ID = 'http-control';
 const DEFAULT_LOCAL_HOST = '127.0.0.1';
@@ -34,7 +35,11 @@ interface AllocatedMapping {
   publicUrl?: string;
 }
 
-export function registerFrpRoutes(router: ControlHttpRouter, options: FrpRouteOptions): void {
+export function registerFrpRoutes(
+  router: ControlHttpRouter,
+  options: FrpRouteOptions,
+  audit: TaskAuditExecutor,
+): void {
   const workDir = options.frpcWorkDir ?? options.workspaceDir ?? '.';
 
   router.add('GET', /^\/frp\/mappings$/, (req, res) => {
@@ -47,18 +52,24 @@ export function registerFrpRoutes(router: ControlHttpRouter, options: FrpRouteOp
 
     try {
       const payload = await readJson<CreateMappingRequest>(req);
-      const allocated = await allocateMapping(options, payload);
-      const mapping = buildBusinessMapping(payload, allocated);
-
-      addMapping(workDir, mapping);
-      rebuildIfConfigured(options);
-      sendOk(res, mapping);
+      const body = await audit.execute({
+        req, actionType: 'frp_mapping.create', resourceType: 'frp_mapping',
+        method: 'POST', path: '/frp/mappings', payload,
+        run: async () => {
+          const allocated = await allocateMapping(options, payload);
+          const mapping = buildBusinessMapping(payload, allocated);
+          addMapping(workDir, mapping);
+          rebuildIfConfigured(options);
+          return { httpStatus: 200, resultSummary: { id: mapping.id, remotePort: mapping.remotePort, publicUrl: mapping.publicUrl }, targetId: mapping.id, status: 'success', body: mapping };
+        },
+      });
+      sendOk(res, body);
     } catch (err) {
       sendError(res, 400, 'FRP_CONFIG_ERROR', err instanceof Error ? err.message : String(err));
     }
   });
 
-  router.add('DELETE', /^\/frp\/mappings\/[^/]+$/, (req, res, url) => {
+  router.add('DELETE', /^\/frp\/mappings\/[^/]+$/, async (req, res, url) => {
     if (!requireBearerToken(req, res, options.token)) return;
 
     const mappingId = url.pathname.split('/')[3];
@@ -69,10 +80,21 @@ export function registerFrpRoutes(router: ControlHttpRouter, options: FrpRouteOp
     const mapping = loadMappings(workDir).find((entry) => entry.id === mappingId);
     if (!mapping) return sendError(res, 404, 'NOT_FOUND', 'Mapping not found');
 
-    removeMapping(workDir, mappingId);
-    deleteServerMapping(options, mappingId);
-    rebuildIfConfigured(options);
-    sendOk(res, { id: mappingId, deleted: true });
+    try {
+      const body = await audit.execute({
+        req, actionType: 'frp_mapping.delete', resourceType: 'frp_mapping',
+        method: 'DELETE', path: `/frp/mappings/${mappingId}`, payload: { mappingId },
+        run: async () => {
+          removeMapping(workDir, mappingId);
+          deleteServerMapping(options, mappingId);
+          rebuildIfConfigured(options);
+          return { httpStatus: 200, resultSummary: { deleted: true }, targetId: mappingId, status: 'success', body: { id: mappingId, deleted: true } };
+        },
+      });
+      sendOk(res, body);
+    } catch (err) {
+      sendError(res, 400, 'FRP_CONFIG_ERROR', err instanceof Error ? err.message : String(err));
+    }
   });
 }
 

@@ -6,6 +6,7 @@ import { readBody, readJson, sendError, sendOk, setCorsHeaders } from './respons
 import { requireBearerToken } from './auth.js';
 import { resolveAllowedRoots, resolveRootPath } from '../file-roots.js';
 import { toClientFileEntry, toClientFileStat } from '../file-paths.js';
+import type { TaskAuditExecutor } from './task-audit.js';
 
 function queryRootId(url: URL): string {
   const rootId = url.searchParams.get('rootId');
@@ -45,11 +46,16 @@ function ensureDir(dir: string): void {
   }
 }
 
-export function registerFileRoutes(router: ControlHttpRouter, options: {
-  token: string;
-  workspaceDir: string;
-  allowedRoots: string[];
-}): void {
+export function registerFileRoutes(
+  router: ControlHttpRouter,
+  options: {
+    token: string;
+    workspaceDir: string;
+    allowedRoots: string[];
+    clientId: string;
+  },
+  audit: TaskAuditExecutor,
+): void {
   const roots = resolveAllowedRoots(options.workspaceDir, options.allowedRoots);
 
   router.add('GET', /^\/files\/roots$/, (req, res) => {
@@ -114,8 +120,16 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const fullPath = resolveRootPath(roots, rootId, clientPath);
       ensureDir(path.dirname(fullPath));
       const body = await readBody(req);
-      fs.writeFileSync(fullPath, body);
-      sendOk(res, { rootId, path: clientPath, size: body.length });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.write', resourceType: 'file',
+        method: 'PUT', path: '/files/write',
+        payload: { rootId, path: clientPath, size: body.length },
+        run: async () => {
+          fs.writeFileSync(fullPath, body);
+          return { httpStatus: 200, resultSummary: { size: body.length }, targetId: `${rootId}:${clientPath}`, status: 'success', body: { rootId, path: clientPath, size: body.length } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 
@@ -129,9 +143,18 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
       const targetDir = resolveRootPath(roots, rootId, targetPath);
       ensureDir(targetDir);
       const body = await readBody(req);
-      const fullPath = path.join(targetDir, filename);
-      fs.writeFileSync(fullPath, body);
-      sendOk(res, { rootId, path: path.posix.join(targetPath, filename), size: body.length });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.upload', resourceType: 'file',
+        method: 'POST', path: '/files/upload',
+        payload: { rootId, path: targetPath, filename, size: body.length },
+        run: async () => {
+          const fullPath = path.join(targetDir, filename);
+          fs.writeFileSync(fullPath, body);
+          const resultPath = path.posix.join(targetPath, filename);
+          return { httpStatus: 200, resultSummary: { size: body.length }, targetId: `${rootId}:${resultPath}`, status: 'success', body: { rootId, path: resultPath, size: body.length } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 
@@ -139,22 +162,37 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
     if (!requireBearerToken(req, res, options.token)) return;
     try {
       const payload = await readJson<{ rootId: string; path: string; recursive?: boolean }>(req);
-      const fullPath = resolveRootPath(roots, payload.rootId, payload.path);
-      fs.mkdirSync(fullPath, { recursive: payload.recursive !== false });
-      sendOk(res, { rootId: payload.rootId, path: payload.path });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.mkdir', resourceType: 'file',
+        method: 'POST', path: '/files/mkdir', payload,
+        run: async () => {
+          const fullPath = resolveRootPath(roots, payload.rootId, payload.path);
+          fs.mkdirSync(fullPath, { recursive: payload.recursive !== false });
+          return { httpStatus: 200, resultSummary: {}, targetId: `${payload.rootId}:${payload.path}`, status: 'success', body: { rootId: payload.rootId, path: payload.path } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 
-  router.add('DELETE', /^\/files$/, (req, res, url) => {
+  router.add('DELETE', /^\/files$/, async (req, res, url) => {
     if (!requireBearerToken(req, res, options.token)) return;
     try {
       const rootId = queryRootId(url);
       const clientPath = queryPath(url);
       const recursive = url.searchParams.get('recursive') === 'true';
       const fullPath = resolveRootPath(roots, rootId, clientPath);
-      if (!fs.existsSync(fullPath)) return sendError(res, 404, 'NOT_FOUND', 'Not found');
-      fs.rmSync(fullPath, { recursive, force: false });
-      sendOk(res, { rootId, path: clientPath, deleted: true });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.delete', resourceType: 'file',
+        method: 'DELETE', path: '/files',
+        payload: { rootId, path: clientPath, recursive },
+        run: async () => {
+          if (!fs.existsSync(fullPath)) throw Object.assign(new Error('Not found'), { code: 'NOT_FOUND' });
+          fs.rmSync(fullPath, { recursive, force: false });
+          return { httpStatus: 200, resultSummary: { deleted: true }, targetId: `${rootId}:${clientPath}`, status: 'success', body: { rootId, path: clientPath, deleted: true } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 
@@ -162,14 +200,21 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
     if (!requireBearerToken(req, res, options.token)) return;
     try {
       const payload = await readJson<{ rootId: string; from: string; to: string; overwrite?: boolean }>(req);
-      const from = resolveRootPath(roots, payload.rootId, payload.from);
-      const to = resolveRootPath(roots, payload.rootId, payload.to);
-      if (!fs.existsSync(from)) return sendError(res, 404, 'NOT_FOUND', 'Source not found');
-      if (fs.existsSync(to) && !payload.overwrite) return sendError(res, 409, 'CONFLICT', 'Destination exists');
-      ensureDir(path.dirname(to));
-      if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true });
-      fs.renameSync(from, to);
-      sendOk(res, { rootId: payload.rootId, from: payload.from, to: payload.to });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.move', resourceType: 'file',
+        method: 'POST', path: '/files/move', payload,
+        run: async () => {
+          const from = resolveRootPath(roots, payload.rootId, payload.from);
+          const to = resolveRootPath(roots, payload.rootId, payload.to);
+          if (!fs.existsSync(from)) throw Object.assign(new Error('Source not found'), { code: 'NOT_FOUND' });
+          if (fs.existsSync(to) && !payload.overwrite) throw Object.assign(new Error('Destination exists'), { code: 'CONFLICT' });
+          ensureDir(path.dirname(to));
+          if (fs.existsSync(to)) fs.rmSync(to, { recursive: true, force: true });
+          fs.renameSync(from, to);
+          return { httpStatus: 200, resultSummary: {}, targetId: `${payload.rootId}:${payload.to}`, status: 'success', body: { rootId: payload.rootId, from: payload.from, to: payload.to } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 
@@ -177,13 +222,20 @@ export function registerFileRoutes(router: ControlHttpRouter, options: {
     if (!requireBearerToken(req, res, options.token)) return;
     try {
       const payload = await readJson<{ rootId: string; from: string; to: string; overwrite?: boolean }>(req);
-      const from = resolveRootPath(roots, payload.rootId, payload.from);
-      const to = resolveRootPath(roots, payload.rootId, payload.to);
-      if (!fs.existsSync(from)) return sendError(res, 404, 'NOT_FOUND', 'Source not found');
-      if (fs.existsSync(to) && !payload.overwrite) return sendError(res, 409, 'CONFLICT', 'Destination exists');
-      ensureDir(path.dirname(to));
-      fs.cpSync(from, to, { recursive: true, force: payload.overwrite === true });
-      sendOk(res, { rootId: payload.rootId, from: payload.from, to: payload.to });
+      const responseBody = await audit.execute({
+        req, actionType: 'file.copy', resourceType: 'file',
+        method: 'POST', path: '/files/copy', payload,
+        run: async () => {
+          const from = resolveRootPath(roots, payload.rootId, payload.from);
+          const to = resolveRootPath(roots, payload.rootId, payload.to);
+          if (!fs.existsSync(from)) throw Object.assign(new Error('Source not found'), { code: 'NOT_FOUND' });
+          if (fs.existsSync(to) && !payload.overwrite) throw Object.assign(new Error('Destination exists'), { code: 'CONFLICT' });
+          ensureDir(path.dirname(to));
+          fs.cpSync(from, to, { recursive: true, force: payload.overwrite === true });
+          return { httpStatus: 200, resultSummary: {}, targetId: `${payload.rootId}:${payload.to}`, status: 'success', body: { rootId: payload.rootId, from: payload.from, to: payload.to } };
+        },
+      });
+      sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
   });
 }
