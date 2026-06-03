@@ -26,3 +26,8 @@ frp:
   portRange:
     start: 20000
     end: 25000
+
+clientHttp:
+  tokenSecret: change-me-client-http-secret
+  tokenVersion: 1
+  requestTimeoutMs: 10000

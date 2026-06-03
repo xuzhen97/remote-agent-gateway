@@ -17,3 +17,12 @@ workspace:
 frp:
   binPath: ./bin/frpc
   workDir: ./frp
+
+http:
+  host: 127.0.0.1
+  port: 17890
+  job:
+    maxConcurrent: 4
+    defaultTimeoutMs: 300000
+    maxTimeoutMs: 1800000
+    logBufferLines: 5000
