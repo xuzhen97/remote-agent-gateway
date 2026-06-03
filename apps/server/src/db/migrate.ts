@@ -53,6 +53,40 @@ export function migrate(db: Database): void {
     );
   `);
 
+  // Task history mirror
+  db.run(`
+    CREATE TABLE IF NOT EXISTS task_history (
+      record_id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      client_name_snapshot TEXT,
+      request_id TEXT NOT NULL,
+      job_id TEXT,
+      resource_type TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      method TEXT NOT NULL,
+      path TEXT NOT NULL,
+      target_id TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      actor_type TEXT NOT NULL,
+      actor_label TEXT NOT NULL,
+      query_summary TEXT,
+      request_summary TEXT NOT NULL,
+      result_summary TEXT NOT NULL,
+      status TEXT NOT NULL,
+      http_status INTEGER NOT NULL,
+      started_at INTEGER NOT NULL,
+      finished_at INTEGER NOT NULL,
+      duration_ms INTEGER NOT NULL,
+      error_code TEXT,
+      error_message TEXT,
+      reported_at INTEGER NOT NULL,
+      received_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_history_client_id ON task_history(client_id);
+    CREATE INDEX IF NOT EXISTS idx_task_history_finished_at ON task_history(finished_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_task_history_status ON task_history(status);
+  `);
+
   // Idempotent column additions for client HTTP control plane
   addColumnIfMissing(db, 'clients', 'http_local_host', 'TEXT');
   addColumnIfMissing(db, 'clients', 'http_local_port', 'INTEGER');

@@ -3,11 +3,12 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
 import { env, envSource } from './config/env.js';
-import { initDb, saveDb, getDb } from './db/index.js';
+import { initDb, saveDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
 import { clientHttpAdminRoutes } from './modules/client-http/client-http-admin.routes.js';
 import { clientHttpPortRoutes } from './modules/client-http/client-http-port.routes.js';
+import { taskRoutes } from './modules/tasks/tasks.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -36,14 +37,6 @@ async function main(): Promise<void> {
   for (const client of allClients) {
     clientsService.setOffline(client.id);
   }
-  saveDb();
-
-  // Mark any active auto-mappings as cleanup_pending
-  // since all clients are offline on startup
-  getDb().run(
-    "UPDATE auto_mappings SET status = 'cleanup_pending', updated_at = ? WHERE status = 'active'",
-    [Date.now()],
-  );
   saveDb();
 
   // Clean up stale frps proxies left over from unclean shutdowns
@@ -86,6 +79,7 @@ async function main(): Promise<void> {
   await app.register(fileRoutes);
   await app.register(clientHttpAdminRoutes);
   await app.register(clientHttpPortRoutes);
+  await app.register(taskRoutes);
 
   // Register WebSocket
   await registerWsRoutes(app);
