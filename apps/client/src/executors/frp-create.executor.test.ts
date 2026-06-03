@@ -28,6 +28,12 @@ function makeConfig(workDir: string) {
     frpcPath: '/tmp/frpc',
     frpcWorkDir: workDir,
     source: { format: 'yaml' as const, path: '/tmp/client.config.yaml' },
+    httpHost: '127.0.0.1',
+    httpPort: 17890,
+    jobMaxConcurrent: 4,
+    jobDefaultTimeoutMs: 300000,
+    jobMaxTimeoutMs: 1800000,
+    jobLogBufferLines: 5000,
   };
 }
 

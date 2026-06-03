@@ -35,6 +35,12 @@ describe('task dispatcher frpc start task', () => {
       allowedRoots: ['./workspace'],
       tags: [],
       frpcPath: './bin/frpc',
+      httpHost: '127.0.0.1',
+      httpPort: 17890,
+      jobMaxConcurrent: 4,
+      jobDefaultTimeoutMs: 300000,
+      jobMaxTimeoutMs: 1800000,
+      jobLogBufferLines: 5000,
     };
 
     await dispatchTask(conn as never, config, {

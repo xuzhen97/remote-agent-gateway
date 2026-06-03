@@ -22,6 +22,16 @@ const ClientYamlSchema = z.object({
     binPath: z.string().optional(),
     workDir: z.string().optional(),
   }).default({}),
+  http: z.object({
+    host: z.string().default('127.0.0.1'),
+    port: z.coerce.number().int().min(0).max(65535).default(17890),
+    job: z.object({
+      maxConcurrent: z.coerce.number().int().positive().default(4),
+      defaultTimeoutMs: z.coerce.number().int().positive().default(300_000),
+      maxTimeoutMs: z.coerce.number().int().positive().default(1_800_000),
+      logBufferLines: z.coerce.number().int().positive().default(5000),
+    }).default({}),
+  }).default({}),
 });
 
 export interface ClientConfig {
@@ -36,6 +46,12 @@ export interface ClientConfig {
   frpcWorkDir?: string;
   tags: string[];
   source?: { format: 'yaml'; path: string };
+  httpHost: string;
+  httpPort: number;
+  jobMaxConcurrent: number;
+  jobDefaultTimeoutMs: number;
+  jobMaxTimeoutMs: number;
+  jobLogBufferLines: number;
 }
 
 function parseCliConfigPath(flagName: string): string | undefined {
@@ -111,6 +127,12 @@ function normalizeYamlConfig(raw: z.infer<typeof ClientYamlSchema>, configPath: 
     frpcWorkDir: raw.frp.workDir,
     tags: raw.client.tags,
     source: { format: 'yaml', path: configPath },
+    httpHost: raw.http.host,
+    httpPort: raw.http.port,
+    jobMaxConcurrent: raw.http.job.maxConcurrent,
+    jobDefaultTimeoutMs: raw.http.job.defaultTimeoutMs,
+    jobMaxTimeoutMs: raw.http.job.maxTimeoutMs,
+    jobLogBufferLines: raw.http.job.logBufferLines,
   };
 }
 

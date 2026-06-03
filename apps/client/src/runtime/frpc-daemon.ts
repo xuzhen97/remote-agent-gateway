@@ -14,6 +14,17 @@ let daemonProcess: ChildProcess | null = null;
 let lastFrpsInfo: { serverAddr: string; serverPort: number; authToken: string } | null = null;
 const PID_FILE_NAME = 'frpc-daemon.pid';
 
+export interface FrpcProxyConfig {
+  name: string;
+  type: 'tcp' | 'http' | 'https';
+  localIP: string;
+  localPort: number;
+  remotePort?: number;
+  customDomains?: string[];
+  subdomain?: string;
+  protected?: boolean;
+}
+
 export function setFrpsInfo(info: { serverAddr: string; serverPort: number; authToken: string }): void {
   lastFrpsInfo = info;
 }
@@ -23,8 +34,8 @@ function getFrpsInfo() {
   throw new Error('FRP connection info not initialized');
 }
 
-export function startFrpcDaemon(config: ClientConfig): void {
-  rebuildFrpcDaemon(config);
+export function startFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcProxyConfig): void {
+  rebuildFrpcDaemon(config, protectedProxy);
 }
 
 export function stopFrpcDaemon(): void {
@@ -44,17 +55,22 @@ export function isFrpcRunning(): boolean {
  * Read all saved mapping configs, generate a combined frpc config,
  * restart frpc with it.
  */
-export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } | null {
+export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcProxyConfig): { proxyCount: number } | null {
   const frps = getFrpsInfo();
   const workDir = path.resolve(config.frpcWorkDir ?? path.join(config.workspaceDir, 'frp'));
   fs.mkdirSync(workDir, { recursive: true });
   const configPath = path.join(workDir, 'frpc-combined.toml');
-  cleanupOrphanFrpcProcess(workDir, configPath);
+  cleanupOrphanFrpcProcess(workDir, configPath, daemonProcess?.pid);
 
   // Collect all mapping configs
   const mappingsDir = path.join(workDir, 'mappings');
-  fs.mkdirSync(mappingsDir, { recursive: true });
   const proxies: string[] = [];
+
+  if (protectedProxy) {
+    proxies.unshift(serializeProxy(protectedProxy));
+  }
+
+  fs.mkdirSync(mappingsDir, { recursive: true });
 
   // Clean up old-format full-config files on each rebuild
   if (fs.existsSync(mappingsDir)) {
@@ -141,6 +157,26 @@ export function rebuildFrpcDaemon(config: ClientConfig): { proxyCount: number } 
   }
 }
 
+function serializeProxy(proxy: FrpcProxyConfig): string {
+  const lines = [
+    '[[proxies]]',
+    `name = "${proxy.name}"`,
+    `type = "${proxy.type}"`,
+    `localIP = "${proxy.localIP}"`,
+    `localPort = ${proxy.localPort}`,
+  ];
+  if (typeof proxy.remotePort === 'number' && proxy.type === 'tcp') {
+    lines.push(`remotePort = ${proxy.remotePort}`);
+  }
+  if (proxy.customDomains?.length) {
+    lines.push(`customDomains = ${JSON.stringify(proxy.customDomains)}`);
+  }
+  if (proxy.subdomain) {
+    lines.push(`subdomain = "${proxy.subdomain}"`);
+  }
+  return lines.join('\n');
+}
+
 function normalizeProxyContent(content: string, file: string): string | null {
   const typeMatch = content.match(/^\s*type\s*=\s*"([^"]+)"/m);
   const proxyType = typeMatch?.[1];
@@ -169,14 +205,14 @@ function removePidFile(workDir: string): void {
   try { fs.unlinkSync(getPidFilePath(workDir)); } catch { /* ignore */ }
 }
 
-function cleanupOrphanFrpcProcess(workDir: string, configPath: string): void {
-  cleanupFrpcProcessesUsingConfig(configPath);
+function cleanupOrphanFrpcProcess(workDir: string, configPath: string, trackedPid?: number): void {
+  cleanupFrpcProcessesUsingConfig(configPath, trackedPid);
   const pidFile = getPidFilePath(workDir);
   if (!fs.existsSync(pidFile)) return;
 
   const raw = fs.readFileSync(pidFile, 'utf-8').trim();
   const pid = Number(raw);
-  if (!Number.isFinite(pid) || pid <= 0) {
+  if (!Number.isFinite(pid) || pid <= 0 || pid === trackedPid) {
     removePidFile(workDir);
     return;
   }
@@ -190,19 +226,17 @@ function cleanupOrphanFrpcProcess(workDir: string, configPath: string): void {
   removePidFile(workDir);
 }
 
-function cleanupFrpcProcessesUsingConfig(configPath: string): void {
+function cleanupFrpcProcessesUsingConfig(configPath: string, trackedPid?: number): void {
   const normalizedConfig = normalizePathForCompare(configPath);
 
   try {
     const rawOutput = execFileSync('wmic', ['process', 'where', "name='frpc.exe'", 'get', 'ProcessId,CommandLine', '/format:csv'], { encoding: 'utf-8' });
     const output = String(rawOutput);
     for (const line of output.split(/\r?\n/)) {
-      if (!line.trim() || line.startsWith('Node,')) continue;
-      const match = line.match(/^(.*),(\d+)$/);
-      if (!match) continue;
-      const commandLine = match[1];
-      const pid = Number(match[2]);
-      if (!Number.isFinite(pid) || pid <= 0 || pid === process.pid) continue;
+      const processInfo = parseWmicProcessLine(line);
+      if (!processInfo) continue;
+      const { commandLine, pid } = processInfo;
+      if (pid === process.pid || pid === trackedPid) continue;
       if (!normalizePathForCompare(commandLine).includes(normalizedConfig)) continue;
       try {
         process.kill(pid, 'SIGTERM');
@@ -214,6 +248,15 @@ function cleanupFrpcProcessesUsingConfig(configPath: string): void {
   } catch {
     // WMIC may be unavailable on some systems; pid-file cleanup still applies.
   }
+}
+
+function parseWmicProcessLine(line: string): { commandLine: string; pid: number } | null {
+  if (!line.trim() || line.startsWith('Node,')) return null;
+  const match = line.match(/^(.*),(\d+)$/);
+  if (!match) return null;
+  const pid = Number(match[2]);
+  if (!Number.isFinite(pid) || pid <= 0) return null;
+  return { commandLine: match[1], pid };
 }
 
 function normalizePathForCompare(value: string): string {

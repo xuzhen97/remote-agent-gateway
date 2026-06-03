@@ -26,6 +26,12 @@ describe('task dispatcher file service tasks', () => {
       workspaceDir,
       allowedRoots: ['./workspace'],
       tags: [],
+      httpHost: '127.0.0.1',
+      httpPort: 17890,
+      jobMaxConcurrent: 4,
+      jobDefaultTimeoutMs: 300000,
+      jobMaxTimeoutMs: 1800000,
+      jobLogBufferLines: 5000,
     };
 
     await dispatchTask(conn as never, config, {

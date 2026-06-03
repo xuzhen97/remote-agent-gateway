@@ -37,8 +37,8 @@ export async function sendRegister(
       version: '0.1.0',
       tags: config.tags,
       http: {
-        localHost: (config as unknown as Record<string, unknown>).httpHost as string ?? '127.0.0.1',
-        localPort: (config as unknown as Record<string, unknown>).httpPort as number ?? 17890,
+        localHost: config.httpHost,
+        localPort: config.httpPort,
         protocol: 'http' as const,
       },
       capabilities: {
