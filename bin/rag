@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+import { run } from '../apps/cli/dist/index.js';
+
+await run();

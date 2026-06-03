@@ -432,6 +432,45 @@ CMD ["node", "server.bundle.cjs"]
 
 ---
 
+## AI Agent CLI
+
+The repository includes an AI-agent-first CLI in `apps/cli`.
+
+Configuration can be supplied with environment variables:
+
+```text
+RAG_SERVER_URL=http://your-server:3000
+RAG_AGENT_TOKEN=your-agent-token
+```
+
+Common commands:
+
+```bash
+pnpm build:cli
+node bin/rag doctor
+node bin/rag clients list
+node bin/rag clients get --client <clientId>
+node bin/rag jobs run --client <clientId> -- node -v
+node bin/rag files roots --client <clientId>
+node bin/rag files read --client <clientId> --root root-0 --path README.md
+node bin/rag frp list --client <clientId>
+node bin/rag tasks list --client <clientId>
+```
+
+All structured output is JSON. Client operations must explicitly pass `--client <clientId>`.
+
+## Project Skill for Pi Agent
+
+The project-owned skill source lives at `skills/rag-agent/`.
+
+Install it into Pi Agent user skills with:
+
+```bash
+pnpm install:pi-skill
+```
+
+This copies the skill to `~/.pi/agent/skills/rag-agent`. Restart Pi Agent or reload skills after installing.
+
 ## 如何扩展
 
 ### 添加新的 client HTTP 能力
