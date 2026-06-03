@@ -66,12 +66,15 @@ export async function cleanupStaleFrpsProxies(): Promise<{ removed: string[]; er
   }
   mappingStmt.free();
 
-  // Auto-mapping proxies
+  // Auto-mapping proxies (only active ones for currently online clients)
   const autoMappingStmt = db.prepare(`
     SELECT DISTINCT pm.name
     FROM auto_mappings am
     JOIN port_mappings pm ON pm.id = am.mapping_id
+    JOIN clients c ON c.id = am.client_id
     WHERE pm.name IS NOT NULL
+      AND am.status = 'active'
+      AND c.status = 'online'
   `);
   while (autoMappingStmt.step()) {
     const row = autoMappingStmt.getAsObject() as { name: string };
