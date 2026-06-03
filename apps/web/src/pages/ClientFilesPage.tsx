@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Input, Modal, Typography, Breadcrumb, Space, message, Spin, Upload, Alert } from 'antd';
+import { Table, Button, Input, Modal, Typography, Breadcrumb, Space, message, Spin, Upload, Alert, Select } from 'antd';
 import {
   FolderOutlined,
   FileOutlined,
@@ -17,7 +17,7 @@ const { Title, Text } = Typography;
 
 interface FileEntry { name: string; path: string; type: string; size: number; mtimeMs: number }
 
-interface Root { id: string }
+interface Root { id: string; label: string; path: string }
 
 interface ClientFilesPageProps {
   api: Api;
@@ -29,6 +29,7 @@ interface ClientFilesPageProps {
 export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFilesPageProps) {
   const [baseUrl, setBaseUrl] = useState('');
   const [token, setToken] = useState('');
+  const [roots, setRoots] = useState<Root[]>([]);
   const [rootId, setRootId] = useState('');
   const [currentPath, setCurrentPath] = useState('.');
   const [entries, setEntries] = useState<FileEntry[]>([]);
@@ -60,6 +61,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       .then((r) => r.json())
       .then((d) => {
         const list: Root[] = d?.data?.roots ?? d?.roots ?? [];
+        setRoots(list);
         if (list.length > 0 && !rootId) setRootId(list[0].id);
       })
       .catch(() => message.error('Failed to load roots'))
@@ -157,7 +159,20 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       <Title level={3} style={{ color: 'rgba(255,255,255,0.85)' }}>文件管理 — {clientName}</Title>
       <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{baseUrl}</Text>
 
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
+        <Select
+          value={rootId || undefined}
+          placeholder="选择根目录"
+          style={{ minWidth: 260 }}
+          options={roots.map((root) => ({
+            value: root.id,
+            label: `${root.label} (${root.path})`,
+          }))}
+          onChange={(value) => {
+            setRootId(value);
+            setCurrentPath('.');
+          }}
+        />
         <Button icon={<PlusOutlined />} onClick={() => setMkdirOpen(true)}>新建目录</Button>
         <Button icon={<EditOutlined />} onClick={() => setWriteOpen(true)}>写入文件</Button>
         <Button icon={<UploadOutlined />} onClick={() => setUploadOpen(true)}>上传文件</Button>
