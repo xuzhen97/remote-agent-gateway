@@ -432,270 +432,135 @@ CMD ["node", "server.bundle.cjs"]
 
 ---
 
-## AI Agent CLI (`rag`)
+---
 
-远程 Agent Gateway 为 AI Agent 提供了专用的 `rag` 命令行工具。Agent 通过它完成客户端发现、脚本执行、文件管理、FRP 隧道、审计历史查询等操作——**无需手写 curl 或直接拼 JSON payload**。
+## 仓库本地开发 CLI 使用
 
-### 安装 CLI
-
-CLI 源码位于 `apps/cli/`，提供多种使用方式。
-
-#### 方式一：仓库内直接使用（无需额外安装）
+供本仓库开发者和维护者使用，依赖仓库目录结构：
 
 ```bash
-# 构建
+# 开发构建
 pnpm build:cli
 
-# 直接运行
+# 本地运行
 node bin/rag doctor
 node bin/rag clients list
 ```
 
-提供了跨平台 wrapper：
+跨平台 wrapper：
 
 | 平台 | 命令 |
 |------|------|
 | Windows | `bin\rag.bat doctor` |
 | Linux / macOS | `node bin/rag doctor` |
 
-#### 方式二：配置 PATH 全局使用（推荐）
+> **注意**：`bin/rag` 是仓库内开发入口，不适合分发。分发场景请使用下文介绍的 **skill bundle**。
 
-将 `bin/` 加入系统 PATH，或创建别名。
+---
 
-**Windows PowerShell** 添加到 PATH：
+## 分布式 Skill Bundle 使用
 
-```powershell
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$repoBin = "D:\remote-agent-gateway\bin"
-[Environment]::SetEnvironmentVariable("Path", "$repoBin;$userPath", "User")
-# 重启终端后生效
-```
-
-之后可直接执行：
+构建可分发的 skill bundle，将 CLI 打包进 skill 目录：
 
 ```bash
-rag doctor
-rag clients list
+pnpm build:skill
 ```
 
-Windows 上 `rag` 会通过 `rag.bat` 调用 Node。
+这将从 `apps/cli/` 源码构建单文件 CLI 产物，输出到：
 
-**Linux / macOS** 添加到 PATH：
-
-```bash
-export PATH="/path/to/remote-agent-gateway/bin:$PATH"
+```text
+skills/rag-agent/
+├── SKILL.md
+├── references/
+└── dist/
+    └── rag.cjs
 ```
 
-或创建 shell alias：
+`skills/rag-agent/` 就是**完整分发单元**。构建后目录中包含自带的 CLI 构建物 `dist/rag.cjs`，可以复制到其它仓库或 Pi skill 目录，不依赖原始 monorepo 布局。
+
+### 标准分发入口
 
 ```bash
-alias rag="node /path/to/remote-agent-gateway/bin/rag"
-```
-
-#### 方式三：npm link 安装
-
-```bash
-cd apps/cli
-pnpm link --global
-rag doctor
+node ./dist/rag.cjs doctor
+node ./dist/rag.cjs clients list
+node ./dist/rag.cjs jobs run --client <clientId> -- node -v
+node ./dist/rag.cjs files read --client <clientId> --root root-0 --path README.md
 ```
 
 ### 配置
 
-CLI 需要 server URL 和 token 才能操作。**环境变量是最推荐的方式**，对 AI Agent 最友好。
+CLI 需要 server URL 和 token。**推荐环境变量**：
 
 ```bash
-# 环境变量（推荐 ✅，Agent 无需手填）
 export RAG_SERVER_URL=http://your-server:3000
 export RAG_AGENT_TOKEN=your-agent-token
 ```
 
-完整的配置解析顺序（高优先级覆盖低优先级）：
+配置解析顺序（高优先级覆盖低优先级）：
 
 | 优先级 | 来源 | 示例 |
 |--------|------|------|
-| 1 | CLI flags | `rag --server http://... --token xxx doctor` |
+| 1 | CLI flags | `--server http://...` `--token ...` |
 | 2 | 环境变量 | `RAG_SERVER_URL`, `RAG_AGENT_TOKEN`, `RAG_ADMIN_TOKEN`, `RAG_AGENT_API_TOKEN`, `AGENT_API_TOKEN` |
 | 3 | `.ragrc` 文件 | 当前目录或祖先目录 |
 | 4 | `.env` 文件 | 当前目录或祖先目录 |
 | 5 | `server.config.yaml` | `server.port` + `auth.agentApiToken` |
 
-查看当前解析结果：
+查看当前配置（token 脱敏）：
 
 ```bash
-rag config show
-# {"ok":true,"data":{"serverUrl":"http://localhost:3000","token":"test_age...oken","sources":{...}}}
-```
-
-Token 只会输出脱敏后的形式。
-
-### 命令分组
-
-CLI 围绕当前正式架构设计——先通过 server discovery 拿到 `clientHttpBaseUrl + clientHttpToken`，再直连 client HTTP 操作数据。
-
-```text
-rag
-├── config show              查看配置（脱敏）
-├── doctor [--client <id>]   诊断连通性
-├── clients list             列出在线/离线客户端
-├── clients get --client <id> 获取客户端详情（含 HTTP 直连信息）
-├── jobs run|script|get|logs|events|cancel --client <id>  执行命令/脚本
-├── files roots|list|stat|read|write|upload|download|mkdir|delete|move|copy --client <id>
-├── frp list|create|delete --client <id>  FRP 端口映射
-└── tasks list|get             审计历史
-```
-
-### 常用命令速查
-
-```bash
-# 诊断
-rag doctor
-rag doctor --client win-dev-01
-
-# 客户端发现
-rag clients list
-rag clients get --client win-dev-01
-
-# 远程执行命令
-rag jobs run --client win-dev-01 -- node -v
-rag jobs run --client win-dev-01 -- bash -c 'uname -a'
-rag jobs script --client win-dev-01 --inline "console.log(process.platform)"
-rag jobs script --client win-dev-01 --file ./deploy.sh --runtime bash
-rag jobs get --client win-dev-01 --job job_abc123
-rag jobs logs --client win-dev-01 --job job_abc123
-rag jobs events --client win-dev-01 --job job_abc123     # SSE → JSON Lines
-rag jobs cancel --client win-dev-01 --job job_abc123
-
-# 文件管理
-rag files roots --client win-dev-01
-rag files list --client win-dev-01 --root root-0 --path .
-rag files read --client win-dev-01 --root root-0 --path README.md
-rag files read --client win-dev-01 --root root-0 --path README.md --raw   # 纯文本输出
-rag files write --client win-dev-01 --root root-0 --path note.txt --content "hello"
-rag files upload --client win-dev-01 --root root-0 --path . --file ./app.jar
-rag files download --client win-dev-01 --root root-0 --path /tmp/report.pdf --output ./report.pdf
-rag files mkdir --client win-dev-01 --root root-0 --path logs
-rag files delete --client win-dev-01 --root root-0 --path temp --recursive
-rag files move --client win-dev-01 --root root-0 --from a.txt --to b.txt
-rag files copy --client win-dev-01 --root root-0 --from src --to backup --overwrite
-
-# 端口映射
-rag frp list --client win-dev-01
-rag frp create --client win-dev-01 --name web --type tcp --local-port 3000
-rag frp create --client win-dev-01 --name preview --type http --local-port 8080 --custom-domain preview.example.com
-rag frp delete --client win-dev-01 --mapping pm_abc123
-
-# 审计历史
-rag tasks list
-rag tasks list --client win-dev-01
-rag tasks list --action file.write
-rag tasks get --record rec_abc123
+node ./dist/rag.cjs config show
 ```
 
 ### 输出格式
 
-默认 JSON，便于 AI Agent 稳定解析：
+默认 JSON：
 
 ```json
-{"ok":true,"data":{"id":"win-dev-01","status":"online"}}
+{"ok":true,"data":{}}
 ```
 
-失败输出：
+失败：
 
 ```json
-{
-  "ok": false,
-  "error": {
-    "code": "HTTP_ERROR",
-    "message": "Client not found",
-    "status": 404
-  }
-}
+{"ok":false,"error":{"code":"HTTP_ERROR","message":"Client not found","status":404}}
 ```
 
-特殊输出模式：
+`files read --raw` 输出纯文本，`jobs events` 输出 JSON Lines。
 
-| 命令 | 模式 | 说明 |
-|------|------|------|
-| `files read --raw` | 纯文本 | 不包 JSON，直接输出文件内容 |
-| `jobs events` | JSON Lines | 每行一个 JSON 事件对象 |
-
-### 核心规则
-
-AI Agent 使用时必须遵守以下规则——skill 中已内置这些指令：
-
-- **每条操作命令必须显式 `--client <clientId>`**，CLI 不保存默认 client（避免 Agent 误操作到错误机器）。
-- **解析 JSON 必须先检查 `ok`**，再读 `data` 或 `error`。
-- **`jobs` 用于实时命令/脚本执行**，`tasks` 用于查询 server 端审计历史。
-- **破坏性操作前必须向用户确认**：
-  - `rag files delete ...`
-  - `rag files write ...` 覆盖重要文件
-  - `rag frp delete ...`
-  - `rag jobs cancel ...`
-
-### 架构对照
-
-CLI 命令到实际 API 的映射详见 `skills/rag-agent/references/api-map.md`。核心理念：
+### 命令分组
 
 ```text
-rag clients list           → GET  /api/clients（server 控制面）
-rag clients get --client   → GET  /api/clients/:id（获取 clientHttpBaseUrl + token）
-rag jobs/files/frp ...     → 直连 {clientHttpBaseUrl}/jobs/... /files/... /frp/...（数据面）
-rag tasks ...              → GET  /api/tasks（server 审计镜像）
+node ./dist/rag.cjs
+├── config show              查看配置（脱敏）
+├── doctor [--client <id>]   诊断连通性
+├── clients list|get         客户端发现
+├── jobs run|script|get|logs|events|cancel  命令/脚本执行
+├── files roots|list|read|write|upload|download|mkdir|delete|move|copy  文件管理
+├── frp list|create|delete   FRP 端口映射
+└── tasks list|get           审计历史
 ```
+
+所有客户端操作必须显式 `--client <clientId>`，CLI 不保存默认 client。
 
 ---
 
-## 项目 Skill（给 AI Agent 的能力包）
-
-项目自带的 Agent skill 源文件位于 `skills/rag-agent/`，包含：
-
-```text
-skills/rag-agent/
-├── SKILL.md                        # 入口：规则、常用命令、工作流引导
-└── references/
-    ├── cli.md                      # 完整 CLI 命令参考 + JSON 输出示例
-    ├── workflows.md                # 常见 Agent 工作流
-    └── api-map.md                  # CLI 命令 ↔ 实际 API 映射
-```
-
-### 安装 Skill 到你的 AI Agent
-
-**适用场景：** 你希望在 Pi Agent（或任何支持 Agent Skills 的工具）中加载该 skill，使 Agent 自动知道如何使用 RAG 平台。
+## 安装 Skill 到 Pi Agent
 
 ```bash
 pnpm install:pi-skill
 ```
 
-这会将 `skills/rag-agent/` 复制到：
+该命令会：
+1. 构建 `skills/rag-agent/dist/rag.cjs`
+2. 校验 bundled CLI 存在
+3. 复制整个 `skills/rag-agent/` 到 `~/.pi/agent/skills/rag-agent/`
 
-```text
-~/.pi/agent/skills/rag-agent/
-```
+安装后重启 Pi Agent 或重新加载 skills，之后可使用 `/skill:rag-agent`。
 
-安装后**重启 Pi Agent 或重新加载 skills**，之后可以在对话中输入：
+Skill 文档详见 `skills/rag-agent/SKILL.md` 和 `references/`。
 
-```text
-/skill:rag-agent
-```
-
-Agent 将加载该 skill，按照 SKILL.md 中的规则使用 `rag` CLI。
-
-### Skill + CLI 协作流程
-
-一套典型的 Agent 工作流：
-
-```text
-1. 用户："帮我在远端 win-dev 上看看 D 盘有什么文件"
-2. Agent 加载 rag-agent skill
-3. Agent 执行 rag doctor                          → 确认连通性
-4. Agent 执行 rag clients list                     → 选择目标 client
-5. Agent 执行 rag files roots --client win-dev-01  → 获取可浏览的根目录
-6. Agent 执行 rag files list --client win-dev-01 --root root-0 --path D:/ → 列出文件
-7. Agent 解析 JSON 输出，将文件列表展示给用户
-```
-
-Skill 告诉 Agent 不要手写 curl、优先用 CLI、如何解析输出、何时需要用户确认——这些规则都在 `SKILL.md` 和 `references/` 中。
+---
 
 ## 如何扩展
 
