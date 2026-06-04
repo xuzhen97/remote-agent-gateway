@@ -1,52 +1,58 @@
 # RAG CLI Reference
 
+## Distribution Model
+
+The distributed skill bundle includes its own bundled CLI artifact:
+
+```text
+skills/rag-agent/
+├── SKILL.md
+├── references/
+└── dist/
+    └── rag.cjs
+```
+
+Canonical entrypoint for distributed usage:
+
+```bash
+node ./dist/rag.cjs --help
+```
+
+This works after the skill is copied into another repository or installed into Pi, as long as Node.js is available.
+
+## Developer Usage
+
+Repository-local development can still use:
+
+```bash
+node bin/rag --help
+```
+
+but that is not the canonical distributed entrypoint.
+
 ## Installation
 
-### Option 1: Use within the repo (no extra install)
+### Build the distributable skill bundle
 
 ```bash
 cd remote-agent-gateway
-pnpm build:cli
-node bin/rag doctor
+pnpm build:skill
 ```
 
-Cross-platform wrappers are available:
+This produces `skills/rag-agent/dist/rag.cjs`.
 
-| Platform | Command |
-|----------|---------|
-| Windows  | `bin\rag.bat doctor` |
-| Linux / macOS | `node bin/rag doctor` |
-
-### Option 2: Add to PATH (global use)
-
-**Windows PowerShell** (adds `bin/` to user PATH):
-
-```powershell
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-$repoBin = "D:\remote-agent-gateway\bin"
-[Environment]::SetEnvironmentVariable("Path", "$repoBin;$userPath", "User")
-# Restart terminal, then:
-rag doctor
-```
-
-**Linux / macOS** (add to shell rc):
+### Install skill into Pi
 
 ```bash
-export PATH="/path/to/remote-agent-gateway/bin:$PATH"
+pnpm install:pi-skill
 ```
 
-Or create an alias:
+This command builds the bundled CLI first, then copies the full `skills/rag-agent/` directory into `~/.pi/agent/skills/rag-agent/`.
+
+### After installation
 
 ```bash
-alias rag="node /path/to/remote-agent-gateway/bin/rag"
-```
-
-### Option 3: npm link
-
-```bash
-cd apps/cli
-pnpm link --global
-rag doctor
+node ./dist/rag.cjs doctor
 ```
 
 ## Configuration
@@ -55,7 +61,7 @@ Resolution order (highest priority first):
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 | CLI flags | `rag --server http://... --token abc ...` |
+| 1 | CLI flags | `node ./dist/rag.cjs --server http://... --token abc ...` |
 | 2 | Environment variables | `RAG_SERVER_URL`, `RAG_AGENT_TOKEN`, `RAG_ADMIN_TOKEN`, `RAG_AGENT_API_TOKEN`, `AGENT_API_TOKEN` |
 | 3 | `.ragrc` | `RAG_SERVER_URL=http://...` |
 | 4 | `.env` | `RAG_SERVER_URL=http://...` |
@@ -71,7 +77,7 @@ export RAG_AGENT_TOKEN=your-agent-token
 Check current config:
 
 ```bash
-rag config show
+node ./dist/rag.cjs config show
 ```
 
 ## Output Format
@@ -87,13 +93,13 @@ All structured commands output JSON by default.
 Examples:
 
 ```json
-// rag clients list
+// node ./dist/rag.cjs clients list
 {"ok":true,"data":[{"id":"win-dev-01","name":"Windows Dev","status":"online","online":true,...}]}
 
-// rag files read --client win-dev --root root-0 --path README.md
+// node ./dist/rag.cjs files read --client win-dev --root root-0 --path README.md
 {"ok":true,"data":{"rootId":"root-0","path":"README.md","content":"# Project\n..."}}
 
-// rag jobs run --client win-dev -- echo hello
+// node ./dist/rag.cjs jobs run --client win-dev -- echo hello
 {"ok":true,"data":{"jobId":"job_abc","status":"queued"}}
 ```
 
@@ -125,14 +131,14 @@ Error codes:
 ### Raw output
 
 ```bash
-rag files read --client win-dev --root root-0 --path README.md --raw
+node ./dist/rag.cjs files read --client win-dev --root root-0 --path README.md --raw
 # Output: # Project title\n\nContent...
 ```
 
 ### JSON Lines (SSE events)
 
 ```bash
-rag jobs events --client win-dev --job job_abc
+node ./dist/rag.cjs jobs events --client win-dev --job job_abc
 # {"ok":true,"event":"job.stdout","data":{"content":"hello\n","seq":1}}
 # {"ok":true,"event":"job.stderr","data":{"content":"","seq":2}}
 # {"ok":true,"event":"job.completed","data":{"status":"success","exitCode":0}}
@@ -141,35 +147,35 @@ rag jobs events --client win-dev --job job_abc
 ## Full Command List
 
 ```bash
-rag config show
-rag doctor
-rag doctor --client <clientId>
-rag clients list
-rag clients get --client <clientId>
-rag jobs run --client <clientId> -- <command> [args...]
-rag jobs script --client <clientId> --file ./script.js
-rag jobs script --client <clientId> --inline "console.log(1)"
-rag jobs get --client <clientId> --job <jobId>
-rag jobs logs --client <clientId> --job <jobId> --since-seq 0 --limit 500
-rag jobs events --client <clientId> --job <jobId>
-rag jobs cancel --client <clientId> --job <jobId>
-rag files roots --client <clientId>
-rag files list --client <clientId> --root <rootId> --path .
-rag files stat --client <clientId> --root <rootId> --path README.md
-rag files read --client <clientId> --root <rootId> --path README.md
-rag files read --client <clientId> --root <rootId> --path README.md --raw
-rag files write --client <clientId> --root <rootId> --path out.txt --content "hello"
-rag files upload --client <clientId> --root <rootId> --path . --file ./local.zip
-rag files download --client <clientId> --root <rootId> --path remote.zip --output ./remote.zip
-rag files mkdir --client <clientId> --root <rootId> --path logs --recursive
-rag files delete --client <clientId> --root <rootId> --path logs --recursive
-rag files move --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
-rag files copy --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
-rag frp list --client <clientId>
-rag frp create --client <clientId> --name web --type tcp --local-port 3000
-rag frp delete --client <clientId> --mapping <mappingId>
-rag tasks list --client <clientId>
-rag tasks get --record <recordId>
+node ./dist/rag.cjs config show
+node ./dist/rag.cjs doctor
+node ./dist/rag.cjs doctor --client <clientId>
+node ./dist/rag.cjs clients list
+node ./dist/rag.cjs clients get --client <clientId>
+node ./dist/rag.cjs jobs run --client <clientId> -- <command> [args...]
+node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js
+node ./dist/rag.cjs jobs script --client <clientId> --inline "console.log(1)"
+node ./dist/rag.cjs jobs get --client <clientId> --job <jobId>
+node ./dist/rag.cjs jobs logs --client <clientId> --job <jobId> --since-seq 0 --limit 500
+node ./dist/rag.cjs jobs events --client <clientId> --job <jobId>
+node ./dist/rag.cjs jobs cancel --client <clientId> --job <jobId>
+node ./dist/rag.cjs files roots --client <clientId>
+node ./dist/rag.cjs files list --client <clientId> --root <rootId> --path .
+node ./dist/rag.cjs files stat --client <clientId> --root <rootId> --path README.md
+node ./dist/rag.cjs files read --client <clientId> --root <rootId> --path README.md
+node ./dist/rag.cjs files read --client <clientId> --root <rootId> --path README.md --raw
+node ./dist/rag.cjs files write --client <clientId> --root <rootId> --path out.txt --content "hello"
+node ./dist/rag.cjs files upload --client <clientId> --root <rootId> --path . --file ./local.zip
+node ./dist/rag.cjs files download --client <clientId> --root <rootId> --path remote.zip --output ./remote.zip
+node ./dist/rag.cjs files mkdir --client <clientId> --root <rootId> --path logs --recursive
+node ./dist/rag.cjs files delete --client <clientId> --root <rootId> --path logs --recursive
+node ./dist/rag.cjs files move --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
+node ./dist/rag.cjs files copy --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
+node ./dist/rag.cjs frp list --client <clientId>
+node ./dist/rag.cjs frp create --client <clientId> --name web --type tcp --local-port 3000
+node ./dist/rag.cjs frp delete --client <clientId> --mapping <mappingId>
+node ./dist/rag.cjs tasks list --client <clientId>
+node ./dist/rag.cjs tasks get --record <recordId>
 ```
 
 ## Command Options Reference
@@ -181,7 +187,7 @@ rag tasks get --record <recordId>
 --                     Separator before the command and its arguments
 ```
 
-Example: `rag jobs run --client win-dev -- bash -c 'ls -la'`
+Example: `node ./dist/rag.cjs jobs run --client win-dev -- bash -c 'ls -la'`
 
 ### jobs script
 

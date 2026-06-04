@@ -1,19 +1,22 @@
 # CLI to Server/Client HTTP API Map
 
-Each CLI command that interacts with a client follows a two-step process:
+All examples below refer to the bundled distributed CLI:
 
-1. **Discovery:** `GET /api/clients/:clientId` — get the client's `clientHttpBaseUrl` and `clientHttpToken`.
-2. **Direct operation:** Call the client HTTP service at `{clientHttpBaseUrl}` with `Authorization: Bearer {clientHttpToken}`.
+```bash
+node ./dist/rag.cjs ...
+```
 
-Server-only commands (no client target) call the server API directly.
+Client-targeting commands still follow the same two-step flow:
+1. server discovery via `/api/clients/:clientId`
+2. direct client HTTP operation via `clientHttpBaseUrl + clientHttpToken`
 
 ## Discovery
 
 ```text
-rag clients list
+node ./dist/rag.cjs clients list
   -> GET /api/clients
 
-rag clients get --client <id>
+node ./dist/rag.cjs clients get --client <id>
   -> GET /api/clients/:clientId
   (returns clientHttpBaseUrl + clientHttpToken when httpReady=true)
 ```
@@ -21,29 +24,29 @@ rag clients get --client <id>
 ## Jobs (Client HTTP Direct)
 
 ```text
-rag jobs run --client <id> -- <cmd> [args...]
+node ./dist/rag.cjs jobs run --client <id> -- <cmd> [args...]
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/jobs/command
      {"command":"<cmd>","args":[...]}
 
-rag jobs script --client <id> --file ./s.js
+node ./dist/rag.cjs jobs script --client <id> --file ./s.js
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/jobs/script
      {"runtime":"node","script":"<file content>"}
 
-rag jobs get --client <id> --job <jobId>
+node ./dist/rag.cjs jobs get --client <id> --job <jobId>
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/jobs/:jobId
 
-rag jobs logs --client <id> --job <jobId>
+node ./dist/rag.cjs jobs logs --client <id> --job <jobId>
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/jobs/:jobId/logs?sinceSeq=...&limit=...
 
-rag jobs events --client <id> --job <jobId>
+node ./dist/rag.cjs jobs events --client <id> --job <jobId>
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/jobs/:jobId/events (SSE)
 
-rag jobs cancel --client <id> --job <jobId>
+node ./dist/rag.cjs jobs cancel --client <id> --job <jobId>
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/jobs/:jobId/cancel
 ```
@@ -51,47 +54,43 @@ rag jobs cancel --client <id> --job <jobId>
 ## Files (Client HTTP Direct)
 
 ```text
-rag files roots --client <id>
+node ./dist/rag.cjs files roots --client <id>
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/files/roots
 
-rag files list --client <id> --root root-0 --path .
+node ./dist/rag.cjs files list --client <id> --root root-0 --path .
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/files?rootId=root-0&path=.
 
-rag files stat --client <id> --root root-0 --path f.txt
-  -> GET /api/clients/:clientId
-  -> GET {clientHttpBaseUrl}/files/stat?rootId=root-0&path=f.txt
-
-rag files read --client <id> --root root-0 --path f.txt
+node ./dist/rag.cjs files read --client <id> --root root-0 --path f.txt
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/files/read?rootId=root-0&path=f.txt
 
-rag files write --client <id> --root root-0 --path f.txt --content "x"
+node ./dist/rag.cjs files write --client <id> --root root-0 --path f.txt --content "x"
   -> GET /api/clients/:clientId
   -> PUT {clientHttpBaseUrl}/files/write?rootId=root-0&path=f.txt  (body = content)
 
-rag files upload --client <id> --root root-0 --path . --file ./x
+node ./dist/rag.cjs files upload --client <id> --root root-0 --path . --file ./x
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/files/upload?rootId=root-0&path=.&filename=x  (body = file bytes)
 
-rag files download --client <id> --root root-0 --path x --output ./x
+node ./dist/rag.cjs files download --client <id> --root root-0 --path x --output ./x
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/files/download?rootId=root-0&path=x  (response = raw bytes)
 
-rag files mkdir --client <id> --root root-0 --path dir
+node ./dist/rag.cjs files mkdir --client <id> --root root-0 --path dir
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/files/mkdir  {"rootId":"root-0","path":"dir","recursive":true}
 
-rag files delete --client <id> --root root-0 --path dir --recursive
+node ./dist/rag.cjs files delete --client <id> --root root-0 --path dir --recursive
   -> GET /api/clients/:clientId
   -> DELETE {clientHttpBaseUrl}/files?rootId=root-0&path=dir&recursive=true
 
-rag files move --client <id> --root root-0 --from a --to b
+node ./dist/rag.cjs files move --client <id> --root root-0 --from a --to b
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/files/move  {"rootId":"root-0","from":"a","to":"b","overwrite":false}
 
-rag files copy --client <id> --root root-0 --from a --to b
+node ./dist/rag.cjs files copy --client <id> --root root-0 --from a --to b
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/files/copy  {"rootId":"root-0","from":"a","to":"b","overwrite":false}
 ```
@@ -99,16 +98,16 @@ rag files copy --client <id> --root root-0 --from a --to b
 ## FRP Mappings (Client HTTP Direct)
 
 ```text
-rag frp list --client <id>
+node ./dist/rag.cjs frp list --client <id>
   -> GET /api/clients/:clientId
   -> GET {clientHttpBaseUrl}/frp/mappings
 
-rag frp create --client <id> --name web --type tcp --local-port 3000
+node ./dist/rag.cjs frp create --client <id> --name web --type tcp --local-port 3000
   -> GET /api/clients/:clientId
   -> POST {clientHttpBaseUrl}/frp/mappings
      {"name":"web","type":"tcp","localHost":"127.0.0.1","localPort":3000}
 
-rag frp delete --client <id> --mapping pm_abc
+node ./dist/rag.cjs frp delete --client <id> --mapping pm_abc
   -> GET /api/clients/:clientId
   -> DELETE {clientHttpBaseUrl}/frp/mappings/pm_abc
 ```
@@ -116,26 +115,26 @@ rag frp delete --client <id> --mapping pm_abc
 ## Tasks (Server API Only)
 
 ```text
-rag tasks list
+node ./dist/rag.cjs tasks list
   -> GET /api/tasks
 
-rag tasks list --client <id>
+node ./dist/rag.cjs tasks list --client <id>
   -> GET /api/tasks?clientId=<id>
 
-rag tasks list --action file.write
+node ./dist/rag.cjs tasks list --action file.write
   -> GET /api/tasks?actionType=file.write
 
-rag tasks get --record <recordId>
+node ./dist/rag.cjs tasks get --record <recordId>
   -> GET /api/tasks/:recordId
 ```
 
 ## Doctor
 
 ```text
-rag doctor
+node ./dist/rag.cjs doctor
   -> GET /api/clients  (lists clients, checks server reachable)
 
-rag doctor --client <id>
+node ./dist/rag.cjs doctor --client <id>
   -> GET /api/clients/:id  (checks client HTTP ready)
   -> GET {clientHttpBaseUrl}/health
   -> GET {clientHttpBaseUrl}/files/roots
@@ -144,6 +143,6 @@ rag doctor --client <id>
 
 ## Important Notes
 
-- Do **not** use old `/api/agent/*` routes as the primary interface. They are not the current API model.
-- File data flows directly between the agent and the client HTTP service through FRP tunnels — it never passes through the server's application layer.
+- Do not use old `/api/agent/*` routes as the primary interface.
+- File data flows directly between the agent and the client HTTP service through FRP tunnels.
 - Client HTTP tokens are per-client and are obtained from `GET /api/clients/:clientId` each time; the CLI handles this transparently.
