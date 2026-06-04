@@ -53,28 +53,62 @@ class TasksService {
     stmt.bind([record.recordId]);
     const exists = stmt.step();
     stmt.free();
-    if (exists) return { inserted: false };
+
+    const values = [
+      record.clientId, record.clientNameSnapshot ?? null,
+      record.requestId, record.jobId ?? null, record.resourceType, record.actionType,
+      record.method, record.path, record.targetId,
+      record.sourceType, record.actorType, record.actorLabel,
+      JSON.stringify(record.querySummary ?? {}),
+      JSON.stringify(record.requestSummary),
+      JSON.stringify(record.resultSummary),
+      record.status, record.httpStatus, record.startedAt, record.finishedAt,
+      record.durationMs, record.errorCode ?? null, record.errorMessage ?? null,
+      record.reportedAt, Date.now(),
+    ];
+
+    if (!exists) {
+      db.run(
+        `INSERT INTO task_history (
+          record_id, client_id, client_name_snapshot, request_id, job_id, resource_type, action_type, method, path, target_id,
+          source_type, actor_type, actor_label, query_summary, request_summary, result_summary, status, http_status,
+          started_at, finished_at, duration_ms, error_code, error_message, reported_at, received_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [record.recordId, ...values],
+      );
+      return { inserted: true };
+    }
 
     db.run(
-      `INSERT INTO task_history (
-        record_id, client_id, client_name_snapshot, request_id, job_id, resource_type, action_type, method, path, target_id,
-        source_type, actor_type, actor_label, query_summary, request_summary, result_summary, status, http_status,
-        started_at, finished_at, duration_ms, error_code, error_message, reported_at, received_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        record.recordId, record.clientId, record.clientNameSnapshot ?? null,
-        record.requestId, record.jobId ?? null, record.resourceType, record.actionType,
-        record.method, record.path, record.targetId,
-        record.sourceType, record.actorType, record.actorLabel,
-        JSON.stringify(record.querySummary ?? {}),
-        JSON.stringify(record.requestSummary),
-        JSON.stringify(record.resultSummary),
-        record.status, record.httpStatus, record.startedAt, record.finishedAt,
-        record.durationMs, record.errorCode ?? null, record.errorMessage ?? null,
-        record.reportedAt, Date.now(),
-      ],
+      `UPDATE task_history SET
+        client_id = ?,
+        client_name_snapshot = ?,
+        request_id = ?,
+        job_id = ?,
+        resource_type = ?,
+        action_type = ?,
+        method = ?,
+        path = ?,
+        target_id = ?,
+        source_type = ?,
+        actor_type = ?,
+        actor_label = ?,
+        query_summary = ?,
+        request_summary = ?,
+        result_summary = ?,
+        status = ?,
+        http_status = ?,
+        started_at = ?,
+        finished_at = ?,
+        duration_ms = ?,
+        error_code = ?,
+        error_message = ?,
+        reported_at = ?,
+        received_at = ?
+      WHERE record_id = ?`,
+      [...values, record.recordId],
     );
-    return { inserted: true };
+    return { inserted: false };
   }
 
   list(query: TaskHistoryQuery) {
@@ -116,6 +150,22 @@ class TasksService {
     const row = stmt.step() ? mapTaskHistoryRow(stmt.getAsObject()) : null;
     stmt.free();
     return row;
+  }
+
+  deleteByRecordId(recordId: string): { deleted: boolean } {
+    const db = getDb();
+    db.run('DELETE FROM task_history WHERE record_id = ?', [recordId]);
+    return { deleted: db.getRowsModified() > 0 };
+  }
+
+  deleteByRecordIds(recordIds: string[]): { requested: number; deleted: number } {
+    const ids = [...new Set(recordIds.map((id) => id.trim()).filter(Boolean))];
+    if (!ids.length) return { requested: 0, deleted: 0 };
+
+    const db = getDb();
+    const placeholders = ids.map(() => '?').join(', ');
+    db.run(`DELETE FROM task_history WHERE record_id IN (${placeholders})`, ids);
+    return { requested: ids.length, deleted: db.getRowsModified() };
   }
 }
 

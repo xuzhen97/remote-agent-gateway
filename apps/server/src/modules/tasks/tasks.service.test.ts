@@ -97,4 +97,126 @@ describe('tasksService', () => {
     expect(detail).not.toHaveProperty('duration_ms');
     expect(detail).not.toHaveProperty('result_summary');
   });
+
+  it('deletes a single task history record by recordId', async () => {
+    await tasksService.upsertMirrorRecord({
+      recordId: 'rec_delete_one',
+      clientId: 'client-1',
+      requestId: 'req_delete_one',
+      resourceType: 'job',
+      actionType: 'job.command' as const,
+      method: 'POST',
+      path: '/jobs/command',
+      targetId: 'job_1',
+      sourceType: 'agent-api' as const,
+      actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token',
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: { jobId: 'job_1', status: 'running' },
+      status: 'success' as const,
+      httpStatus: 200,
+      startedAt: 1,
+      finishedAt: 2,
+      durationMs: 1,
+      reportedAt: 2,
+    } as any);
+
+    const summary = tasksService.deleteByRecordId('rec_delete_one');
+
+    expect(summary).toEqual({ deleted: true });
+    expect(tasksService.getByRecordId('rec_delete_one')).toBeNull();
+    expect(tasksService.list({ page: 1, pageSize: 20 }).total).toBe(0);
+  });
+
+  it('bulk deletes task history records by recordId and deduplicates ids', async () => {
+    await tasksService.upsertMirrorRecord({
+      recordId: 'rec_bulk_a', clientId: 'client-1', requestId: 'req_a',
+      resourceType: 'job', actionType: 'job.command' as const,
+      method: 'POST', path: '/jobs/command', targetId: 'job_a',
+      sourceType: 'agent-api' as const, actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token', requestSummary: {}, resultSummary: {},
+      status: 'success' as const, httpStatus: 200, startedAt: 1, finishedAt: 2, durationMs: 1, reportedAt: 2,
+    } as any);
+    await tasksService.upsertMirrorRecord({
+      recordId: 'rec_bulk_b', clientId: 'client-1', requestId: 'req_b',
+      resourceType: 'job', actionType: 'job.command' as const,
+      method: 'POST', path: '/jobs/command', targetId: 'job_b',
+      sourceType: 'agent-api' as const, actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token', requestSummary: {}, resultSummary: {},
+      status: 'success' as const, httpStatus: 200, startedAt: 1, finishedAt: 2, durationMs: 1, reportedAt: 2,
+    } as any);
+
+    const summary = tasksService.deleteByRecordIds(['rec_bulk_a', 'rec_bulk_b', 'rec_bulk_a', 'rec_missing']);
+
+    expect(summary).toEqual({ requested: 3, deleted: 2 });
+    expect(tasksService.getByRecordId('rec_bulk_a')).toBeNull();
+    expect(tasksService.getByRecordId('rec_bulk_b')).toBeNull();
+  });
+
+  it('updates an existing mirrored record when the same recordId is reported again', async () => {
+    await tasksService.upsertMirrorRecord({
+      recordId: 'rec_update_01',
+      clientId: 'client-2',
+      requestId: 'req_update_01',
+      resourceType: 'job',
+      actionType: 'job.command' as const,
+      method: 'POST',
+      path: '/jobs/command',
+      targetId: 'job_123',
+      sourceType: 'agent-api' as const,
+      actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token',
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: { jobId: 'job_123', status: 'running' },
+      status: 'success' as const,
+      httpStatus: 200,
+      startedAt: 100,
+      finishedAt: 110,
+      durationMs: 10,
+      reportedAt: 110,
+    } as any);
+
+    const second = await tasksService.upsertMirrorRecord({
+      recordId: 'rec_update_01',
+      clientId: 'client-2',
+      requestId: 'req_update_01',
+      resourceType: 'job',
+      actionType: 'job.command' as const,
+      method: 'POST',
+      path: '/jobs/command',
+      targetId: 'job_123',
+      sourceType: 'agent-api' as const,
+      actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token',
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: {
+        jobId: 'job_123',
+        lifecycle: { status: 'success', exitCode: 0, durationMs: 25 },
+        output: { stdoutLineCount: 18, stderrLineCount: 0 },
+        extracted: { ipv4: ['192.168.0.12'] },
+      },
+      status: 'success' as const,
+      httpStatus: 200,
+      startedAt: 100,
+      finishedAt: 125,
+      durationMs: 25,
+      reportedAt: 125,
+    } as any);
+
+    expect(second.inserted).toBe(false);
+
+    const page = tasksService.list({ page: 1, pageSize: 20 });
+    expect(page.total).toBe(1);
+    expect(page.items[0]).toMatchObject({
+      recordId: 'rec_update_01',
+      durationMs: 25,
+      finishedAt: 125,
+      resultSummary: {
+        jobId: 'job_123',
+        lifecycle: { status: 'success', exitCode: 0, durationMs: 25 },
+        output: { stdoutLineCount: 18, stderrLineCount: 0 },
+        extracted: { ipv4: ['192.168.0.12'] },
+      },
+    });
+  });
 });
