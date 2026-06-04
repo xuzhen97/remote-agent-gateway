@@ -180,6 +180,7 @@ node ./dist/rag.cjs files copy --client <clientId> --root <rootId> --from a.txt 
 node ./dist/rag.cjs frp list --client <clientId>
 node ./dist/rag.cjs frp create --client <clientId> --name web --type tcp --local-port 3000
 node ./dist/rag.cjs frp delete --client <clientId> --mapping <mappingId>
+# success means the proxy has also been cleared from the FRPS dashboard/API
 node ./dist/rag.cjs tasks list --client <clientId>
 node ./dist/rag.cjs tasks get --record <recordId>
 ```
@@ -237,3 +238,16 @@ Examples:
 --remote-port <port>   Preferred remote port (auto-allocated if omitted)
 --custom-domain <domain> Custom domain for http/https mappings
 ```
+
+### frp delete
+
+```
+--client <clientId>    (required) Client ID
+--mapping <mappingId>  (required) Mapping ID from frp list/create
+```
+
+Behavior:
+- deletes the mapping from server/client state,
+- waits for the target proxy to leave FRPS online state,
+- clears offline dashboard residue,
+- and returns success only after the proxy is no longer present in the FRPS dashboard/API.

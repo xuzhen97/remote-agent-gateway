@@ -820,6 +820,23 @@ sudo systemctl status frps
 3. 用 `/api/port-mappings/:id/check-registration` API 检查
 4. 确认目标 client 的本地端口确实在监听
 
+### 删除映射后 dashboard 里还残留 `offline`？
+
+当前版本在删除业务映射时，会自动：
+
+1. 删除 server 侧映射记录
+2. 让 client 重建单一 `frpc` 配置/进程
+3. 轮询目标代理在 FRPS dashboard 中的状态
+4. 调用 FRPS `DELETE /api/proxies?status=offline` 清理离线残留
+5. 确认目标代理查询返回 `404`
+
+因此如果删除接口成功，目标代理应当从 FRPS dashboard/API 中消失，而不是长期保留为 `offline`。
+如果仍然可见，请优先检查：
+
+- `server.config.yaml` 中 `frp.dashboard.*` 凭据是否正确
+- server 是否能访问 FRPS dashboard API
+- 删除请求是否真正走到了当前版本的 server/client 代码
+
 ### AI Agent 无法访问直连 URL？
 
 1. 确认 `frp.publicHost` 是公网可达的地址

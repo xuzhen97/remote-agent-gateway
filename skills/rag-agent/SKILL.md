@@ -67,6 +67,7 @@ node ./dist/rag.cjs clients list
   - `node ./dist/rag.cjs files write ...` when overwriting important files
   - `node ./dist/rag.cjs frp delete ...`
   - `node ./dist/rag.cjs jobs cancel ...`
+- FRP delete semantics: once `node ./dist/rag.cjs frp delete ...` returns success, the system has already waited for the deleted mapping to be cleared from the FRPS dashboard/API, not merely removed from local config.
 
 ## Common Commands
 

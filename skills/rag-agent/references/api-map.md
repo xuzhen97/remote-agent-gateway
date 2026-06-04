@@ -110,6 +110,9 @@ node ./dist/rag.cjs frp create --client <id> --name web --type tcp --local-port 
 node ./dist/rag.cjs frp delete --client <id> --mapping pm_abc
   -> GET /api/clients/:clientId
   -> DELETE {clientHttpBaseUrl}/frp/mappings/pm_abc
+  -> client HTTP route calls DELETE /api/client-http/ports/:mappingId on the server
+  -> client HTTP route calls POST /api/client-http/ports/cleanup-dashboard on the server
+  -> server polls FRPS dashboard and clears offline residue before success returns
 ```
 
 ## Tasks (Server API Only)

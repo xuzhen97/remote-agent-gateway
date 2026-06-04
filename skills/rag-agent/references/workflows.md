@@ -91,6 +91,11 @@ node ./dist/rag.cjs frp list --client <clientId>
 node ./dist/rag.cjs frp delete --client <clientId> --mapping <mappingId>
 ```
 
+Deletion semantics:
+- a successful `frp delete` means the mapping was removed from server/client state,
+- the client rebuilt its single `frpc` config/process,
+- and the deleted proxy was cleared from the FRPS dashboard/API instead of lingering as `offline`.
+
 ## 10. Review Audit History
 
 ```bash
