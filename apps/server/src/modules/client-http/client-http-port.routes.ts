@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { authMiddleware } from '../auth/auth.middleware.js';
 import { frpService } from '../frp/frp.service.js';
+import { cleanupDeletedProxyFromDashboard } from '../frp/frps-cleanup.js';
 import { auditService } from '../audit/audit.service.js';
 
 interface AllocateBusinessPortBody {
@@ -11,6 +12,11 @@ interface AllocateBusinessPortBody {
   localPort: number;
   remotePort?: number;
   customDomain?: string;
+}
+
+interface CleanupDashboardBody {
+  name: string;
+  proxyType: 'tcp' | 'http' | 'https';
 }
 
 function authRole(request: FastifyRequest): string {
@@ -54,6 +60,19 @@ export async function clientHttpPortRoutes(app: FastifyInstance): Promise<void> 
       targetType: 'port_mapping',
       targetId: mappingId,
     });
+
+    return reply.send({ success: true });
+  });
+
+  app.post<{ Body: CleanupDashboardBody }>('/api/client-http/ports/cleanup-dashboard', async (request, reply) => {
+    const cleaned = await cleanupDeletedProxyFromDashboard({
+      name: request.body.name,
+      proxyType: request.body.proxyType,
+    });
+
+    if (!cleaned) {
+      return reply.code(409).send({ error: 'Failed to clear deleted proxy from FRPS dashboard' });
+    }
 
     return reply.send({ success: true });
   });

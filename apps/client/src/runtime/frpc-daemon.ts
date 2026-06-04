@@ -138,6 +138,8 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
       writePidFile(workDir, daemonProcess.pid);
     }
 
+    const trackedProcess = daemonProcess;
+
     daemonProcess.stderr?.on('data', (d: Buffer) => {
       const msg = d.toString().trim();
       if (msg) console.log(`[frpc-daemon] ${msg}`);
@@ -145,14 +147,18 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
 
     daemonProcess.on('error', (err) => {
       console.error(`[frpc-daemon] error: ${err.message}`);
-      removePidFile(workDir);
-      daemonProcess = null;
+      if (daemonProcess === trackedProcess) {
+        removePidFile(workDir);
+        daemonProcess = null;
+      }
     });
 
     daemonProcess.on('exit', (code) => {
       console.log(`[frpc-daemon] exited (code ${code})`);
-      removePidFile(workDir);
-      daemonProcess = null;
+      if (daemonProcess === trackedProcess) {
+        removePidFile(workDir);
+        daemonProcess = null;
+      }
     });
 
     console.log(`[frpc-daemon] started with ${proxies.length} proxies → ${frps.serverAddr}:${frps.serverPort}`);

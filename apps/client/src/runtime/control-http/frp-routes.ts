@@ -54,7 +54,7 @@ export function registerFrpRoutes(
       const payload = await readJson<CreateMappingRequest>(req);
       const body = await audit.execute({
         req, actionType: 'frp_mapping.create', resourceType: 'frp_mapping',
-        method: 'POST', path: '/frp/mappings', payload,
+        method: 'POST', path: '/frp/mappings', payload: payload as unknown as Record<string, unknown>,
         run: async () => {
           const allocated = await allocateMapping(options, payload);
           const mapping = buildBusinessMapping(payload, allocated);
@@ -85,9 +85,10 @@ export function registerFrpRoutes(
         req, actionType: 'frp_mapping.delete', resourceType: 'frp_mapping',
         method: 'DELETE', path: `/frp/mappings/${mappingId}`, payload: { mappingId },
         run: async () => {
+          await deleteServerMapping(options, mappingId);
           removeMapping(workDir, mappingId);
-          deleteServerMapping(options, mappingId);
           rebuildIfConfigured(options);
+          await cleanupDashboardMapping(options, { name: mapping.name, type: mapping.type });
           return { httpStatus: 200, resultSummary: { deleted: true }, targetId: mappingId, status: 'success', body: { id: mappingId, deleted: true } };
         },
       });
@@ -159,13 +160,36 @@ function buildBusinessMapping(payload: CreateMappingRequest, allocated: Allocate
   };
 }
 
-function deleteServerMapping(options: FrpRouteOptions, mappingId: string): void {
+async function deleteServerMapping(options: FrpRouteOptions, mappingId: string): Promise<void> {
   if (!options.apiBaseUrl || !options.serverToken) return;
 
-  fetch(`${options.apiBaseUrl}/api/client-http/ports/${encodeURIComponent(mappingId)}`, {
+  const response = await fetch(`${options.apiBaseUrl}/api/client-http/ports/${encodeURIComponent(mappingId)}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${options.serverToken}` },
-  }).catch(() => undefined);
+  });
+
+  if (response.ok) return;
+
+  const body = await response.json().catch(() => null) as { error?: string; message?: string; ok?: boolean; errorCode?: string; } | null;
+  throw new Error(body?.error ?? body?.message ?? `Server returned ${response.status}`);
+}
+
+async function cleanupDashboardMapping(options: FrpRouteOptions, mapping: { name: string; type: 'tcp' | 'http' | 'https' }): Promise<void> {
+  if (!options.apiBaseUrl || !options.serverToken) return;
+
+  const response = await fetch(`${options.apiBaseUrl}/api/client-http/ports/cleanup-dashboard`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${options.serverToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name: mapping.name, proxyType: mapping.type }),
+  });
+
+  if (response.ok) return;
+
+  const body = await response.json().catch(() => null) as { error?: string; message?: string } | null;
+  throw new Error(body?.error ?? body?.message ?? `Server returned ${response.status}`);
 }
 
 function rebuildIfConfigured(options: FrpRouteOptions): void {

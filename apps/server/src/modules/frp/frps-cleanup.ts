@@ -3,24 +3,33 @@ import { getDb } from '../../db/index.js';
 import { listFrpsProxies, type FrpsDashboardConfig } from './frps-dashboard.service.js';
 import { clientsService } from '../clients/clients.service.js';
 
-/**
- * Delete a single proxy from the frps dashboard.
- */
-async function deleteFrpsProxy(proxyType: string, name: string): Promise<boolean> {
-  const dashboard: FrpsDashboardConfig = {
+function getDashboardConfig(): FrpsDashboardConfig {
+  return {
     scheme: env.FRPS_DASHBOARD_SCHEME,
     host: env.FRPS_DASHBOARD_HOST,
     port: env.FRPS_DASHBOARD_PORT,
     user: env.FRPS_DASHBOARD_USER,
     password: env.FRPS_DASHBOARD_PASSWORD,
   };
+}
+
+function buildDashboardHeaders(dashboard: FrpsDashboardConfig) {
+  return {
+    Authorization: `Basic ${Buffer.from(`${dashboard.user}:${dashboard.password}`).toString('base64')}`,
+  };
+}
+
+/**
+ * Delete a single proxy from the frps dashboard.
+ */
+async function deleteFrpsProxy(proxyType: string, name: string): Promise<boolean> {
+  const dashboard = getDashboardConfig();
 
   try {
-    const auth = Buffer.from(`${dashboard.user}:${dashboard.password}`).toString('base64');
     const url = `${dashboard.scheme}://${dashboard.host}:${dashboard.port}/api/proxy/${proxyType}/${encodeURIComponent(name)}`;
     const response = await fetch(url, {
       method: 'DELETE',
-      headers: { Authorization: `Basic ${auth}` },
+      headers: buildDashboardHeaders(dashboard),
       signal: AbortSignal.timeout(5_000),
     });
     return response.ok;
@@ -29,19 +38,68 @@ async function deleteFrpsProxy(proxyType: string, name: string): Promise<boolean
   }
 }
 
+async function clearOfflineFrpsProxies(): Promise<boolean> {
+  const dashboard = getDashboardConfig();
+  try {
+    const response = await fetch(`${dashboard.scheme}://${dashboard.host}:${dashboard.port}/api/proxies?status=offline`, {
+      method: 'DELETE',
+      headers: buildDashboardHeaders(dashboard),
+      signal: AbortSignal.timeout(5_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function getFrpsProxyStatus(proxyType: 'tcp' | 'http' | 'https', name: string): Promise<'online' | 'offline' | 'missing' | 'unknown'> {
+  const dashboard = getDashboardConfig();
+  try {
+    const response = await fetch(`${dashboard.scheme}://${dashboard.host}:${dashboard.port}/api/proxy/${proxyType}/${encodeURIComponent(name)}`, {
+      headers: buildDashboardHeaders(dashboard),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (response.status === 404) return 'missing';
+    if (!response.ok) return 'unknown';
+    const body = await response.json() as { status?: string; conf?: unknown };
+    if (body.status === 'offline' || body.conf == null) return 'offline';
+    if (body.status === 'online') return 'online';
+    return 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+export async function cleanupDeletedProxyFromDashboard(input: {
+  proxyType: 'tcp' | 'http' | 'https';
+  name: string;
+  timeoutMs?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const timeoutMs = input.timeoutMs ?? 15_000;
+  const intervalMs = input.intervalMs ?? 1_000;
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt <= timeoutMs) {
+    const status = await getFrpsProxyStatus(input.proxyType, input.name);
+    if (status === 'missing') return true;
+    if (status === 'offline') {
+      const cleared = await clearOfflineFrpsProxies();
+      if (!cleared) return false;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return false;
+}
+
 /**
  * On server startup, detect proxies on frps that don't correspond to any
  * known client HTTP control mapping or business port mapping, and clean
  * them up so stale dev artifacts don't accumulate.
  */
 export async function cleanupStaleFrpsProxies(): Promise<{ removed: string[]; errors: string[] }> {
-  const dashboard: FrpsDashboardConfig = {
-    scheme: env.FRPS_DASHBOARD_SCHEME,
-    host: env.FRPS_DASHBOARD_HOST,
-    port: env.FRPS_DASHBOARD_PORT,
-    user: env.FRPS_DASHBOARD_USER,
-    password: env.FRPS_DASHBOARD_PASSWORD,
-  };
+  const dashboard = getDashboardConfig();
 
   const result = await listFrpsProxies(dashboard);
   if (!result.dashboardReachable) {

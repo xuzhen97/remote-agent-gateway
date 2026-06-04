@@ -17,9 +17,15 @@ vi.mock('node:child_process', () => ({
 import { rebuildFrpcDaemon, setFrpsInfo, stopFrpcDaemon } from './frpc-daemon.js';
 
 function makeFakeProcess(pid: number) {
+  const handlers = new Map<string, (...args: any[]) => void>();
   return {
     stderr: { on: vi.fn() },
-    on: vi.fn(),
+    on: vi.fn((event: string, handler: (...args: any[]) => void) => {
+      handlers.set(event, handler);
+    }),
+    emit(event: string, ...args: any[]) {
+      handlers.get(event)?.(...args);
+    },
     kill: vi.fn(),
     exitCode: null,
     pid,
@@ -255,5 +261,24 @@ describe('frpc daemon orphan cleanup', () => {
     expect(killSpy).toHaveBeenCalledWith(4321, 'SIGKILL');
     expect(spawnMock).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ proxyCount: 1 });
+  });
+
+  it('ignores stale exit events from an old frpc process after a newer daemon is spawned', () => {
+    const workDir = makeWorkDir();
+    writeTcpMapping(workDir);
+
+    const firstProc = makeFakeProcess(4321);
+    const secondProc = makeFakeProcess(9876);
+    spawnMock.mockReturnValueOnce(firstProc).mockReturnValueOnce(secondProc);
+
+    setFrpsInfo({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' });
+    const config = makeClientConfig(workDir);
+
+    rebuildFrpcDaemon(config);
+    rebuildFrpcDaemon(config);
+    firstProc.emit('exit', 0);
+    stopFrpcDaemon();
+
+    expect(secondProc.kill).toHaveBeenCalledWith('SIGTERM');
   });
 });
