@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Drawer, Input, Select, Space, Table, Typography } from 'antd';
 import type { Api } from '../api/http';
-import { getTaskDetail, listTasks } from '../api/tasks';
+import { bulkDeleteTaskRecords, deleteTaskRecord, getTaskDetail, listTasks, summarizeTaskResult } from '../api/tasks';
 import { listClients } from '../api/clients';
 import { StatusTag } from '../components/StatusTag';
 
 const { Title, Text } = Typography;
+
+function getDetailJobId(detail: any) {
+  return detail?.metadata?.jobRef?.jobId ?? detail?.jobId ?? detail?.resultSummary?.jobId ?? null;
+}
+
+async function loadTaskLogs(api: Api, detail: any) {
+  const jobId = getDetailJobId(detail);
+  if (!jobId || !detail?.clientId) return [];
+  const data = await api.get(`/api/clients/${encodeURIComponent(detail.clientId)}/http/jobs/${encodeURIComponent(jobId)}/logs`);
+  return data?.data?.logs ?? data?.logs ?? [];
+}
 
 export function TasksPage({ api, initialClientId, initialClientName }: {
   api: Api;
@@ -18,6 +29,9 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<any | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detailLogs, setDetailLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   async function load() {
     setLoading(true);
@@ -34,6 +48,7 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
     ]);
     setClients(clientList.map((client: any) => ({ id: client.id, name: client.name })));
     setRows(taskPage.items ?? []);
+    setSelectedRowKeys((current) => current.filter((key) => (taskPage.items ?? []).some((row: any) => row.recordId === key)));
     setLoading(false);
   }
 
@@ -76,6 +91,18 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
           style={{ width: 280 }}
         />
         <Button onClick={() => load()}>刷新</Button>
+        <Button
+          danger
+          disabled={selectedRowKeys.length === 0}
+          onClick={async () => {
+            if (!confirm(`确定删除选中的 ${selectedRowKeys.length} 条任务记录吗？`)) return;
+            await bulkDeleteTaskRecords(api, selectedRowKeys.map(String));
+            setSelectedRowKeys([]);
+            await load();
+          }}
+        >
+          删除选中
+        </Button>
       </Space>
 
       <Table
@@ -83,6 +110,10 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
         dataSource={rows}
         loading={loading}
         size="small"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => setSelectedRowKeys(keys),
+        }}
         columns={[
           { title: '时间', key: 'time', width: 180, render: (_: unknown, row: any) => new Date(row.finishedAt ?? row.startedAt).toLocaleString() },
           { title: '客户端', key: 'client', width: 200, render: (_: unknown, row: any) => <Text code>{row.clientNameSnapshot ?? row.clientId}</Text> },
@@ -91,20 +122,35 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
           { title: '目标', dataIndex: 'targetId', key: 'targetId' },
           { title: '状态', dataIndex: 'status', key: 'status', width: 120, render: (value: string) => <StatusTag status={value} /> },
           { title: '耗时', dataIndex: 'durationMs', key: 'durationMs', width: 100, render: (value: number) => value >= 1000 ? `${(value / 1000).toFixed(1)}s` : `${value}ms` },
-          { title: '结果摘要', key: 'resultSummary', render: (_: unknown, row: any) => JSON.stringify(row.resultSummary ?? {}) },
+          { title: '结果摘要', key: 'resultSummary', render: (_: unknown, row: any) => summarizeTaskResult(row) },
           {
-            title: '操作', key: 'actions', width: 120,
+            title: '操作', key: 'actions', width: 200,
             render: (_: unknown, row: any) => (
-              <Button
-                size="small"
-                onClick={async () => {
-                  const value = await getTaskDetail(api, row.recordId);
-                  setDetail(value);
-                  setDrawerOpen(true);
-                }}
-              >
-                查看详情
-              </Button>
+              <Space>
+                <Button
+                  size="small"
+                  onClick={async () => {
+                    const value = await getTaskDetail(api, row.recordId);
+                    setDetail(value);
+                    setDetailLogs([]);
+                    setDrawerOpen(true);
+                  }}
+                >
+                  查看详情
+                </Button>
+                <Button
+                  size="small"
+                  danger
+                  onClick={async () => {
+                    if (!confirm(`确定删除任务记录 ${row.recordId} 吗？`)) return;
+                    await deleteTaskRecord(api, row.recordId);
+                    setSelectedRowKeys((current) => current.filter((key) => key !== row.recordId));
+                    await load();
+                  }}
+                >
+                  删除
+                </Button>
+              </Space>
             ),
           },
         ]}
@@ -122,13 +168,39 @@ export function TasksPage({ api, initialClientId, initialClientName }: {
               <pre>{JSON.stringify(detail.requestSummary ?? {}, null, 2)}</pre>
             </div>
             <div>
-              <Text strong>resultSummary</Text>
-              <pre>{JSON.stringify(detail.resultSummary ?? {}, null, 2)}</pre>
+              <Text strong>lifecycle</Text>
+              <pre>{JSON.stringify(detail.resultSummary?.lifecycle ?? {}, null, 2)}</pre>
+            </div>
+            <div>
+              <Text strong>extracted</Text>
+              <pre>{JSON.stringify(detail.resultSummary?.extracted ?? {}, null, 2)}</pre>
+            </div>
+            <div>
+              <Text strong>output</Text>
+              <pre>{JSON.stringify(detail.resultSummary?.output ?? {}, null, 2)}</pre>
             </div>
             <div>
               <Text strong>error</Text>
               <pre>{detail.errorMessage ?? '-'}</pre>
             </div>
+            {getDetailJobId(detail) ? (
+              <div>
+                <Button
+                  onClick={async () => {
+                    setLogsLoading(true);
+                    try {
+                      const logs = await loadTaskLogs(api, detail);
+                      setDetailLogs(logs);
+                    } finally {
+                      setLogsLoading(false);
+                    }
+                  }}
+                >
+                  加载完整日志
+                </Button>
+                <pre>{logsLoading ? 'Loading...' : detailLogs.map((log) => log.content).join('\n')}</pre>
+              </div>
+            ) : null}
           </Space>
         ) : null}
       </Drawer>
