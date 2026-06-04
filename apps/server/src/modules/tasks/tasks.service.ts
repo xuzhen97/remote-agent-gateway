@@ -1,6 +1,51 @@
 import { getDb } from '../../db/index.js';
 import type { ClientTaskAuditMirrorRecord, TaskHistoryQuery } from '@rag/shared';
 
+type TaskHistoryDbRow = Record<string, unknown>;
+
+function parseSummary(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || value.length === 0) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function mapTaskHistoryRow(row: TaskHistoryDbRow | null) {
+  if (!row) return null;
+  return {
+    recordId: String(row.record_id ?? ''),
+    clientId: String(row.client_id ?? ''),
+    clientNameSnapshot: typeof row.client_name_snapshot === 'string' ? row.client_name_snapshot : undefined,
+    requestId: String(row.request_id ?? ''),
+    jobId: typeof row.job_id === 'string' ? row.job_id : row.job_id == null ? null : String(row.job_id),
+    resourceType: String(row.resource_type ?? ''),
+    actionType: String(row.action_type ?? ''),
+    method: String(row.method ?? ''),
+    path: String(row.path ?? ''),
+    targetId: String(row.target_id ?? ''),
+    sourceType: String(row.source_type ?? ''),
+    actorType: String(row.actor_type ?? ''),
+    actorLabel: String(row.actor_label ?? ''),
+    querySummary: parseSummary(row.query_summary),
+    requestSummary: parseSummary(row.request_summary),
+    resultSummary: parseSummary(row.result_summary),
+    status: String(row.status ?? ''),
+    httpStatus: Number(row.http_status ?? 0),
+    startedAt: Number(row.started_at ?? 0),
+    finishedAt: Number(row.finished_at ?? 0),
+    durationMs: Number(row.duration_ms ?? 0),
+    errorCode: typeof row.error_code === 'string' ? row.error_code : row.error_code == null ? null : String(row.error_code),
+    errorMessage: typeof row.error_message === 'string' ? row.error_message : row.error_message == null ? null : String(row.error_message),
+    reportedAt: Number(row.reported_at ?? 0),
+    receivedAt: row.received_at == null ? undefined : Number(row.received_at),
+  };
+}
+
 class TasksService {
   async upsertMirrorRecord(record: ClientTaskAuditMirrorRecord): Promise<{ inserted: boolean }> {
     const db = getDb();
@@ -59,7 +104,7 @@ class TasksService {
     const stmt = db.prepare(`SELECT * FROM task_history ${whereSql} ORDER BY finished_at DESC LIMIT ? OFFSET ?`);
     stmt.bind([...params, query.pageSize, offset] as any);
     const items: Record<string, unknown>[] = [];
-    while (stmt.step()) items.push(stmt.getAsObject());
+    while (stmt.step()) items.push(mapTaskHistoryRow(stmt.getAsObject()) as Record<string, unknown>);
     stmt.free();
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
@@ -68,7 +113,7 @@ class TasksService {
     const db = getDb();
     const stmt = db.prepare('SELECT * FROM task_history WHERE record_id = ? LIMIT 1');
     stmt.bind([recordId]);
-    const row = stmt.step() ? stmt.getAsObject() : null;
+    const row = stmt.step() ? mapTaskHistoryRow(stmt.getAsObject()) : null;
     stmt.free();
     return row;
   }

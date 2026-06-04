@@ -40,4 +40,61 @@ describe('tasksService', () => {
     const byStatus = tasksService.list({ status: 'failed', page: 1, pageSize: 20 });
     expect(byStatus.total).toBe(1);
   });
+
+  it('returns camelCase task records with parsed summary objects', async () => {
+    await tasksService.upsertMirrorRecord({
+      recordId: 'rec_02',
+      clientId: 'client-2',
+      clientNameSnapshot: 'Development Machine (dev-client-01)',
+      requestId: 'req_02',
+      resourceType: 'job',
+      actionType: 'job.command' as const,
+      method: 'POST',
+      path: '/jobs/command',
+      targetId: 'ipconfig',
+      sourceType: 'agent-api' as const,
+      actorType: 'agent-token' as const,
+      actorLabel: 'agent-api/agent-token',
+      querySummary: { clientId: 'client-2' },
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: { exitCode: 0, stdoutBytes: 1234 },
+      status: 'success' as const,
+      httpStatus: 200,
+      startedAt: 1710000000000,
+      finishedAt: 1710000002500,
+      durationMs: 2500,
+      reportedAt: 1710000002501,
+    } as any);
+
+    const page = tasksService.list({ page: 1, pageSize: 20 });
+    expect(page.items).toHaveLength(1);
+    expect(page.items[0]).toMatchObject({
+      recordId: 'rec_02',
+      clientId: 'client-2',
+      clientNameSnapshot: 'Development Machine (dev-client-01)',
+      requestId: 'req_02',
+      actionType: 'job.command',
+      targetId: 'ipconfig',
+      startedAt: 1710000000000,
+      finishedAt: 1710000002500,
+      durationMs: 2500,
+      querySummary: { clientId: 'client-2' },
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: { exitCode: 0, stdoutBytes: 1234 },
+    });
+    expect(page.items[0]).not.toHaveProperty('record_id');
+    expect(page.items[0]).not.toHaveProperty('duration_ms');
+    expect(page.items[0]).not.toHaveProperty('result_summary');
+
+    const detail = tasksService.getByRecordId('rec_02');
+    expect(detail).toMatchObject({
+      recordId: 'rec_02',
+      clientId: 'client-2',
+      resultSummary: { exitCode: 0, stdoutBytes: 1234 },
+      durationMs: 2500,
+    });
+    expect(detail).not.toHaveProperty('record_id');
+    expect(detail).not.toHaveProperty('duration_ms');
+    expect(detail).not.toHaveProperty('result_summary');
+  });
 });
