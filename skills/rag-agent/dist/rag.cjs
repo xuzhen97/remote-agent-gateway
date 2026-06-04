@@ -10656,25 +10656,35 @@ var ClientHttpApi = class {
     return this.request("DELETE", `/frp/mappings/${encodeURIComponent(mappingId)}`);
   }
   async *events(jobId) {
+    const controller = new AbortController();
     const response = await fetch(`${this.config.baseUrl}/jobs/${encodeURIComponent(jobId)}/events`, {
       method: "GET",
-      headers: { Authorization: `Bearer ${this.config.token}` }
+      headers: { Authorization: `Bearer ${this.config.token}` },
+      signal: controller.signal
     });
     if (!response.ok) await readResponse(response);
     const reader = response.body?.getReader();
     if (!reader) throw new CliError("PARSE_ERROR", "SSE response has no readable body");
     const decoder = new TextDecoder();
     let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let index;
-      while ((index = buffer.indexOf("\n\n")) >= 0) {
-        const frame = buffer.slice(0, index);
-        buffer = buffer.slice(index + 2);
-        const parsed = parseSseFrame(frame);
-        if (parsed) yield parsed;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let index;
+        while ((index = buffer.indexOf("\n\n")) >= 0) {
+          const frame = buffer.slice(0, index);
+          buffer = buffer.slice(index + 2);
+          const parsed = parseSseFrame(frame);
+          if (parsed) yield parsed;
+        }
+      }
+    } finally {
+      controller.abort();
+      try {
+        await reader.cancel();
+      } catch {
       }
     }
   }
@@ -10868,26 +10878,87 @@ function registerFrpCommands(program2, deps) {
 
 // apps/cli/src/commands/jobs.ts
 var import_promises2 = require("node:fs/promises");
+var TERMINAL_JOB_STATUSES = /* @__PURE__ */ new Set(["success", "failed", "cancelled"]);
+var DEFAULT_WAIT_TIMEOUT_MS = 3e5;
+var DEFAULT_POLL_INTERVAL_MS = 500;
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function unwrapClientPayload(value) {
+  if (isObject(value) && value.ok === true && "data" in value) {
+    return value.data;
+  }
+  return value;
+}
+function getJobId(value) {
+  const unwrapped = unwrapClientPayload(value);
+  if (!isObject(unwrapped) || typeof unwrapped.jobId !== "string" || !unwrapped.jobId) {
+    throw new CliError("PARSE_ERROR", "Job creation response did not include jobId");
+  }
+  return unwrapped.jobId;
+}
+async function waitForJobCompletion(client, jobId, timeoutMs = DEFAULT_WAIT_TIMEOUT_MS) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const job = unwrapClientPayload(await client.getJob(jobId));
+    if (isObject(job) && typeof job.status === "string" && TERMINAL_JOB_STATUSES.has(job.status)) {
+      return job;
+    }
+    await new Promise((resolve2) => setTimeout(resolve2, DEFAULT_POLL_INTERVAL_MS));
+  }
+  throw new CliError("NETWORK_ERROR", `Timed out waiting for job ${jobId} to finish`);
+}
+async function maybeFollowJob(options, client, created, write) {
+  const jobId = getJobId(created);
+  if (options.events) {
+    writeJsonLine({ ok: true, event: "job.created", data: unwrapClientPayload(created) });
+    for await (const event of client.events(jobId)) {
+      writeJsonLine({ ok: true, ...event });
+      if (isObject(event) && typeof event.event === "string" && ["job.completed", "job.failed", "job.cancelled"].includes(event.event)) {
+        break;
+      }
+    }
+    return true;
+  }
+  if (!options.wait) {
+    write(successEnvelope(unwrapClientPayload(created)));
+    return true;
+  }
+  const job = await waitForJobCompletion(client, jobId);
+  if (!options.logs) {
+    write(successEnvelope(job));
+    return true;
+  }
+  const logs = unwrapClientPayload(await client.getJobLogs(jobId, 0, 500));
+  write(successEnvelope({ job, logs }));
+  return true;
+}
 function registerJobsCommands(program2, deps) {
   const jobs = program2.command("jobs").description("Create and inspect live client HTTP jobs");
-  jobs.command("run").description("Run a command job on a client").requiredOption("--client <clientId>", "Client ID").allowUnknownOption(true).allowExcessArguments(true).argument("[cmd...]", "Command after --").action(async (cmd, options) => {
+  jobs.command("run").description("Run a command job on a client").requiredOption("--client <clientId>", "Client ID").option("--wait", "Wait for the job to finish").option("--logs", "Fetch logs after waiting for completion").option("--events", "Stream job events after creation").allowUnknownOption(true).allowExcessArguments(true).argument("[cmd...]", "Command after --").action(async (cmd, options) => {
     if (!cmd.length) throw new CliError("ARGUMENT_ERROR", "Command after -- is required");
+    if (options.logs && !options.wait) throw new CliError("ARGUMENT_ERROR", "--logs requires --wait");
+    if (options.wait && options.events) throw new CliError("ARGUMENT_ERROR", "--wait cannot be combined with --events");
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    deps.write(successEnvelope(await client.createCommandJob({ command: cmd[0], args: cmd.slice(1) })));
+    const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1) });
+    await maybeFollowJob(options, client, created, deps.write);
   });
-  jobs.command("script").description("Run an inline or file-backed script job on a client").requiredOption("--client <clientId>", "Client ID").option("--file <file>", "Local script file").option("--inline <script>", "Inline script content").option("--runtime <runtime>", "node, python, bash, or powershell", "node").option("--cwd <cwd>", "Remote working directory").option("--timeout-ms <timeoutMs>", "Timeout in milliseconds").action(async (options) => {
+  jobs.command("script").description("Run an inline or file-backed script job on a client").requiredOption("--client <clientId>", "Client ID").option("--file <file>", "Local script file").option("--inline <script>", "Inline script content").option("--runtime <runtime>", "node, python, bash, or powershell", "node").option("--cwd <cwd>", "Remote working directory").option("--timeout-ms <timeoutMs>", "Timeout in milliseconds").option("--wait", "Wait for the job to finish").option("--logs", "Fetch logs after waiting for completion").option("--events", "Stream job events after creation").action(async (options) => {
     const script = options.inline ?? (options.file ? await (0, import_promises2.readFile)(options.file, "utf8") : void 0);
     if (!script) throw new CliError("ARGUMENT_ERROR", "--inline or --file is required");
+    if (options.logs && !options.wait) throw new CliError("ARGUMENT_ERROR", "--logs requires --wait");
+    if (options.wait && options.events) throw new CliError("ARGUMENT_ERROR", "--wait cannot be combined with --events");
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    deps.write(successEnvelope(await client.createScriptJob({ runtime: options.runtime, script, cwd: options.cwd, timeoutMs: optionalNumber(options.timeoutMs, "--timeout-ms") })));
+    const created = await client.createScriptJob({ runtime: options.runtime, script, cwd: options.cwd, timeoutMs: optionalNumber(options.timeoutMs, "--timeout-ms") });
+    await maybeFollowJob(options, client, created, deps.write);
   });
   jobs.command("get").requiredOption("--client <clientId>", "Client ID").requiredOption("--job <jobId>", "Job ID").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    deps.write(successEnvelope(await client.getJob(requiredString(options.job, "--job"))));
+    deps.write(successEnvelope(unwrapClientPayload(await client.getJob(requiredString(options.job, "--job")))));
   });
   jobs.command("logs").requiredOption("--client <clientId>", "Client ID").requiredOption("--job <jobId>", "Job ID").option("--since-seq <sinceSeq>", "First sequence after this value", "0").option("--limit <limit>", "Maximum log entries", "500").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    deps.write(successEnvelope(await client.getJobLogs(requiredString(options.job, "--job"), Number(options.sinceSeq ?? 0), Number(options.limit ?? 500))));
+    deps.write(successEnvelope(unwrapClientPayload(await client.getJobLogs(requiredString(options.job, "--job"), Number(options.sinceSeq ?? 0), Number(options.limit ?? 500)))));
   });
   jobs.command("events").requiredOption("--client <clientId>", "Client ID").requiredOption("--job <jobId>", "Job ID").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
@@ -10897,7 +10968,7 @@ function registerJobsCommands(program2, deps) {
   });
   jobs.command("cancel").requiredOption("--client <clientId>", "Client ID").requiredOption("--job <jobId>", "Job ID").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    deps.write(successEnvelope(await client.cancelJob(requiredString(options.job, "--job"))));
+    deps.write(successEnvelope(unwrapClientPayload(await client.cancelJob(requiredString(options.job, "--job")))));
   });
 }
 

@@ -57,6 +57,11 @@ node ./dist/rag.cjs clients list
 - Parse CLI output as JSON: check `ok`; then read `data` or `error`.
 - Use `jobs` for live command/script execution.
 - Use `tasks` for server-side audit history.
+- **Mandatory result-following rule:** after `jobs run` or `jobs script`, do not stop at `jobId` unless the user explicitly only asked to enqueue a task. If the user wants the result, output, or process, you must either:
+  - run with `--wait --logs` to execute and return final output in one step, or
+  - run with `--events` to stream live progress, or
+  - manually follow `jobs run` with `jobs get` + `jobs logs`.
+- Never reply only with “job created” or “job succeeded” when the user actually wants to see command output.
 - Ask for user confirmation before destructive operations:
   - `node ./dist/rag.cjs files delete ...`
   - `node ./dist/rag.cjs files write ...` when overwriting important files
@@ -69,6 +74,8 @@ node ./dist/rag.cjs clients list
 node ./dist/rag.cjs clients list
 node ./dist/rag.cjs clients get --client <clientId>
 node ./dist/rag.cjs jobs run --client <clientId> -- node -v
+node ./dist/rag.cjs jobs run --client <clientId> --wait --logs -- node -v
+node ./dist/rag.cjs jobs run --client <clientId> --events -- node -v
 node ./dist/rag.cjs files roots --client <clientId>
 node ./dist/rag.cjs files read --client <clientId> --root root-0 --path README.md
 node ./dist/rag.cjs frp list --client <clientId>

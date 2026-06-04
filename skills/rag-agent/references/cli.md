@@ -153,8 +153,14 @@ node ./dist/rag.cjs doctor --client <clientId>
 node ./dist/rag.cjs clients list
 node ./dist/rag.cjs clients get --client <clientId>
 node ./dist/rag.cjs jobs run --client <clientId> -- <command> [args...]
+node ./dist/rag.cjs jobs run --client <clientId> --wait -- <command> [args...]
+node ./dist/rag.cjs jobs run --client <clientId> --wait --logs -- <command> [args...]
+node ./dist/rag.cjs jobs run --client <clientId> --events -- <command> [args...]
 node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js
 node ./dist/rag.cjs jobs script --client <clientId> --inline "console.log(1)"
+node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js --wait
+node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js --wait --logs
+node ./dist/rag.cjs jobs script --client <clientId> --inline "console.log(1)" --events
 node ./dist/rag.cjs jobs get --client <clientId> --job <jobId>
 node ./dist/rag.cjs jobs logs --client <clientId> --job <jobId> --since-seq 0 --limit 500
 node ./dist/rag.cjs jobs events --client <clientId> --job <jobId>
@@ -184,10 +190,17 @@ node ./dist/rag.cjs tasks get --record <recordId>
 
 ```
 --client <clientId>    (required) Client ID
+--wait                 Wait for the job to finish and return final status
+--logs                 After waiting, also fetch logs (requires --wait)
+--events               Stream live job events after creation
 --                     Separator before the command and its arguments
 ```
 
-Example: `node ./dist/rag.cjs jobs run --client win-dev -- bash -c 'ls -la'`
+Examples:
+- `node ./dist/rag.cjs jobs run --client win-dev -- bash -c 'ls -la'`
+- `node ./dist/rag.cjs jobs run --client win-dev --wait -- bash -c 'ls -la'`
+- `node ./dist/rag.cjs jobs run --client win-dev --wait --logs -- bash -c 'ls -la'`
+- `node ./dist/rag.cjs jobs run --client win-dev --events -- bash -c 'ls -la'`
 
 ### jobs script
 
@@ -198,6 +211,9 @@ Example: `node ./dist/rag.cjs jobs run --client win-dev -- bash -c 'ls -la'`
 --runtime <runtime>    Runtime: node (default), python, bash, powershell
 --cwd <cwd>            Remote working directory
 --timeout-ms <ms>      Timeout in milliseconds
+--wait                 Wait for the job to finish and return final status
+--logs                 After waiting, also fetch logs (requires --wait)
+--events               Stream live job events after creation
 ```
 
 ### files upload

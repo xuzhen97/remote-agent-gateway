@@ -56,26 +56,33 @@ export class ClientHttpApi {
   deleteMapping(mappingId: string): Promise<unknown> { return this.request('DELETE', `/frp/mappings/${encodeURIComponent(mappingId)}`); }
 
   async *events(jobId: string): AsyncGenerator<unknown> {
+    const controller = new AbortController();
     const response = await fetch(`${this.config.baseUrl}/jobs/${encodeURIComponent(jobId)}/events`, {
       method: 'GET',
       headers: { Authorization: `Bearer ${this.config.token}` },
+      signal: controller.signal,
     });
     if (!response.ok) await readResponse(response);
     const reader = response.body?.getReader();
     if (!reader) throw new CliError('PARSE_ERROR', 'SSE response has no readable body');
     const decoder = new TextDecoder();
     let buffer = '';
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let index;
-      while ((index = buffer.indexOf('\n\n')) >= 0) {
-        const frame = buffer.slice(0, index);
-        buffer = buffer.slice(index + 2);
-        const parsed = parseSseFrame(frame);
-        if (parsed) yield parsed;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let index;
+        while ((index = buffer.indexOf('\n\n')) >= 0) {
+          const frame = buffer.slice(0, index);
+          buffer = buffer.slice(index + 2);
+          const parsed = parseSseFrame(frame);
+          if (parsed) yield parsed;
+        }
       }
+    } finally {
+      controller.abort();
+      try { await reader.cancel(); } catch {}
     }
   }
 

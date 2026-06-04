@@ -12,11 +12,24 @@ Expected output: JSON with client `id`, `name`, `status`, `online`, `clientHttpB
 
 ## 2. Execute a Remote Command
 
+### Preferred one-step result workflow
+
+```bash
+node ./dist/rag.cjs jobs run --client <clientId> --wait --logs -- node -v
+```
+
+### Manual multi-step workflow
+
 ```bash
 node ./dist/rag.cjs jobs run --client <clientId> -- node -v
 node ./dist/rag.cjs jobs get --client <clientId> --job <jobId>
 node ./dist/rag.cjs jobs logs --client <clientId> --job <jobId>
-node ./dist/rag.cjs jobs events --client <clientId> --job <jobId>
+```
+
+### Live streaming workflow
+
+```bash
+node ./dist/rag.cjs jobs run --client <clientId> --events -- node -v
 ```
 
 ## 3. Execute a Script
