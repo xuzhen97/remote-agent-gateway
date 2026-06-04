@@ -11,35 +11,44 @@ export class ClientHttpAdminService {
     auditContext?: { sourceType: 'web-console' | 'agent-api' | 'server-proxy'; actorType: 'admin-token' | 'agent-token' };
   }): Promise<{ status: number; body: unknown }> {
     const client = clientsService.getClient(clientId);
-    if (!client?.http_base_url || !client.http_token) {
+    if (!client?.http_token || (!client.http_base_url && !(client.http_local_host && client.http_local_port))) {
       return { status: 409, body: { ok: false, error: { code: 'CLIENT_HTTP_UNAVAILABLE', message: 'Client HTTP endpoint is not ready' } } };
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), env.CLIENT_HTTP_REQUEST_TIMEOUT_MS);
-    try {
-      const response = await this.fetchImpl(`${client.http_base_url}${input.path}`, {
-        method: input.method,
-        headers: {
-          Authorization: `Bearer ${client.http_token}`,
-          ...(input.body ? { 'Content-Type': 'application/json' } : {}),
-          ...(input.auditContext ? {
-            'x-rag-source': input.auditContext.sourceType,
-            'x-rag-actor-type': input.auditContext.actorType,
-          } : {}),
-        },
-        body: input.body ? JSON.stringify(input.body) : undefined,
-        signal: controller.signal,
-      });
-      const text = await response.text();
-      let body: unknown = text;
-      try { body = JSON.parse(text); } catch { body = text; }
-      return { status: response.status, body };
-    } catch {
-      return { status: 502, body: { ok: false, error: { code: 'CLIENT_HTTP_UNREACHABLE', message: 'Failed to reach client HTTP endpoint' } } };
-    } finally {
-      clearTimeout(timer);
+    const candidateBases = [
+      client.http_local_host && client.http_local_port ? `http://${client.http_local_host}:${client.http_local_port}` : null,
+      client.http_base_url ?? null,
+    ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
+
+    for (const baseUrl of candidateBases) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), env.CLIENT_HTTP_REQUEST_TIMEOUT_MS);
+      try {
+        const response = await this.fetchImpl(`${baseUrl}${input.path}`, {
+          method: input.method,
+          headers: {
+            Authorization: `Bearer ${client.http_token}`,
+            ...(input.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(input.auditContext ? {
+              'x-rag-source': input.auditContext.sourceType,
+              'x-rag-actor-type': input.auditContext.actorType,
+            } : {}),
+          },
+          body: input.body ? JSON.stringify(input.body) : undefined,
+          signal: controller.signal,
+        });
+        const text = await response.text();
+        let body: unknown = text;
+        try { body = JSON.parse(text); } catch { body = text; }
+        return { status: response.status, body };
+      } catch {
+        // Try next endpoint candidate.
+      } finally {
+        clearTimeout(timer);
+      }
     }
+
+    return { status: 502, body: { ok: false, error: { code: 'CLIENT_HTTP_UNREACHABLE', message: 'Failed to reach client HTTP endpoint' } } };
   }
 }
 

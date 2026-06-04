@@ -16,10 +16,19 @@ export async function clientHttpAdminRoutes(app: FastifyInstance): Promise<void>
     return reply.code(result.status).send(result.body);
   });
 
+  app.get<{ Params: { clientId: string; jobId: string } }>('/api/clients/:clientId/http/jobs/:jobId/logs', async (request, reply) => {
+    const result = await clientHttpAdminService.request(request.params.clientId, {
+      method: 'GET',
+      path: `/jobs/${encodeURIComponent(request.params.jobId)}/logs`,
+    });
+    return reply.code(result.status).send(result.body);
+  });
+
   app.post<{ Params: { clientId: string }; Body: unknown }>('/api/clients/:clientId/http/frp/mappings', async (request, reply) => {
+    const actorType: 'admin-token' | 'agent-token' = (request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token';
     const auditContext = {
       sourceType: 'web-console' as const,
-      actorType: ((request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token') as const,
+      actorType,
     };
     const result = await clientHttpAdminService.request(request.params.clientId, {
       method: 'POST',
@@ -32,9 +41,10 @@ export async function clientHttpAdminRoutes(app: FastifyInstance): Promise<void>
   });
 
   app.delete<{ Params: { clientId: string; mappingId: string } }>('/api/clients/:clientId/http/frp/mappings/:mappingId', async (request, reply) => {
+    const actorType: 'admin-token' | 'agent-token' = (request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token';
     const auditContext = {
       sourceType: 'web-console' as const,
-      actorType: ((request as unknown as { authRole: string }).authRole === 'admin' ? 'admin-token' : 'agent-token') as const,
+      actorType,
     };
     const result = await clientHttpAdminService.request(request.params.clientId, {
       method: 'DELETE',
