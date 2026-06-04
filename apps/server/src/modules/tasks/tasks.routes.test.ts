@@ -13,7 +13,13 @@ vi.mock('./tasks.service.js', () => ({
     upsertMirrorRecord: vi.fn(async () => ({ inserted: true })),
     list: vi.fn(() => ({ items: [], total: 0, page: 1, pageSize: 20 })),
     getByRecordId: vi.fn(() => null),
+    deleteByRecordId: vi.fn(() => ({ deleted: false })),
+    deleteByRecordIds: vi.fn(() => ({ requested: 0, deleted: 0 })),
   },
+}));
+
+vi.mock('../audit/audit.service.js', () => ({
+  auditService: { log: vi.fn() },
 }));
 
 describe('taskRoutes', () => {
@@ -47,5 +53,56 @@ describe('taskRoutes', () => {
     });
     expect(response.statusCode).toBe(200);
     expect(response.json()).toHaveProperty('items');
+  });
+
+  it('deletes a single task history record and logs the action', async () => {
+    const { tasksService } = await import('./tasks.service.js');
+    vi.mocked(tasksService.deleteByRecordId).mockReturnValue({ deleted: true } as any);
+
+    const app = Fastify();
+    await app.register(taskRoutes);
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/api/tasks/rec_delete_one',
+      headers: { authorization: 'Bearer test-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ deleted: true, recordId: 'rec_delete_one' });
+    expect(tasksService.deleteByRecordId).toHaveBeenCalledWith('rec_delete_one');
+
+    const { auditService } = await import('../audit/audit.service.js');
+    expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'task_history.delete',
+      targetType: 'task_history',
+      targetId: 'rec_delete_one',
+    }));
+  });
+
+  it('bulk deletes task history records and logs the action', async () => {
+    const { tasksService } = await import('./tasks.service.js');
+    vi.mocked(tasksService.deleteByRecordIds).mockReturnValue({ requested: 2, deleted: 2 } as any);
+
+    const app = Fastify();
+    await app.register(taskRoutes);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/tasks/bulk-delete',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { recordIds: ['rec_bulk_a', 'rec_bulk_b', 'rec_bulk_a'] },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ requested: 2, deleted: 2, recordIds: ['rec_bulk_a', 'rec_bulk_b'] });
+    expect(tasksService.deleteByRecordIds).toHaveBeenCalledWith(['rec_bulk_a', 'rec_bulk_b']);
+
+    const { auditService } = await import('../audit/audit.service.js');
+    expect(auditService.log).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'task_history.bulk_delete',
+      targetType: 'task_history',
+      targetId: 'bulk',
+    }));
   });
 });
