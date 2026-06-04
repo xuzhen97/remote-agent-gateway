@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r typecheck",
     "dev:cli": "pnpm --filter @rag/cli dev",
     "build:cli": "pnpm --filter @rag/cli build",
+    "build:skill": "tsx scripts/build-skill-cli.ts",
     "install:pi-skill": "tsx scripts/install-pi-skill.ts",
     "build:dist": "tsx scripts/build-all.ts",
     "build:dist:server": "tsx scripts/build-server.ts",

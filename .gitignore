@@ -1,10 +1,12 @@
 node_modules/
 dist/
+!skills/rag-agent/dist/
 *.tsbuildinfo
 storage/files/
 storage/logs/
 storage/db.sqlite
 .env
+.ragrc
 apps/client/config.json
 apps/client/frp/
 apps/client/workspace/

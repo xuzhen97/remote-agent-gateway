@@ -77,6 +77,9 @@ export async function run(argv = process.argv.slice(2)): Promise<void> {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` || process.argv[1]?.endsWith('/index.js') || process.argv[1]?.endsWith('\\index.js')) {
-  await run();
+if (typeof require !== 'undefined' && require.main === module) {
+  run().catch((error) => {
+    writeJson(errorEnvelope(error), process.stderr);
+    process.exitCode = exitCodeFor(error);
+  });
 }
