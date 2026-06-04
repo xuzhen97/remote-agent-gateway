@@ -41,7 +41,7 @@ export function startFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcProxy
 
 export function stopFrpcDaemon(): void {
   if (daemonProcess) {
-    daemonProcess.kill('SIGTERM');
+    terminateTrackedDaemonProcess(daemonProcess);
     daemonProcess = null;
     console.log('[frpc-daemon] stopped');
     return;
@@ -111,9 +111,9 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
     }
   }
 
-  // Kill existing daemon
+  // Kill existing daemon and make sure it is gone before respawn.
   if (daemonProcess) {
-    daemonProcess.kill('SIGTERM');
+    terminateTrackedDaemonProcess(daemonProcess);
     daemonProcess = null;
   }
 
@@ -160,6 +160,27 @@ export function rebuildFrpcDaemon(config: ClientConfig, protectedProxy?: FrpcPro
   } catch (err) {
     console.error('[frpc-daemon] spawn failed:', err);
     return null;
+  }
+}
+
+function terminateTrackedDaemonProcess(proc: ChildProcess): void {
+  const pid = proc.pid;
+  try {
+    proc.kill('SIGTERM');
+  } catch {
+    return;
+  }
+
+  if (typeof pid !== 'number' || pid <= 0) {
+    return;
+  }
+
+  try {
+    process.kill(pid, 0);
+    process.kill(pid, 'SIGKILL');
+    console.log(`[frpc-daemon] force-killed tracked process ${pid}`);
+  } catch {
+    // Process already exited.
   }
 }
 

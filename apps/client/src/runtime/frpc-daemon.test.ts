@@ -45,6 +45,7 @@ function makeClientConfig(workDir: string) {
     jobDefaultTimeoutMs: 300000,
     jobMaxTimeoutMs: 1800000,
     jobLogBufferLines: 5000,
+    taskAuditStorePath: `${workDir}/.rag/task-audit.jsonl`,
   };
 }
 
@@ -221,6 +222,38 @@ describe('frpc daemon orphan cleanup', () => {
     expect(killSpy).toHaveBeenCalledWith(4321, 'SIGTERM');
     expect(spawnMock).toHaveBeenCalled();
     expect(fs.readFileSync(path.join(workDir, 'frpc-daemon.pid'), 'utf-8').trim()).toBe('9876');
+    expect(result).toEqual({ proxyCount: 1 });
+  });
+
+  it('force-kills the tracked frpc daemon before respawn when it does not exit after SIGTERM', () => {
+    const workDir = makeWorkDir();
+    writeTcpMapping(workDir);
+
+    const firstProc = makeFakeProcess(4321);
+    const secondProc = makeFakeProcess(9876);
+    spawnMock.mockReturnValueOnce(firstProc).mockReturnValueOnce(secondProc);
+
+    let trackedAlive = true;
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((pid: number, signal?: NodeJS.Signals | 0) => {
+      if (pid !== 4321) return true;
+      if (signal === 0) {
+        if (!trackedAlive) throw new Error('ESRCH');
+        return true;
+      }
+      if (signal === 'SIGKILL') trackedAlive = false;
+      return true;
+    }) as typeof process.kill);
+
+    setFrpsInfo({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' });
+    const config = makeClientConfig(workDir);
+
+    rebuildFrpcDaemon(config);
+    const result = rebuildFrpcDaemon(config);
+
+    expect(firstProc.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(killSpy).toHaveBeenCalledWith(4321, 0);
+    expect(killSpy).toHaveBeenCalledWith(4321, 'SIGKILL');
+    expect(spawnMock).toHaveBeenCalledTimes(2);
     expect(result).toEqual({ proxyCount: 1 });
   });
 });
