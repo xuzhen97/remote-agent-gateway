@@ -39,7 +39,7 @@ if (targetLinux || targetAll || (!targetWin && !targetLinux && !isWin)) targets.
 // ── Build ───────────────────────────────────────────────────────────
 if (!fs.existsSync(path.join(DIST, 'server.bundle.cjs'))) {
   console.log('Building dist...');
-  execSync('pnpm build:dist', { cwd: ROOT, stdio: 'inherit' });
+  execSync('pnpm build', { cwd: ROOT, stdio: 'inherit' });
 }
 
 fs.mkdirSync(RELEASE_DIR, { recursive: true });

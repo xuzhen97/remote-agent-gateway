@@ -15,3 +15,11 @@ bin/
 release/
 nul
 .playwright-mcp/
+.rag/
+frp/frps-runtime.toml
+frp/*.log
+frp/*.log.*
+frp/frps.*.log
+TODO.md
+client.config.yaml
+server.config.yaml

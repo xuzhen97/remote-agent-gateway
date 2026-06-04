@@ -42,7 +42,7 @@ pnpm test:e2e:verbose
 ```
 test:e2e
   │
-  ├─ 1. 确保 dist/ 已构建（如无则自动 build:dist）
+  ├─ 1. 确保 dist/ 已构建（如无则自动 build）
   ├─ 2. 写入测试用 `server.config.yaml` 和 `client.config.yaml`
   ├─ 3. 清理旧 db.sqlite
   ├─ 4. 启动 server.bundle.cjs（后台进程）
@@ -80,13 +80,13 @@ RAG_E2E_FRP_FILE_TESTS=1 pnpm test:e2e
 
 ```bash
 # 1. 构建
-pnpm build:dist
+pnpm build
 
 # 2. 启动服务端（终端 1）
-cd dist && cp server.config.example.yaml server.config.yaml && node server.bundle.cjs
+cd dist && node server.bundle.cjs   # 需事先提供 server.config.yaml
 
 # 3. 启动客户端（终端 2）
-cd dist && cp client.config.example.yaml client.config.yaml && node client.bundle.cjs
+cd dist && node client.bundle.cjs   # 需事先提供 client.config.yaml
 
 # 4. 手动测试（终端 3）
 curl -s http://localhost:3000/api/health

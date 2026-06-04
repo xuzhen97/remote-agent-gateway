@@ -23,15 +23,14 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
     .description('Remote Agent Gateway AI-agent-first CLI')
     .version(VERSION)
     .option('--server <url>', 'RAG server URL')
-    .option('--token <token>', 'RAG API token')
-    .option('--config <path>', 'Path to .ragrc-style config file');
+    .option('--token <token>', 'RAG API token');
 
   program.command('config')
     .description('Configuration commands')
     .command('show')
     .description('Show resolved configuration with masked token')
     .action(() => {
-      write(successEnvelope({ serverUrl: config.serverUrl || null, token: maskToken(config.token), sources: config.sources }));
+      write(successEnvelope({ serverUrl: config.serverUrl || null, token: maskToken(config.token) }));
     });
 
   let cachedServerApi: ServerApi | undefined;

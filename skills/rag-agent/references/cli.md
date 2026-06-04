@@ -36,7 +36,7 @@ but that is not the canonical distributed entrypoint.
 
 ```bash
 cd remote-agent-gateway
-pnpm build:skill
+pnpm exec tsx scripts/build-skill-cli.ts
 ```
 
 This produces `skills/rag-agent/dist/rag.cjs`.
@@ -44,7 +44,7 @@ This produces `skills/rag-agent/dist/rag.cjs`.
 ### Install skill into Pi
 
 ```bash
-pnpm install:pi-skill
+pnpm exec tsx scripts/install-pi-skill.ts
 ```
 
 This command builds the bundled CLI first, then copies the full `skills/rag-agent/` directory into `~/.pi/agent/skills/rag-agent/`.
@@ -63,9 +63,6 @@ Resolution order (highest priority first):
 |----------|--------|---------|
 | 1 | CLI flags | `node ./dist/rag.cjs --server http://... --token abc ...` |
 | 2 | Environment variables | `RAG_SERVER_URL`, `RAG_AGENT_TOKEN`, `RAG_ADMIN_TOKEN`, `RAG_AGENT_API_TOKEN`, `AGENT_API_TOKEN` |
-| 3 | `.ragrc` | `RAG_SERVER_URL=http://...` |
-| 4 | `.env` | `RAG_SERVER_URL=http://...` |
-| 5 | `server.config.yaml` | `server.port` + `auth.agentApiToken` |
 
 **Recommended (environment variables):**
 
@@ -73,6 +70,8 @@ Resolution order (highest priority first):
 export RAG_SERVER_URL=http://your-server:3000
 export RAG_AGENT_TOKEN=your-agent-token
 ```
+
+The CLI does not read `.ragrc`, `.env`, or `server.config.yaml`.
 
 Check current config:
 

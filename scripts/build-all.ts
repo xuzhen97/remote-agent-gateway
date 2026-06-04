@@ -17,9 +17,10 @@ for (const f of fs.readdirSync(DIST)) {
     f.endsWith('.cjs') ||
     f.endsWith('.map') ||
     f === '.env' ||
-    f === '.env.example' ||
     f === 'config.json' ||
-    f === 'config.example.json'
+    f === 'config.example.json' ||
+    f === 'server.config.example.yaml' ||
+    f === 'client.config.example.yaml'
   ) {
     fs.rmSync(path.join(DIST, f), { recursive: true, force: true });
   }
@@ -70,10 +71,6 @@ if (wasmPath) {
   console.warn('  WARNING: sql-wasm.wasm not found');
 }
 
-// Copy server YAML template (always overwrite example)
-fs.existsSync(path.join(ROOT, 'server.config.example.yaml')) &&
-  fs.copyFileSync(path.join(ROOT, 'server.config.example.yaml'), path.join(DIST, 'server.config.example.yaml'));
-
 // Copy active server config only if dist doesn't already have one
 if (!fs.existsSync(path.join(DIST, 'server.config.yaml')) && fs.existsSync(path.join(ROOT, 'server.config.yaml'))) {
   fs.copyFileSync(path.join(ROOT, 'server.config.yaml'), path.join(DIST, 'server.config.yaml'));
@@ -83,16 +80,17 @@ if (!fs.existsSync(path.join(DIST, 'server.config.yaml')) && fs.existsSync(path.
 console.log('[web] Building React admin console...');
 import { execFileSync } from 'node:child_process';
 const webBuildSrc = path.join(ROOT, 'apps', 'web', 'dist');
+let webBuilt = false;
 try {
   execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--filter', '@rag/web', 'build'], { cwd: ROOT, stdio: 'inherit', shell: true });
+  webBuilt = true;
 } catch {
   console.warn('  Admin console build failed; falling back to legacy web dir');
   const webSrcFallback = path.join(ROOT, 'apps', 'server', 'src', 'web');
   if (fs.existsSync(webSrcFallback)) fs.cpSync(webSrcFallback, path.join(DIST, 'web'), { recursive: true });
-  return;
 }
 const webDst = path.join(DIST, 'web');
-if (fs.existsSync(webBuildSrc)) {
+if (webBuilt && fs.existsSync(webBuildSrc)) {
   fs.rmSync(webDst, { recursive: true, force: true });
   fs.cpSync(webBuildSrc, webDst, { recursive: true });
   console.log('  Copied React web console');
@@ -115,9 +113,6 @@ await esbuild.build({
   external: ['systeminformation'],
 });
 
-fs.existsSync(path.join(ROOT, 'client.config.example.yaml')) &&
-  fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, 'client.config.example.yaml'));
-
 if (!fs.existsSync(path.join(DIST, 'client.config.yaml')) && fs.existsSync(path.join(ROOT, 'client.config.yaml'))) {
   fs.copyFileSync(path.join(ROOT, 'client.config.yaml'), path.join(DIST, 'client.config.yaml'));
 }
@@ -131,8 +126,7 @@ fs.writeFileSync(path.join(DIST, 'start-server.bat'), [
   '@echo off',
   'title Remote Agent Gateway - Server',
   'echo Starting server...',
-  'if not exist server.config.yaml copy server.config.example.yaml server.config.yaml',
-  'echo Edit server.config.yaml to configure host, tokens and FRP settings',
+  'if not exist server.config.yaml echo Missing server.config.yaml. Create it before starting. && pause && exit /b 1',
   'node server.bundle.cjs',
   'pause',
 ].join('\r\n'));
@@ -141,8 +135,7 @@ fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
   '@echo off',
   'title Remote Agent Gateway - Client',
   'echo Starting client agent...',
-  'if not exist client.config.yaml copy client.config.example.yaml client.config.yaml',
-  'echo Edit client.config.yaml to configure server URLs and token',
+  'if not exist client.config.yaml echo Missing client.config.yaml. Create it before starting. && pause && exit /b 1',
   'node client.bundle.cjs',
   'pause',
 ].join('\r\n'));
@@ -150,7 +143,7 @@ fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
 const shServer = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Server..."',
-  '[ ! -f server.config.yaml ] && cp server.config.example.yaml server.config.yaml && echo "Created server.config.yaml — edit to configure"',
+  '[ ! -f server.config.yaml ] && echo "Missing server.config.yaml. Create it before starting." && exit 1',
   'node server.bundle.cjs',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-server.sh'), shServer);
@@ -159,7 +152,7 @@ fs.chmodSync(path.join(DIST, 'start-server.sh'), 0o755);
 const shClient = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Client..."',
-  '[ ! -f client.config.yaml ] && cp client.config.example.yaml client.config.yaml && echo "Created client.config.yaml — edit to configure"',
+  '[ ! -f client.config.yaml ] && echo "Missing client.config.yaml. Create it before starting." && exit 1',
   'node client.bundle.cjs',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-client.sh'), shClient);

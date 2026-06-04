@@ -5,23 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "tsx scripts/dev.ts",
-    "dev:server": "pnpm --filter @rag/server dev",
-    "dev:client": "pnpm --filter @rag/client dev",
-    "build": "pnpm -r build",
+    "compile": "pnpm -r build",
+    "build": "tsx scripts/build-all.ts",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "dev:cli": "pnpm --filter @rag/cli dev",
-    "build:cli": "pnpm --filter @rag/cli build",
-    "build:skill": "tsx scripts/build-skill-cli.ts",
-    "install:pi-skill": "tsx scripts/install-pi-skill.ts",
-    "build:dist": "tsx scripts/build-all.ts",
-    "build:dist:server": "tsx scripts/build-server.ts",
-    "build:dist:client": "tsx scripts/build-client.ts",
-    "download:frp": "tsx scripts/download-frp.ts",
-    "package": "tsx scripts/package.ts",
-    "package:win": "tsx scripts/package.ts --win",
-    "package:linux": "tsx scripts/package.ts --linux",
-    "package:all": "tsx scripts/package.ts --all"
+    "package": "tsx scripts/package.ts"
   },
   "engines": {
     "node": ">=22"

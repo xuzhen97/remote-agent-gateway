@@ -6,6 +6,6 @@ echo ╚════════════════════════
 echo.
 echo Starting test suite...
 echo.
-call pnpm build:dist
+call pnpm build
 echo.
 call tsx scripts/e2e-test.ts %*

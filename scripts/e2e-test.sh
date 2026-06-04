@@ -7,6 +7,6 @@ echo "╚═══════════════════════�
 echo ""
 echo "Starting test suite..."
 echo ""
-pnpm build:dist
+pnpm build
 echo ""
 tsx scripts/e2e-test.ts "$@"

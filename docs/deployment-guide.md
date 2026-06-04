@@ -87,13 +87,11 @@
 pnpm install
 
 # 构建 dist/ 目录（包含 server + client 打包文件 + 启动脚本 + FRP 下载脚本）
-pnpm build:dist
+pnpm build
 
 # 打包为发布包（自动包含 FRP 下载脚本）
 pnpm package          # 当前平台
-pnpm package:linux    # Linux 专用
-pnpm package:win      # Windows 专用
-pnpm package:all      # 全平台
+# 如需指定平台：pnpm exec tsx scripts/package.ts --win|--linux|--all
 ```
 
 构建后的 `dist/` 目录内容：
@@ -103,11 +101,9 @@ dist/
 ├── server.bundle.cjs        # Server 单文件可执行
 ├── client.bundle.cjs        # Client 单文件可执行
 ├── sql-wasm.wasm            # SQLite 运行时
-├── server.config.example.yaml
-├── client.config.example.yaml
 ├── ecosystem.config.cjs     # PM2 进程管理配置 ⭐
-├── start-server.sh / .bat   # Server 启动脚本
-├── start-client.sh / .bat   # Client 启动脚本
+├── start-server.sh / .bat   # Server 启动脚本（要求已提供 server.config.yaml）
+├── start-client.sh / .bat   # Client 启动脚本（要求已提供 client.config.yaml）
 ├── download-frp.sh / .bat   # FRP 自动下载脚本 ⭐
 └── web/                     # 管理控制台
 ```
@@ -210,11 +206,11 @@ set FRP_MIRROR=https://ghfast.top/ && download-frp.bat
 npm install -g pm2
 
 # 2. 配置（首次）
-cp server.config.example.yaml server.config.yaml
+# 在当前目录提供 server.config.yaml
 vim server.config.yaml
 
 # 如果也运行 client：
-cp client.config.example.yaml client.config.yaml
+# 在当前目录提供 client.config.yaml
 vim client.config.yaml
 
 # 3. 下载 FRP
@@ -233,11 +229,7 @@ pm2 logs --lines 20
 **Server：**
 
 ```bash
-# 首次启动自动从 example 创建配置文件
-./start-server.sh
-
-# 或者手动创建配置
-cp server.config.example.yaml server.config.yaml
+# 启动前先提供配置文件
 vim server.config.yaml  # 修改 host, tokens, FRP 连接信息
 ./start-server.sh
 ```
@@ -248,11 +240,7 @@ vim server.config.yaml  # 修改 host, tokens, FRP 连接信息
 # 同样，先下载 FRP
 ./download-frp.sh
 
-# 首次启动自动创建配置
-./start-client.sh
-
-# 或手动配置
-cp client.config.example.yaml client.config.yaml
+# 启动前先提供配置文件
 vim client.config.yaml  # 修改 server URL, token, workspace
 ./start-client.sh
 ```
@@ -280,7 +268,7 @@ curl -H "Authorization: Bearer <adminToken>" \
 
 ```bash
 # 项目内置脚本（自动检测平台）
-pnpm download:frp
+pnpm exec tsx scripts/download-frp.ts
 ```
 
 手动下载（用于打包部署或无 pnpm 环境）：
@@ -306,7 +294,7 @@ cp frp_0.69.1_linux_amd64/frps /path/to/remote-agent-gateway/bin/frps
 
 也可用项目内置脚本：
 ```bash
-pnpm download:frp
+pnpm exec tsx scripts/download-frp.ts
 ```
 
 ### 配置 frps
@@ -365,11 +353,7 @@ pnpm install
 
 ### 2. 配置 Server
 
-```bash
-cp server.config.example.yaml server.config.yaml
-```
-
-编辑 `server.config.yaml`：
+编辑并提供 `server.config.yaml`：
 
 ```yaml
 server:
@@ -414,7 +398,7 @@ frp:
 
 ```bash
 # 开发模式
-pnpm dev:server
+pnpm --filter @rag/server dev
 
 # 生产模式
 pnpm --filter @rag/server build
@@ -452,11 +436,7 @@ pnpm install
 
 ### 2. 配置 Client
 
-```bash
-cp client.config.example.yaml client.config.yaml
-```
-
-编辑 `client.config.yaml`：
+编辑并提供 `client.config.yaml`：
 
 ```yaml
 client:
@@ -497,7 +477,7 @@ frp:
 
 ```bash
 # 项目内置脚本
-pnpm download:frp
+pnpm exec tsx scripts/download-frp.ts
 
 # 或者手动下载
 # Linux: wget https://github.com/fatedier/frp/releases/download/v0.69.1/frp_0.69.1_linux_amd64.tar.gz
@@ -508,7 +488,7 @@ pnpm download:frp
 
 ```bash
 # 开发模式
-pnpm dev:client
+pnpm --filter @rag/client dev
 
 # 生产模式
 pnpm --filter @rag/client build
@@ -855,8 +835,8 @@ sudo systemctl status frps
 **打包部署：**
 
 ```bash
-# 1. 在开发机重新构建
-pnpm build:dist
+# 1. 在开发机重新构建分发产物
+pnpm build
 pnpm package
 
 # 2. 上传并解压到服务器
@@ -879,8 +859,8 @@ git pull
 # 重新安装依赖（如有新增）
 pnpm install
 
-# 重新构建
-pnpm build
+# 重新编译工作区包
+pnpm compile
 
 # 重启服务
 pm2 restart all

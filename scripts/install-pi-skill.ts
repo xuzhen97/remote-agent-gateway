@@ -17,8 +17,8 @@ export interface InstallPiSkillResult {
 
 async function defaultBuildSkillCli(): Promise<void> {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-  execFileSync(pnpmCmd, ['build:skill'], { cwd: repoRoot, stdio: 'inherit', shell: true });
+  const tsxCmd = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
+  execFileSync(tsxCmd, ['scripts/build-skill-cli.ts'], { cwd: repoRoot, stdio: 'inherit', shell: true });
 }
 
 export async function installPiSkill(options: InstallPiSkillOptions = {}): Promise<InstallPiSkillResult> {

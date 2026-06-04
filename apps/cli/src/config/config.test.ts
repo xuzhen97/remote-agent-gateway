@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -59,36 +59,24 @@ describe('resolveConfig', () => {
     expect(config.token).toBe('agent-api-token');
   });
 
-  it('uses .ragrc before .env', () => {
+  it('does not read .ragrc or .env files', () => {
     const dir = tempDir();
     writeFileSync(join(dir, '.ragrc'), 'RAG_SERVER_URL=http://ragrc:3000\nRAG_AGENT_TOKEN=ragrc-token\n');
     writeFileSync(join(dir, '.env'), 'RAG_SERVER_URL=http://envfile:3000\nRAG_AGENT_TOKEN=envfile-token\n');
 
     const config = resolveConfig({ cwd: dir, argv: ['doctor'], env: {} });
 
-    expect(config.serverUrl).toBe('http://ragrc:3000');
-    expect(config.token).toBe('ragrc-token');
+    expect(config.serverUrl).toBe('');
+    expect(config.token).toBe('');
   });
 
-  it('uses server.config.yaml when no higher priority config exists', () => {
+  it('does not read server.config.yaml for CLI defaults', () => {
     const dir = tempDir();
     writeFileSync(join(dir, 'server.config.yaml'), 'server:\n  host: 0.0.0.0\n  port: 3333\nauth:\n  agentApiToken: yaml-agent-token\n');
 
     const config = resolveConfig({ cwd: dir, argv: ['doctor'], env: {} });
 
-    expect(config.serverUrl).toBe('http://localhost:3333');
-    expect(config.token).toBe('yaml-agent-token');
-  });
-
-  it('finds config files in ancestor directories', () => {
-    const dir = tempDir();
-    const child = join(dir, 'nested', 'project');
-    mkdirSync(child, { recursive: true });
-    writeFileSync(join(dir, '.ragrc'), 'RAG_SERVER_URL=http://parent:3000\nRAG_AGENT_TOKEN=parent-token\n');
-
-    const config = resolveConfig({ cwd: child, argv: ['doctor'], env: {} });
-
-    expect(config.serverUrl).toBe('http://parent:3000');
-    expect(config.token).toBe('parent-token');
+    expect(config.serverUrl).toBe('');
+    expect(config.token).toBe('');
   });
 });
