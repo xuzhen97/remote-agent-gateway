@@ -97,5 +97,11 @@ export function buildTaskAuditActionSummary(input: {
         requestSummary: { mappingId: payload.mappingId ?? result.id ?? null },
         resultSummary: { deleted: result.deleted ?? null },
       };
+    default:
+      return {
+        targetId: 'unknown',
+        requestSummary: {},
+        resultSummary: {},
+      };
   }
 }

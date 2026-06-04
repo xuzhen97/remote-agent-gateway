@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ClientJobCommandPayload, ClientJobLogEntry, ClientJobScriptPayload, ClientJobStatus, ClientJobType } from '@rag/shared';
+import { decodeConsoleBuffer } from './decode-console-output.js';
 
 export interface JobManagerOptions {
   maxConcurrent: number;
@@ -140,8 +141,8 @@ export class JobManager {
 
     ji.process = child;
 
-    child.stdout?.on('data', (d: Buffer) => this.appendLog(ji, 'stdout', d.toString()));
-    child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', d.toString()));
+    child.stdout?.on('data', (d: Buffer) => this.appendLog(ji, 'stdout', decodeConsoleBuffer(d)));
+    child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', decodeConsoleBuffer(d)));
 
     child.on('close', (code) => {
       ji.record.exitCode = code;
@@ -188,8 +189,8 @@ export class JobManager {
 
     ji.process = child;
 
-    child.stdout?.on('data', (d: Buffer) => this.appendLog(ji, 'stdout', d.toString()));
-    child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', d.toString()));
+    child.stdout?.on('data', (d: Buffer) => this.appendLog(ji, 'stdout', decodeConsoleBuffer(d)));
+    child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', decodeConsoleBuffer(d)));
 
     child.on('close', (code) => {
       ji.record.exitCode = code;

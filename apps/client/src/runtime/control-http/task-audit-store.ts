@@ -10,6 +10,7 @@ interface SyncPatch {
 
 export interface TaskAuditStore {
   append(record: ClientTaskAuditLocalRecord): Promise<void>;
+  replace(record: ClientTaskAuditLocalRecord): Promise<void>;
   updateSync(recordId: string, patch: SyncPatch): Promise<void>;
   list(): Promise<ClientTaskAuditLocalRecord[]>;
 }
@@ -37,6 +38,16 @@ export function createTaskAuditStore(filePath: string): TaskAuditStore {
     async append(record) {
       ensureDir();
       fs.appendFileSync(filePath, `${JSON.stringify(record)}\n`, 'utf8');
+    },
+    async replace(record) {
+      const records = await list();
+      const index = records.findIndex((item) => item.recordId === record.recordId);
+      if (index === -1) {
+        records.push(record);
+      } else {
+        records[index] = record;
+      }
+      await writeAll(records);
     },
     async updateSync(recordId, patch) {
       const records = await list();

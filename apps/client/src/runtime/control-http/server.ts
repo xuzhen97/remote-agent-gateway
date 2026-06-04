@@ -60,7 +60,7 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
     clientName: options.clientId,
     store,
   });
-  const audit = createTaskAuditExecutor({ clientId: options.clientId, store, reporter });
+  const audit = createTaskAuditExecutor({ clientId: options.clientId, store, reporter, jobManager });
 
   registerJobRoutes(router, jobManager, options.token, audit, { clientId: options.clientId });
   registerFileRoutes(router, { token: options.token, workspaceDir: options.workspaceDir, allowedRoots: options.allowedRoots, clientId: options.clientId }, audit);

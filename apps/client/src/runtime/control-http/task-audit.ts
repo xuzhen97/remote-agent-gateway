@@ -4,26 +4,31 @@ import type { ClientTaskAuditLocalRecord, TaskActionType, TaskStatus } from '@ra
 import { resolveTaskAuditRequestContext } from './request-context.js';
 import { summarizeTaskAudit } from './task-audit-redaction.js';
 import type { TaskAuditStore } from './task-audit-store.js';
+import type { JobAuditLifecycleManager } from './job-audit-lifecycle.js';
+import { attachJobAuditLifecycle } from './job-audit-lifecycle.js';
+
+export interface TaskAuditExecuteInput<T = unknown> {
+  req: IncomingMessage;
+  actionType: TaskActionType;
+  resourceType: 'job' | 'file' | 'frp_mapping';
+  method: string;
+  path: string;
+  payload?: Record<string, unknown>;
+  run: () => Promise<{ httpStatus: number; resultSummary?: Record<string, unknown>; targetId?: string; status?: TaskStatus; body?: T }>;
+}
 
 export interface TaskAuditExecutor {
-  execute<T>(input: {
-    req: IncomingMessage;
-    actionType: TaskActionType;
-    resourceType: 'job' | 'file' | 'frp_mapping';
-    method: string;
-    path: string;
-    payload?: Record<string, unknown>;
-    run: () => Promise<{ httpStatus: number; resultSummary?: Record<string, unknown>; targetId?: string; status?: TaskStatus; body?: T }>;
-  }): Promise<T>;
+  execute<T>(input: TaskAuditExecuteInput<T>): Promise<T>;
 }
 
 export function createTaskAuditExecutor(options: {
   clientId: string;
   store: TaskAuditStore;
   reporter: { report(record: ClientTaskAuditLocalRecord): Promise<void> };
+  jobManager?: JobAuditLifecycleManager;
 }): TaskAuditExecutor {
   return {
-    async execute<T>(input) {
+    async execute<T>(input: TaskAuditExecuteInput<T>) {
       const context = resolveTaskAuditRequestContext(input.req);
       const startedAt = Date.now();
       let record: ClientTaskAuditLocalRecord | null = null;
@@ -50,6 +55,16 @@ export function createTaskAuditExecutor(options: {
         };
         await options.store.append(record);
         void options.reporter.report(record);
+        const jobId = typeof result.resultSummary?.jobId === 'string' ? result.resultSummary.jobId : undefined;
+        if (options.jobManager && jobId && (input.actionType === 'job.command' || input.actionType === 'job.script')) {
+          attachJobAuditLifecycle({
+            recordId: record.recordId,
+            jobId,
+            manager: options.jobManager,
+            store: options.store,
+            reporter: options.reporter,
+          });
+        }
         return result.body as T;
       } catch (error) {
         const finishedAt = Date.now();

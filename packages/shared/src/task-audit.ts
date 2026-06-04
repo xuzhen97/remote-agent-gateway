@@ -69,6 +69,12 @@ export const TaskHistoryQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export type TaskActionType = z.infer<typeof TaskActionTypeSchema>;
+export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+export type TaskResourceType = z.infer<typeof TaskResourceTypeSchema>;
+export type TaskSourceType = z.infer<typeof TaskSourceTypeSchema>;
+export type TaskActorType = z.infer<typeof TaskActorTypeSchema>;
+export type TaskSyncStatus = z.infer<typeof TaskSyncStatusSchema>;
 export type ClientTaskAuditMirrorRecord = z.infer<typeof ClientTaskAuditMirrorRecordSchema>;
 export type ClientTaskAuditLocalRecord = z.infer<typeof ClientTaskAuditLocalRecordSchema>;
 export type TaskHistoryQuery = z.infer<typeof TaskHistoryQuerySchema>;

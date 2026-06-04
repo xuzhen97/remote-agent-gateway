@@ -59,4 +59,45 @@ describe('task audit store', () => {
     expect(list[0].recordId).toBe('rec_a');
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it('replaces an existing record by recordId', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'rag-task-audit-'));
+    const store = createTaskAuditStore(join(dir, 'task-audit.jsonl'));
+
+    await store.append({
+      recordId: 'rec_replace', clientId: 'c1', requestId: 'r1',
+      resourceType: 'job', actionType: 'job.command', method: 'POST', path: '/jobs/command',
+      targetId: 'job_01', sourceType: 'direct-client-http', actorType: 'client-token',
+      actorLabel: 'direct-client-http/client-token',
+      requestSummary: { command: 'ipconfig' }, resultSummary: { jobId: 'job_01', status: 'running' }, status: 'success',
+      httpStatus: 200, startedAt: 1, finishedAt: 2, durationMs: 1,
+      syncStatus: 'pending', reportedAt: 2,
+    });
+
+    await store.replace({
+      recordId: 'rec_replace', clientId: 'c1', requestId: 'r1',
+      resourceType: 'job', actionType: 'job.command', method: 'POST', path: '/jobs/command',
+      targetId: 'job_01', sourceType: 'direct-client-http', actorType: 'client-token',
+      actorLabel: 'direct-client-http/client-token',
+      requestSummary: { command: 'ipconfig' },
+      resultSummary: {
+        jobId: 'job_01',
+        lifecycle: { status: 'success', exitCode: 0, durationMs: 25 },
+      },
+      status: 'success',
+      httpStatus: 200, startedAt: 1, finishedAt: 26, durationMs: 25,
+      syncStatus: 'pending', reportedAt: 26,
+      metadata: { jobRef: { jobId: 'job_01' } },
+    } as any);
+
+    const list = await store.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].finishedAt).toBe(26);
+    expect(list[0].resultSummary).toMatchObject({
+      jobId: 'job_01',
+      lifecycle: { status: 'success', exitCode: 0, durationMs: 25 },
+    });
+    expect(list[0].metadata).toMatchObject({ jobRef: { jobId: 'job_01' } });
+    rmSync(dir, { recursive: true, force: true });
+  });
 });
