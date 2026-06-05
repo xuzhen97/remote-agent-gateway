@@ -13,10 +13,18 @@
  *   pm2 startup                                 # 设置开机自启
  */
 
+const fs = require('fs');
 const path = require('path');
 
-// 自动检测 dist/ 目录：优先使用打包部署路径，回退到源码路径
-const DIST_DIR = path.resolve(__dirname, 'dist');
+// 自动检测部署布局：
+// 1) 打平部署：ecosystem.config.cjs 与 *.bundle.cjs 同级
+// 2) 源码运行：bundle 位于 ./dist/
+const FLAT_BUNDLE_DIR = __dirname;
+const DIST_FALLBACK_DIR = path.resolve(__dirname, 'dist');
+const DIST_DIR = fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'server.bundle.cjs'))
+  && fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'client.bundle.cjs'))
+  ? FLAT_BUNDLE_DIR
+  : DIST_FALLBACK_DIR;
 const SERVER_SCRIPT = path.join(DIST_DIR, 'server.bundle.cjs');
 const CLIENT_SCRIPT = path.join(DIST_DIR, 'client.bundle.cjs');
 
