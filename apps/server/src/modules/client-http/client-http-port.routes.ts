@@ -70,6 +70,16 @@ export async function clientHttpPortRoutes(app: FastifyInstance): Promise<void> 
       proxyType: request.body.proxyType,
     });
 
+    auditService.log({
+      actor: authRole(request),
+      action: cleaned
+        ? 'client_http.business_port.cleanup_dashboard.success'
+        : 'client_http.business_port.cleanup_dashboard.failed',
+      targetType: 'port_mapping',
+      targetId: request.body.name,
+      detail: `proxyType=${request.body.proxyType}`,
+    });
+
     if (!cleaned) {
       return reply.code(409).send({ error: 'Failed to clear deleted proxy from FRPS dashboard' });
     }

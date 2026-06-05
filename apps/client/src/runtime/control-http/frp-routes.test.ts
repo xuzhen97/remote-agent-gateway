@@ -116,7 +116,7 @@ describe('registerFrpRoutes delete flow', () => {
     vi.stubGlobal('fetch', vi.fn());
   });
 
-  it('waits for server-side mapping deletion before responding, then rebuilds frpc after the response finishes', async () => {
+  it('responds after server-side deletion, then rebuilds frpc before dashboard cleanup', async () => {
     const workDir = makeWorkDir();
     const events: string[] = [];
     writeStore(workDir, [{
@@ -163,6 +163,7 @@ describe('registerFrpRoutes delete flow', () => {
     const response = createResponseCapture(() => events.push('end'));
     await router.handle(createDeleteRequest('/frp/mappings/pm_01') as any, response.res as any);
     await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
 
     expect(fetch).toHaveBeenNthCalledWith(1, 'http://server.example.com/api/client-http/ports/pm_01', {
       method: 'DELETE',
@@ -180,7 +181,7 @@ describe('registerFrpRoutes delete flow', () => {
     expect(response.json).toEqual({ ok: true, data: { id: 'pm_01', deleted: true } });
     expect(JSON.parse(fs.readFileSync(path.join(workDir, 'frp-mappings.json'), 'utf-8'))).toEqual([]);
     expect(rebuildFrpcDaemonMock).toHaveBeenCalledTimes(1);
-    expect(events).toEqual(['delete-server', 'cleanup', 'end', 'rebuild']);
+    expect(events).toEqual(['delete-server', 'end', 'rebuild', 'cleanup']);
   });
 
   it('keeps the local mapping when server-side deletion fails', async () => {
@@ -220,5 +221,69 @@ describe('registerFrpRoutes delete flow', () => {
     expect(response.json).toEqual({ ok: false, error: { code: 'FRP_CONFIG_ERROR', message: 'delete failed' } });
     expect(JSON.parse(fs.readFileSync(path.join(workDir, 'frp-mappings.json'), 'utf-8'))).toHaveLength(1);
     expect(rebuildFrpcDaemonMock).not.toHaveBeenCalled();
+  });
+
+  it('still responds success and rebuilds frpc when dashboard cleanup fails', async () => {
+    const workDir = makeWorkDir();
+    const events: string[] = [];
+    writeStore(workDir, [{
+      id: 'pm_03',
+      kind: 'business',
+      name: 'cleanup-fail-mapping',
+      type: 'tcp',
+      localHost: '127.0.0.1',
+      localPort: 3010,
+      remotePort: 23003,
+    }]);
+
+    vi.mocked(fetch).mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/api/client-http/ports/pm_03')) {
+        events.push('delete-server');
+        return new Response(JSON.stringify({ success: true }), { status: 200 });
+      }
+      if (url.endsWith('/api/client-http/ports/cleanup-dashboard')) {
+        events.push('cleanup');
+        return new Response(JSON.stringify({ error: 'Failed to clear deleted proxy from FRPS dashboard' }), { status: 409 });
+      }
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    });
+    rebuildFrpcDaemonMock.mockImplementation(() => {
+      events.push('rebuild');
+      return { proxyCount: 0 };
+    });
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const router = new ControlHttpRouter();
+    registerFrpRoutes(router, {
+      token: 'test-token',
+      clientId: 'client-1',
+      workspaceDir: workDir,
+      frpcPath: '/tmp/frpc',
+      frpcWorkDir: workDir,
+      apiBaseUrl: 'http://server.example.com',
+      serverToken: 'server-token',
+    }, {
+      execute: async ({ run }: any) => {
+        const result = await run();
+        return result.body;
+      },
+    } as any);
+
+    const response = createResponseCapture(() => events.push('end'));
+    await router.handle(createDeleteRequest('/frp/mappings/pm_03') as any, response.res as any);
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json).toEqual({ ok: true, data: { id: 'pm_03', deleted: true } });
+    expect(JSON.parse(fs.readFileSync(path.join(workDir, 'frp-mappings.json'), 'utf-8'))).toEqual([]);
+    expect(rebuildFrpcDaemonMock).toHaveBeenCalledTimes(1);
+    expect(events).toEqual(['delete-server', 'end', 'rebuild', 'cleanup']);
+    expect(errorSpy).toHaveBeenCalledWith(
+      '[frp-routes] cleanup failed after delete response:',
+      'Failed to clear deleted proxy from FRPS dashboard',
+    );
   });
 });

@@ -99,7 +99,6 @@ export function registerFrpRoutes(
         run: async () => {
           await deleteServerMapping(options, mappingId);
           removeMapping(workDir, mappingId);
-          await cleanupDashboardMapping(options, { name: mapping.name, type: mapping.type });
           return { httpStatus: 200, resultSummary: { deleted: true }, targetId: mappingId, status: 'success', body: { id: mappingId, deleted: true } };
         },
       });
@@ -108,7 +107,12 @@ export function registerFrpRoutes(
           rebuildIfConfigured(options);
         } catch (error) {
           console.error('[frp-routes] rebuild failed after delete response:', error instanceof Error ? error.message : String(error));
+          return;
         }
+
+        void cleanupDashboardMapping(options, { name: mapping.name, type: mapping.type }).catch((error) => {
+          console.error('[frp-routes] cleanup failed after delete response:', error instanceof Error ? error.message : String(error));
+        });
       });
       sendOk(res, body);
     } catch (err) {
