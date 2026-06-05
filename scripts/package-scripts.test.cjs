@@ -4,7 +4,7 @@ const assert = require('node:assert');
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
 const scripts = pkg.scripts || {};
-const expectedKeys = ['build', 'compile', 'dev', 'package', 'test', 'typecheck'];
+const expectedKeys = ['build', 'clean', 'compile', 'dev', 'package', 'test', 'typecheck'];
 
 assert.deepStrictEqual(Object.keys(scripts).sort(), expectedKeys, 'root scripts should stay minimal');
 assert.strictEqual(scripts.compile, 'pnpm -r build', 'compile should compile all workspace packages');

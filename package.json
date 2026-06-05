@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx scripts/dev.ts",
+    "clean": "tsx scripts/clean.ts",
     "compile": "pnpm -r build",
     "build": "tsx scripts/build-all.ts",
     "test": "pnpm -r test",
