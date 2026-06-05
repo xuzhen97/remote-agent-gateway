@@ -90,7 +90,7 @@ pnpm install
 pnpm build
 
 # 打包为发布包（自动包含 FRP 下载脚本）
-pnpm package          # 当前平台
+pnpm package          # 默认同时打包 Windows + Linux
 # 如需指定平台：pnpm exec tsx scripts/package.ts --win|--linux|--all
 ```
 

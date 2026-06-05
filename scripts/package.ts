@@ -3,7 +3,7 @@
  * Package the dist/ folder into a distributable archive.
  *
  * Usage:
- *   tsx scripts/package.ts              # package for current platform
+ *   tsx scripts/package.ts              # package all supported platforms
  *   tsx scripts/package.ts --win        # Windows .zip
  *   tsx scripts/package.ts --linux      # Linux .tar.gz
  *   tsx scripts/package.ts --all        # both
@@ -24,17 +24,15 @@ const targetWin = args.includes('--win') || args.includes('--all');
 const targetLinux = args.includes('--linux') || args.includes('--all');
 const targetAll = args.includes('--all');
 
-// Default: current platform
-if (!targetWin && !targetLinux) {
-  if (process.platform === 'win32') targetWin ? null : null;
-  // Default to both when no flag given
-}
-
-// Determine targets
-const isWin = process.platform === 'win32';
+// Default: build all platforms when no flag is given
 const targets: ('win' | 'linux')[] = [];
-if (targetWin || (targetAll && isWin) || (!targetWin && !targetLinux && isWin)) targets.push('win');
-if (targetLinux || targetAll || (!targetWin && !targetLinux && !isWin)) targets.push('linux');
+if (!targetWin && !targetLinux) {
+  targets.push('win');
+  targets.push('linux');
+} else {
+  if (targetWin || targetAll) targets.push('win');
+  if (targetLinux || targetAll) targets.push('linux');
+}
 
 // ── Build ───────────────────────────────────────────────────────────
 if (!fs.existsSync(path.join(DIST, 'server.bundle.cjs'))) {
@@ -112,9 +110,10 @@ fs.writeFileSync(path.join(DIST, 'DEPLOY.txt'), [
 for (const target of targets) {
   const ext = target === 'win' ? 'zip' : 'tar.gz';
   const archiveName = `rag-v${version}-${target}`;
-  const archivePath = path.join(RELEASE_DIR, `${archiveName}.${ext}`);
+  const archiveFileName = `${archiveName}.${ext}`;
+  const archivePath = path.join(RELEASE_DIR, archiveFileName);
 
-  console.log(`\nPackaging ${archiveName}.${ext}...`);
+  console.log(`\nPackaging ${archiveFileName}...`);
 
   if (target === 'win') {
     // Windows: use PowerShell Compress-Archive (built-in)
@@ -125,7 +124,7 @@ for (const target of targets) {
     if (result.status !== 0) {
       console.error('  Failed to create zip. Trying alternative...');
       // Fallback: use tar on Windows if available
-      const tarResult = spawnSync('tar', ['-czf', archivePath.replace('.zip', '.tar.gz'), '-C', DIST, '.'], { stdio: 'inherit' });
+      const tarResult = spawnSync('tar', ['-czf', path.posix.join('release', archiveFileName.replace('.zip', '.tar.gz')), '-C', 'dist', '.'], { cwd: ROOT, stdio: 'inherit' });
       if (tarResult.status !== 0) {
         console.error('  No archiver available. Files are in dist/ — zip them manually.');
       }
@@ -133,7 +132,7 @@ for (const target of targets) {
   } else {
     // Linux/Mac: use tar
     // First create a temp .tar, then gzip
-    const tarResult = spawnSync('tar', ['-czf', archivePath, '-C', DIST, '.'], { stdio: 'inherit' });
+    const tarResult = spawnSync('tar', ['-czf', path.posix.join('release', archiveFileName), '-C', 'dist', '.'], { cwd: ROOT, stdio: 'inherit' });
     if (tarResult.status !== 0) {
       console.error('  tar not available. Please install tar or gzip.');
     }
