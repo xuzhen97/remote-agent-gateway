@@ -30,12 +30,23 @@ for (const f of fs.readdirSync(DIST)) {
 
 import { execFileSync } from 'node:child_process';
 
+function runPnpm(args: string[]): void {
+  if (process.platform === 'win32') {
+    execFileSync('cmd.exe', ['/d', '/s', '/c', 'pnpm', ...args], {
+      cwd: ROOT,
+      stdio: 'inherit',
+    });
+    return;
+  }
+
+  execFileSync('pnpm', args, {
+    cwd: ROOT,
+    stdio: 'inherit',
+  });
+}
+
 console.log('[0/2] Building shared workspace package...');
-execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--filter', '@rag/shared', 'build'], {
-  cwd: ROOT,
-  stdio: 'inherit',
-  shell: true,
-});
+runPnpm(['--filter', '@rag/shared', 'build']);
 
 // ── Build Server (CJS for Fastify/avvio compat) ─────────────────────
 console.log('[1/2] Building server bundle...');
@@ -89,7 +100,7 @@ console.log('[web] Building React admin console...');
 const webBuildSrc = path.join(ROOT, 'apps', 'web', 'dist');
 let webBuilt = false;
 try {
-  execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--filter', '@rag/web', 'build'], { cwd: ROOT, stdio: 'inherit', shell: true });
+  runPnpm(['--filter', '@rag/web', 'build']);
   webBuilt = true;
 } catch {
   console.warn('  Admin console build failed; falling back to legacy web dir');
