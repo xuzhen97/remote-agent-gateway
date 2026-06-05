@@ -28,6 +28,15 @@ for (const f of fs.readdirSync(DIST)) {
   }
 }
 
+import { execFileSync } from 'node:child_process';
+
+console.log('[0/2] Building shared workspace package...');
+execFileSync(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['--filter', '@rag/shared', 'build'], {
+  cwd: ROOT,
+  stdio: 'inherit',
+  shell: true,
+});
+
 // ── Build Server (CJS for Fastify/avvio compat) ─────────────────────
 console.log('[1/2] Building server bundle...');
 
@@ -77,7 +86,6 @@ fs.copyFileSync(path.join(ROOT, 'server.config.example.yaml'), path.join(DIST, '
 
 // Copy React web console
 console.log('[web] Building React admin console...');
-import { execFileSync } from 'node:child_process';
 const webBuildSrc = path.join(ROOT, 'apps', 'web', 'dist');
 let webBuilt = false;
 try {
