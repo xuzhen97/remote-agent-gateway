@@ -59,9 +59,21 @@ export function registerFrpRoutes(
           const allocated = await allocateMapping(options, payload);
           const mapping = buildBusinessMapping(payload, allocated);
           addMapping(workDir, mapping);
-          rebuildIfConfigured(options);
-          return { httpStatus: 200, resultSummary: { id: mapping.id, remotePort: mapping.remotePort, publicUrl: mapping.publicUrl }, targetId: mapping.id, status: 'success', body: mapping };
+          return {
+            httpStatus: 200,
+            resultSummary: { id: mapping.id, remotePort: mapping.remotePort, publicUrl: mapping.publicUrl },
+            targetId: mapping.id,
+            status: 'success',
+            body: mapping,
+          };
         },
+      });
+      res.on('finish', () => {
+        try {
+          rebuildIfConfigured(options);
+        } catch (error) {
+          console.error('[frp-routes] rebuild failed after create response:', error instanceof Error ? error.message : String(error));
+        }
       });
       sendOk(res, body);
     } catch (err) {
@@ -87,10 +99,16 @@ export function registerFrpRoutes(
         run: async () => {
           await deleteServerMapping(options, mappingId);
           removeMapping(workDir, mappingId);
-          rebuildIfConfigured(options);
           await cleanupDashboardMapping(options, { name: mapping.name, type: mapping.type });
           return { httpStatus: 200, resultSummary: { deleted: true }, targetId: mappingId, status: 'success', body: { id: mappingId, deleted: true } };
         },
+      });
+      res.on('finish', () => {
+        try {
+          rebuildIfConfigured(options);
+        } catch (error) {
+          console.error('[frp-routes] rebuild failed after delete response:', error instanceof Error ? error.message : String(error));
+        }
       });
       sendOk(res, body);
     } catch (err) {

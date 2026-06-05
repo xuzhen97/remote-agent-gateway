@@ -5,10 +5,10 @@ description: Control remote machines through Remote Agent Gateway using the bund
 
 # Remote Agent Gateway Agent Skill
 
-Use the bundled CLI first. The canonical entrypoint is:
+Use the bundled launcher first. The canonical entrypoint is:
 
 ```bash
-node ./dist/rag.cjs --help
+node ./run.cjs --help
 ```
 
 Do not assume the original `remote-agent-gateway` repository exists. Do not assume `rag` is on PATH. The distributed skill bundle must work with only Node.js.
@@ -18,10 +18,12 @@ Do not assume the original `remote-agent-gateway` repository exists. Do not assu
 Before any operation:
 
 ```bash
-node ./dist/rag.cjs --help
+node ./run.cjs --help
 ```
 
-If `./dist/rag.cjs` is missing, the skill installation is incomplete. Ask the user to rebuild or reinstall the skill.
+`run.cjs` resolves `dist/rag.cjs` relative to the skill directory, so it does not depend on the caller's current working directory.
+
+If `./run.cjs` or `./dist/rag.cjs` is missing, the skill installation is incomplete. Ask the user to rebuild or reinstall the skill.
 
 If the user also has a separate `rag` command on PATH, that is optional convenience only. The bundled CLI remains the canonical execution path.
 
@@ -37,7 +39,7 @@ RAG_AGENT_TOKEN=your-agent-token
 Run:
 
 ```bash
-node ./dist/rag.cjs config show
+node ./run.cjs config show
 ```
 
 to confirm the resolved configuration. Tokens are masked in output.
@@ -47,8 +49,8 @@ to confirm the resolved configuration. Tokens are masked in output.
 Always start with diagnostics and discovery:
 
 ```bash
-node ./dist/rag.cjs doctor
-node ./dist/rag.cjs clients list
+node ./run.cjs doctor
+node ./run.cjs clients list
 ```
 
 ## Operating Rules
@@ -63,24 +65,24 @@ node ./dist/rag.cjs clients list
   - manually follow `jobs run` with `jobs get` + `jobs logs`.
 - Never reply only with “job created” or “job succeeded” when the user actually wants to see command output.
 - Ask for user confirmation before destructive operations:
-  - `node ./dist/rag.cjs files delete ...`
-  - `node ./dist/rag.cjs files write ...` when overwriting important files
-  - `node ./dist/rag.cjs frp delete ...`
-  - `node ./dist/rag.cjs jobs cancel ...`
-- FRP delete semantics: once `node ./dist/rag.cjs frp delete ...` returns success, the system has already waited for the deleted mapping to be cleared from the FRPS dashboard/API, not merely removed from local config.
+  - `node ./run.cjs files delete ...`
+  - `node ./run.cjs files write ...` when overwriting important files
+  - `node ./run.cjs frp delete ...`
+  - `node ./run.cjs jobs cancel ...`
+- FRP delete semantics: once `node ./run.cjs frp delete ...` returns success, the system has already waited for the deleted mapping to be cleared from the FRPS dashboard/API, not merely removed from local config.
 
 ## Common Commands
 
 ```bash
-node ./dist/rag.cjs clients list
-node ./dist/rag.cjs clients get --client <clientId>
-node ./dist/rag.cjs jobs run --client <clientId> -- node -v
-node ./dist/rag.cjs jobs run --client <clientId> --wait --logs -- node -v
-node ./dist/rag.cjs jobs run --client <clientId> --events -- node -v
-node ./dist/rag.cjs files roots --client <clientId>
-node ./dist/rag.cjs files read --client <clientId> --root root-0 --path README.md
-node ./dist/rag.cjs frp list --client <clientId>
-node ./dist/rag.cjs tasks list --client <clientId>
+node ./run.cjs clients list
+node ./run.cjs clients get --client <clientId>
+node ./run.cjs jobs run --client <clientId> -- node -v
+node ./run.cjs jobs run --client <clientId> --wait --logs -- node -v
+node ./run.cjs jobs run --client <clientId> --events -- node -v
+node ./run.cjs files roots --client <clientId>
+node ./run.cjs files read --client <clientId> --root root-0 --path README.md
+node ./run.cjs frp list --client <clientId>
+node ./run.cjs tasks list --client <clientId>
 ```
 
 Full command reference: `references/cli.md`

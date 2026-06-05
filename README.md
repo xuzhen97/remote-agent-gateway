@@ -474,19 +474,20 @@ pnpm exec tsx scripts/build-skill-cli.ts
 skills/rag-agent/
 ├── SKILL.md
 ├── references/
+├── run.cjs
 └── dist/
     └── rag.cjs
 ```
 
-`skills/rag-agent/` 就是**完整分发单元**。构建后目录中包含自带的 CLI 构建物 `dist/rag.cjs`，可以复制到其它仓库或 Pi skill 目录，不依赖原始 monorepo 布局。
+`skills/rag-agent/` 就是**完整分发单元**。构建后目录中包含自带的 launcher `run.cjs` 与 CLI 构建物 `dist/rag.cjs`，可以复制到其它仓库或 Pi skill 目录，不依赖原始 monorepo 布局。`run.cjs` 会相对自身位置解析 `dist/rag.cjs`，因此不依赖调用者当前工作目录。
 
 ### 标准分发入口
 
 ```bash
-node ./dist/rag.cjs doctor
-node ./dist/rag.cjs clients list
-node ./dist/rag.cjs jobs run --client <clientId> -- node -v
-node ./dist/rag.cjs files read --client <clientId> --root root-0 --path README.md
+node ./run.cjs doctor
+node ./run.cjs clients list
+node ./run.cjs jobs run --client <clientId> -- node -v
+node ./run.cjs files read --client <clientId> --root root-0 --path README.md
 ```
 
 ### 配置
@@ -510,7 +511,7 @@ CLI **不会**读取 `.env`、`.ragrc` 或 `server.config.yaml`。
 查看当前配置（token 脱敏）：
 
 ```bash
-node ./dist/rag.cjs config show
+node ./run.cjs config show
 ```
 
 ### 输出格式
@@ -532,7 +533,7 @@ node ./dist/rag.cjs config show
 ### 命令分组
 
 ```text
-node ./dist/rag.cjs
+node ./run.cjs
 ├── config show              查看当前 CLI 解析结果（脱敏）
 ├── doctor [--client <id>]   诊断连通性
 ├── clients list|get         客户端发现
@@ -554,7 +555,7 @@ pnpm exec tsx scripts/install-pi-skill.ts
 
 该命令会：
 1. 构建 `skills/rag-agent/dist/rag.cjs`
-2. 校验 bundled CLI 存在
+2. 校验 `skills/rag-agent/run.cjs` 与 bundled CLI 都存在
 3. 复制整个 `skills/rag-agent/` 到 `~/.pi/agent/skills/rag-agent/`
 
 安装后重启 Pi Agent 或重新加载 skills，之后可使用 `/skill:rag-agent`。

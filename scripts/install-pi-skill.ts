@@ -32,6 +32,12 @@ export async function installPiSkill(options: InstallPiSkillOptions = {}): Promi
   const sourceStat = await stat(source);
   if (!sourceStat.isDirectory()) throw new Error(`Skill source is not a directory: ${source}`);
 
+  const launcher = join(source, 'run.cjs');
+  const launcherStat = await stat(launcher).catch(() => null);
+  if (!launcherStat || !launcherStat.isFile()) {
+    throw new Error(`Skill launcher is missing: ${launcher}`);
+  }
+
   const bundledCli = join(source, 'dist', 'rag.cjs');
   const bundledCliStat = await stat(bundledCli).catch(() => null);
   if (!bundledCliStat || !bundledCliStat.isFile()) {
@@ -47,7 +53,7 @@ export async function installPiSkill(options: InstallPiSkillOptions = {}): Promi
 async function main(): Promise<void> {
   const result = await installPiSkill();
   console.log(`Installed rag-agent skill to ${result.target}`);
-  console.log('Bundled CLI entrypoint: node ./dist/rag.cjs --help');
+  console.log('Bundled skill launcher: node ./run.cjs --help');
   console.log('Restart Pi Agent or reload skills to use /skill:rag-agent.');
 }
 

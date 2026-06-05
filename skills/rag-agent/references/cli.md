@@ -8,6 +8,7 @@ The distributed skill bundle includes its own bundled CLI artifact:
 skills/rag-agent/
 ├── SKILL.md
 ├── references/
+├── run.cjs
 └── dist/
     └── rag.cjs
 ```
@@ -15,10 +16,10 @@ skills/rag-agent/
 Canonical entrypoint for distributed usage:
 
 ```bash
-node ./dist/rag.cjs --help
+node ./run.cjs --help
 ```
 
-This works after the skill is copied into another repository or installed into Pi, as long as Node.js is available.
+`run.cjs` resolves `dist/rag.cjs` relative to the skill directory, so it works even when the caller's current working directory is elsewhere.
 
 ## Developer Usage
 
@@ -52,7 +53,7 @@ This command builds the bundled CLI first, then copies the full `skills/rag-agen
 ### After installation
 
 ```bash
-node ./dist/rag.cjs doctor
+node ./run.cjs doctor
 ```
 
 ## Configuration
@@ -61,7 +62,7 @@ Resolution order (highest priority first):
 
 | Priority | Source | Example |
 |----------|--------|---------|
-| 1 | CLI flags | `node ./dist/rag.cjs --server http://... --token abc ...` |
+| 1 | CLI flags | `node ./run.cjs --server http://... --token abc ...` |
 | 2 | Environment variables | `RAG_SERVER_URL`, `RAG_AGENT_TOKEN`, `RAG_ADMIN_TOKEN`, `RAG_AGENT_API_TOKEN`, `AGENT_API_TOKEN` |
 
 **Recommended (environment variables):**
@@ -76,7 +77,7 @@ The CLI does not read `.ragrc`, `.env`, or `server.config.yaml`.
 Check current config:
 
 ```bash
-node ./dist/rag.cjs config show
+node ./run.cjs config show
 ```
 
 ## Output Format
@@ -92,13 +93,13 @@ All structured commands output JSON by default.
 Examples:
 
 ```json
-// node ./dist/rag.cjs clients list
+// node ./run.cjs clients list
 {"ok":true,"data":[{"id":"win-dev-01","name":"Windows Dev","status":"online","online":true,...}]}
 
-// node ./dist/rag.cjs files read --client win-dev --root root-0 --path README.md
+// node ./run.cjs files read --client win-dev --root root-0 --path README.md
 {"ok":true,"data":{"rootId":"root-0","path":"README.md","content":"# Project\n..."}}
 
-// node ./dist/rag.cjs jobs run --client win-dev -- echo hello
+// node ./run.cjs jobs run --client win-dev -- echo hello
 {"ok":true,"data":{"jobId":"job_abc","status":"queued"}}
 ```
 
@@ -130,14 +131,14 @@ Error codes:
 ### Raw output
 
 ```bash
-node ./dist/rag.cjs files read --client win-dev --root root-0 --path README.md --raw
+node ./run.cjs files read --client win-dev --root root-0 --path README.md --raw
 # Output: # Project title\n\nContent...
 ```
 
 ### JSON Lines (SSE events)
 
 ```bash
-node ./dist/rag.cjs jobs events --client win-dev --job job_abc
+node ./run.cjs jobs events --client win-dev --job job_abc
 # {"ok":true,"event":"job.stdout","data":{"content":"hello\n","seq":1}}
 # {"ok":true,"event":"job.stderr","data":{"content":"","seq":2}}
 # {"ok":true,"event":"job.completed","data":{"status":"success","exitCode":0}}
@@ -146,42 +147,42 @@ node ./dist/rag.cjs jobs events --client win-dev --job job_abc
 ## Full Command List
 
 ```bash
-node ./dist/rag.cjs config show
-node ./dist/rag.cjs doctor
-node ./dist/rag.cjs doctor --client <clientId>
-node ./dist/rag.cjs clients list
-node ./dist/rag.cjs clients get --client <clientId>
-node ./dist/rag.cjs jobs run --client <clientId> -- <command> [args...]
-node ./dist/rag.cjs jobs run --client <clientId> --wait -- <command> [args...]
-node ./dist/rag.cjs jobs run --client <clientId> --wait --logs -- <command> [args...]
-node ./dist/rag.cjs jobs run --client <clientId> --events -- <command> [args...]
-node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js
-node ./dist/rag.cjs jobs script --client <clientId> --inline "console.log(1)"
-node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js --wait
-node ./dist/rag.cjs jobs script --client <clientId> --file ./script.js --wait --logs
-node ./dist/rag.cjs jobs script --client <clientId> --inline "console.log(1)" --events
-node ./dist/rag.cjs jobs get --client <clientId> --job <jobId>
-node ./dist/rag.cjs jobs logs --client <clientId> --job <jobId> --since-seq 0 --limit 500
-node ./dist/rag.cjs jobs events --client <clientId> --job <jobId>
-node ./dist/rag.cjs jobs cancel --client <clientId> --job <jobId>
-node ./dist/rag.cjs files roots --client <clientId>
-node ./dist/rag.cjs files list --client <clientId> --root <rootId> --path .
-node ./dist/rag.cjs files stat --client <clientId> --root <rootId> --path README.md
-node ./dist/rag.cjs files read --client <clientId> --root <rootId> --path README.md
-node ./dist/rag.cjs files read --client <clientId> --root <rootId> --path README.md --raw
-node ./dist/rag.cjs files write --client <clientId> --root <rootId> --path out.txt --content "hello"
-node ./dist/rag.cjs files upload --client <clientId> --root <rootId> --path . --file ./local.zip
-node ./dist/rag.cjs files download --client <clientId> --root <rootId> --path remote.zip --output ./remote.zip
-node ./dist/rag.cjs files mkdir --client <clientId> --root <rootId> --path logs --recursive
-node ./dist/rag.cjs files delete --client <clientId> --root <rootId> --path logs --recursive
-node ./dist/rag.cjs files move --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
-node ./dist/rag.cjs files copy --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
-node ./dist/rag.cjs frp list --client <clientId>
-node ./dist/rag.cjs frp create --client <clientId> --name web --type tcp --local-port 3000
-node ./dist/rag.cjs frp delete --client <clientId> --mapping <mappingId>
+node ./run.cjs config show
+node ./run.cjs doctor
+node ./run.cjs doctor --client <clientId>
+node ./run.cjs clients list
+node ./run.cjs clients get --client <clientId>
+node ./run.cjs jobs run --client <clientId> -- <command> [args...]
+node ./run.cjs jobs run --client <clientId> --wait -- <command> [args...]
+node ./run.cjs jobs run --client <clientId> --wait --logs -- <command> [args...]
+node ./run.cjs jobs run --client <clientId> --events -- <command> [args...]
+node ./run.cjs jobs script --client <clientId> --file ./script.js
+node ./run.cjs jobs script --client <clientId> --inline "console.log(1)"
+node ./run.cjs jobs script --client <clientId> --file ./script.js --wait
+node ./run.cjs jobs script --client <clientId> --file ./script.js --wait --logs
+node ./run.cjs jobs script --client <clientId> --inline "console.log(1)" --events
+node ./run.cjs jobs get --client <clientId> --job <jobId>
+node ./run.cjs jobs logs --client <clientId> --job <jobId> --since-seq 0 --limit 500
+node ./run.cjs jobs events --client <clientId> --job <jobId>
+node ./run.cjs jobs cancel --client <clientId> --job <jobId>
+node ./run.cjs files roots --client <clientId>
+node ./run.cjs files list --client <clientId> --root <rootId> --path .
+node ./run.cjs files stat --client <clientId> --root <rootId> --path README.md
+node ./run.cjs files read --client <clientId> --root <rootId> --path README.md
+node ./run.cjs files read --client <clientId> --root <rootId> --path README.md --raw
+node ./run.cjs files write --client <clientId> --root <rootId> --path out.txt --content "hello"
+node ./run.cjs files upload --client <clientId> --root <rootId> --path . --file ./local.zip
+node ./run.cjs files download --client <clientId> --root <rootId> --path remote.zip --output ./remote.zip
+node ./run.cjs files mkdir --client <clientId> --root <rootId> --path logs --recursive
+node ./run.cjs files delete --client <clientId> --root <rootId> --path logs --recursive
+node ./run.cjs files move --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
+node ./run.cjs files copy --client <clientId> --root <rootId> --from a.txt --to b.txt --overwrite
+node ./run.cjs frp list --client <clientId>
+node ./run.cjs frp create --client <clientId> --name web --type tcp --local-port 3000
+node ./run.cjs frp delete --client <clientId> --mapping <mappingId>
 # success means the proxy has also been cleared from the FRPS dashboard/API
-node ./dist/rag.cjs tasks list --client <clientId>
-node ./dist/rag.cjs tasks get --record <recordId>
+node ./run.cjs tasks list --client <clientId>
+node ./run.cjs tasks get --record <recordId>
 ```
 
 ## Command Options Reference
@@ -197,10 +198,10 @@ node ./dist/rag.cjs tasks get --record <recordId>
 ```
 
 Examples:
-- `node ./dist/rag.cjs jobs run --client win-dev -- bash -c 'ls -la'`
-- `node ./dist/rag.cjs jobs run --client win-dev --wait -- bash -c 'ls -la'`
-- `node ./dist/rag.cjs jobs run --client win-dev --wait --logs -- bash -c 'ls -la'`
-- `node ./dist/rag.cjs jobs run --client win-dev --events -- bash -c 'ls -la'`
+- `node ./run.cjs jobs run --client win-dev -- bash -c 'ls -la'`
+- `node ./run.cjs jobs run --client win-dev --wait -- bash -c 'ls -la'`
+- `node ./run.cjs jobs run --client win-dev --wait --logs -- bash -c 'ls -la'`
+- `node ./run.cjs jobs run --client win-dev --events -- bash -c 'ls -la'`
 
 ### jobs script
 

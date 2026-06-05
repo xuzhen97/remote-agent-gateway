@@ -27,6 +27,7 @@ describe('installPiSkill', () => {
     mkdirSync(target, { recursive: true });
     writeFileSync(join(source, 'SKILL.md'), 'skill content');
     writeFileSync(join(source, 'references.md'), 'ref content');
+    writeFileSync(join(source, 'run.cjs'), '#!/usr/bin/env node\n');
     writeFileSync(join(target, 'stale.txt'), 'stale');
 
     const buildSkillCli = vi.fn(async () => {
@@ -40,6 +41,23 @@ describe('installPiSkill', () => {
     expect(result.target).toBe(target);
     expect(readFileSync(join(target, 'SKILL.md'), 'utf8')).toBe('skill content');
     expect(readFileSync(join(target, 'dist', 'rag.cjs'), 'utf8')).toContain('console.log("ok")');
+    expect(readFileSync(join(target, 'run.cjs'), 'utf8')).toContain('#!/usr/bin/env node');
     expect(existsSync(join(target, 'stale.txt'))).toBe(false);
+  });
+
+  it('fails when the distributed launcher is missing', async () => {
+    const root = tempDir();
+    const source = join(root, 'skills', 'rag-agent');
+    const dist = join(source, 'dist');
+    const target = join(root, 'home', '.pi', 'agent', 'skills', 'rag-agent');
+    mkdirSync(dist, { recursive: true });
+    writeFileSync(join(source, 'SKILL.md'), 'skill content');
+    writeFileSync(join(source, 'references.md'), 'ref content');
+
+    const buildSkillCli = vi.fn(async () => {
+      writeFileSync(join(dist, 'rag.cjs'), '#!/usr/bin/env node\nconsole.log("ok")\n');
+    });
+
+    await expect(installPiSkill({ source, target, buildSkillCli })).rejects.toThrow('Skill launcher is missing');
   });
 });
