@@ -206,11 +206,11 @@ set FRP_MIRROR=https://ghfast.top/ && download-frp.bat
 npm install -g pm2
 
 # 2. 配置（首次）
-# 在当前目录自行创建 server.config.yaml（可参考仓库根目录模板）
+cp server.config.example.yaml server.config.yaml
 vim server.config.yaml
 
 # 如果也运行 client：
-# 在当前目录自行创建 client.config.yaml（可参考仓库根目录模板）
+cp client.config.example.yaml client.config.yaml
 vim client.config.yaml
 
 # 3. 下载 FRP
@@ -229,7 +229,7 @@ pm2 logs --lines 20
 **Server：**
 
 ```bash
-# 启动前先自行创建配置文件
+cp server.config.example.yaml server.config.yaml
 vim server.config.yaml  # 修改 host, tokens, FRP 连接信息
 ./start-server.sh
 ```
@@ -240,7 +240,7 @@ vim server.config.yaml  # 修改 host, tokens, FRP 连接信息
 # 同样，先下载 FRP
 ./download-frp.sh
 
-# 启动前先自行创建配置文件
+cp client.config.example.yaml client.config.yaml
 vim client.config.yaml  # 修改 server URL, token, workspace
 ./start-client.sh
 ```

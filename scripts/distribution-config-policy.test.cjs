@@ -15,6 +15,22 @@ assert.ok(
   'build-all.ts must not copy root client.config.yaml into dist'
 );
 assert.ok(
+  buildAll.includes("fs.copyFileSync(path.join(ROOT, 'server.config.example.yaml'), path.join(DIST, 'server.config.example.yaml'))"),
+  'build-all.ts must copy server.config.example.yaml into dist'
+);
+assert.ok(
+  buildAll.includes("fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, 'client.config.example.yaml'))"),
+  'build-all.ts must copy client.config.example.yaml into dist'
+);
+assert.ok(
+  packageScript.includes("/^server\\.config\\.example\\.yaml$/"),
+  'package.ts must retain server.config.example.yaml in packaged dist'
+);
+assert.ok(
+  packageScript.includes("/^client\\.config\\.example\\.yaml$/"),
+  'package.ts must retain client.config.example.yaml in packaged dist'
+);
+assert.ok(
   !packageScript.includes("/^server\\.config\\.yaml$/"),
   'package.ts must not retain server.config.yaml in packaged dist'
 );

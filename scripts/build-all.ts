@@ -73,6 +73,8 @@ if (wasmPath) {
   console.warn('  WARNING: sql-wasm.wasm not found');
 }
 
+fs.copyFileSync(path.join(ROOT, 'server.config.example.yaml'), path.join(DIST, 'server.config.example.yaml'));
+
 // Copy React web console
 console.log('[web] Building React admin console...');
 import { execFileSync } from 'node:child_process';
@@ -109,6 +111,8 @@ await esbuild.build({
   sourcemap: true,
   external: ['systeminformation'],
 });
+
+fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, 'client.config.example.yaml'));
 
 console.log('  client.bundle.js ready');
 

@@ -354,8 +354,8 @@ scp -r dist/ user@your-server:/opt/rag/
 
 # 2. 配置
 cd /opt/rag/dist
-# 在此目录自行创建 server.config.yaml
-# 可参考仓库根目录中的 server.config.example.yaml
+# 复制 server.config.example.yaml 为 server.config.yaml
+# 然后按需修改
 # 编辑 server.config.yaml：修改 auth.adminToken、auth.agentApiToken
 
 # 3. 确保 Node.js 22+ 已安装
@@ -382,8 +382,8 @@ pm2 start server.bundle.cjs --name rag-server
 ```bash
 # 1. 将 dist/ 复制到客户端
 # 2. 配置
-# 在当前目录自行创建 client.config.yaml
-# 可参考仓库根目录中的 client.config.example.yaml
+# 复制 client.config.example.yaml 为 client.config.yaml
+# 然后按需修改
 # 编辑 client.config.yaml：
 #   - server.wsUrl: "ws://your-server:3000/ws/client"
 #   - server.apiBaseUrl: "http://your-server:3000"
