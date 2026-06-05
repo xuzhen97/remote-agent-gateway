@@ -20,7 +20,9 @@ for (const f of fs.readdirSync(DIST)) {
     f === 'config.json' ||
     f === 'config.example.json' ||
     f === 'server.config.example.yaml' ||
-    f === 'client.config.example.yaml'
+    f === 'client.config.example.yaml' ||
+    f === 'server.config.yaml' ||
+    f === 'client.config.yaml'
   ) {
     fs.rmSync(path.join(DIST, f), { recursive: true, force: true });
   }
@@ -71,11 +73,6 @@ if (wasmPath) {
   console.warn('  WARNING: sql-wasm.wasm not found');
 }
 
-// Copy active server config only if dist doesn't already have one
-if (!fs.existsSync(path.join(DIST, 'server.config.yaml')) && fs.existsSync(path.join(ROOT, 'server.config.yaml'))) {
-  fs.copyFileSync(path.join(ROOT, 'server.config.yaml'), path.join(DIST, 'server.config.yaml'));
-}
-
 // Copy React web console
 console.log('[web] Building React admin console...');
 import { execFileSync } from 'node:child_process';
@@ -112,10 +109,6 @@ await esbuild.build({
   sourcemap: true,
   external: ['systeminformation'],
 });
-
-if (!fs.existsSync(path.join(DIST, 'client.config.yaml')) && fs.existsSync(path.join(ROOT, 'client.config.yaml'))) {
-  fs.copyFileSync(path.join(ROOT, 'client.config.yaml'), path.join(DIST, 'client.config.yaml'));
-}
 
 console.log('  client.bundle.js ready');
 

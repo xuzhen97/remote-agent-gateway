@@ -83,10 +83,10 @@ RAG_E2E_FRP_FILE_TESTS=1 pnpm test:e2e
 pnpm build
 
 # 2. 启动服务端（终端 1）
-cd dist && node server.bundle.cjs   # 需事先提供 server.config.yaml
+cd dist && node server.bundle.cjs   # 需事先自行创建 server.config.yaml
 
 # 3. 启动客户端（终端 2）
-cd dist && node client.bundle.cjs   # 需事先提供 client.config.yaml
+cd dist && node client.bundle.cjs   # 需事先自行创建 client.config.yaml
 
 # 4. 手动测试（终端 3）
 curl -s http://localhost:3000/api/health
