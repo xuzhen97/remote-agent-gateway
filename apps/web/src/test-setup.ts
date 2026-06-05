@@ -15,3 +15,19 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+
+const originalGetComputedStyle = window.getComputedStyle.bind(window);
+Object.defineProperty(window, 'getComputedStyle', {
+  writable: true,
+  value: (elt: Element, pseudoElt?: string) => {
+    if (pseudoElt) {
+      return {
+        getPropertyValue: () => '',
+        overflow: 'auto',
+        overflowX: 'auto',
+        overflowY: 'auto',
+      } as unknown as CSSStyleDeclaration;
+    }
+    return originalGetComputedStyle(elt);
+  },
+});

@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import type { Api } from '../api/http';
 import { getClient } from '../api/clients';
+import { uploadClientFile } from './client-file-upload';
 
 const { Title, Text } = Typography;
 
@@ -41,6 +42,7 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
   const [writePath, setWritePath] = useState('');
   const [writeContent, setWriteContent] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ percent: number; text: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Discover client HTTP endpoint — poll until httpReady, then fetch token.
@@ -249,18 +251,39 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
         <Input.TextArea rows={8} placeholder="文件内容" value={writeContent} onChange={(e) => setWriteContent(e.target.value)} />
       </Modal>
 
-      <Modal title="上传文件" open={uploadOpen} onCancel={() => setUploadOpen(false)} footer={null}>
+      <Modal title="上传文件" open={uploadOpen} onCancel={() => { setUploadOpen(false); setUploadProgress(null); }} footer={null}>
+        {uploadProgress && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`上传进度 ${uploadProgress.percent.toFixed(1)}%`}
+            description={uploadProgress.text}
+          />
+        )}
         <Upload
           customRequest={async ({ file, onSuccess, onError }) => {
             try {
               const f = file as File;
-              const res = await fetch(`${baseUrl}/files/upload?rootId=${encodeURIComponent(rootId)}&path=${encodeURIComponent(currentPath)}&filename=${encodeURIComponent(f.name)}`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: f,
+              await uploadClientFile({
+                baseUrl,
+                token,
+                rootId,
+                path: currentPath,
+                file: f,
+                onProgress: (progress) => {
+                  const percent = (progress.uploadedBytes / progress.totalBytes) * 100;
+                  const kbPerSecond = (progress.rateBytesPerSecond / 1024).toFixed(1);
+                  const remainingBytes = progress.totalBytes - progress.uploadedBytes;
+                  const etaSeconds = progress.rateBytesPerSecond <= 0 ? 0 : Math.ceil(remainingBytes / progress.rateBytesPerSecond);
+                  setUploadProgress({
+                    percent,
+                    text: `${progress.filename} | ${progress.uploadedBytes}/${progress.totalBytes} | ${kbPerSecond} KB/s | ETA ${etaSeconds}s | chunk ${progress.partNumber + 1}/${progress.partCount}`,
+                  });
+                },
               });
-              if (!res.ok) throw new Error('Upload failed');
               message.success('Uploaded');
+              setUploadProgress(null);
               setUploadOpen(false);
               setReloadKey((k) => k + 1);
               (onSuccess as any)?.();

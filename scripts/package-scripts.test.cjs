@@ -9,6 +9,7 @@ const expectedKeys = ['build', 'clean', 'compile', 'dev', 'package', 'test', 'ty
 assert.deepStrictEqual(Object.keys(scripts).sort(), expectedKeys, 'root scripts should stay minimal');
 assert.strictEqual(scripts.compile, 'pnpm -r build', 'compile should compile all workspace packages');
 assert.strictEqual(scripts.build, 'tsx scripts/build-all.ts', 'build should assemble dist output');
+assert.strictEqual(scripts.dev, 'tsx scripts/dev.ts', 'dev should start server, client, and web development processes');
 assert.strictEqual(scripts.package, 'tsx scripts/package.ts', 'package should keep current-platform packaging entrypoint');
 
 console.log('package.json script naming is correct');

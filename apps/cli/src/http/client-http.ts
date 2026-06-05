@@ -54,7 +54,6 @@ export class ClientHttpApi {
   readFile(rootId: string, path: string): Promise<string> { return this.request('GET', `/files/read?${this.pathQuery(rootId, path)}`, undefined, 'text') as Promise<string>; }
   downloadFile(rootId: string, path: string): Promise<Uint8Array> { return this.request('GET', `/files/download?${this.pathQuery(rootId, path)}`, undefined, 'bytes') as Promise<Uint8Array>; }
   writeFile(rootId: string, path: string, body: string | Uint8Array): Promise<unknown> { return this.request('PUT', `/files/write?${this.pathQuery(rootId, path)}`, body, 'json', 'application/octet-stream'); }
-  uploadFile(rootId: string, path: string, filename: string, body: Uint8Array): Promise<unknown> { return this.request('POST', `/files/upload?${this.uploadQuery(rootId, path, filename)}`, body, 'json', 'application/octet-stream'); }
   initUploadSession(payload: ClientFileUploadInitPayload): Promise<ClientFileUploadInitResult> {
     return this.request('POST', '/files/uploads/init', payload) as Promise<ClientFileUploadInitResult>;
   }
@@ -112,10 +111,6 @@ export class ClientHttpApi {
 
   private pathQuery(rootId: string, path: string): string {
     return new URLSearchParams({ rootId, path }).toString();
-  }
-
-  private uploadQuery(rootId: string, path: string, filename: string): string {
-    return new URLSearchParams({ rootId, path, filename }).toString();
   }
 
   private deleteQuery(rootId: string, path: string, recursive: boolean): string {

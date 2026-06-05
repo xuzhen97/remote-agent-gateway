@@ -965,7 +965,7 @@ var require_command = __commonJS({
     var EventEmitter = require("node:events").EventEmitter;
     var childProcess = require("node:child_process");
     var path = require("node:path");
-    var fs = require("node:fs");
+    var fs2 = require("node:fs");
     var process2 = require("node:process");
     var { Argument: Argument2, humanReadableArgName } = require_argument();
     var { CommanderError: CommanderError2 } = require_error();
@@ -1898,10 +1898,10 @@ Expecting one of '${allowedValues.join("', '")}'`);
         const sourceExt = [".js", ".ts", ".tsx", ".mjs", ".cjs"];
         function findFile(baseDir, baseName) {
           const localBin = path.resolve(baseDir, baseName);
-          if (fs.existsSync(localBin)) return localBin;
+          if (fs2.existsSync(localBin)) return localBin;
           if (sourceExt.includes(path.extname(baseName))) return void 0;
           const foundExt = sourceExt.find(
-            (ext) => fs.existsSync(`${localBin}${ext}`)
+            (ext) => fs2.existsSync(`${localBin}${ext}`)
           );
           if (foundExt) return `${localBin}${foundExt}`;
           return void 0;
@@ -1913,7 +1913,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         if (this._scriptPath) {
           let resolvedScriptPath;
           try {
-            resolvedScriptPath = fs.realpathSync(this._scriptPath);
+            resolvedScriptPath = fs2.realpathSync(this._scriptPath);
           } catch (err) {
             resolvedScriptPath = this._scriptPath;
           }
@@ -3245,8 +3245,21 @@ var ClientHttpApi = class {
   writeFile(rootId, path, body) {
     return this.request("PUT", `/files/write?${this.pathQuery(rootId, path)}`, body, "json", "application/octet-stream");
   }
-  uploadFile(rootId, path, filename, body) {
-    return this.request("POST", `/files/upload?${this.uploadQuery(rootId, path, filename)}`, body, "json", "application/octet-stream");
+  initUploadSession(payload) {
+    return this.request("POST", "/files/uploads/init", payload);
+  }
+  getUploadStatus(uploadId) {
+    return this.request("GET", `/files/uploads/${encodeURIComponent(uploadId)}/status`);
+  }
+  uploadPart(uploadId, partNumber, body, options) {
+    const search = new URLSearchParams({ offset: String(options.offset), size: String(options.size) });
+    return this.request("PUT", `/files/uploads/${encodeURIComponent(uploadId)}/parts/${partNumber}?${search.toString()}`, body, "json", "application/octet-stream");
+  }
+  completeUploadSession(uploadId) {
+    return this.request("POST", `/files/uploads/${encodeURIComponent(uploadId)}/complete`, {});
+  }
+  abortUploadSession(uploadId) {
+    return this.request("DELETE", `/files/uploads/${encodeURIComponent(uploadId)}`);
   }
   mkdir(rootId, path, recursive) {
     return this.request("POST", "/files/mkdir", { rootId, path, recursive });
@@ -3304,9 +3317,6 @@ var ClientHttpApi = class {
   }
   pathQuery(rootId, path) {
     return new URLSearchParams({ rootId, path }).toString();
-  }
-  uploadQuery(rootId, path, filename) {
-    return new URLSearchParams({ rootId, path, filename }).toString();
   }
   deleteQuery(rootId, path, recursive) {
     return new URLSearchParams({ rootId, path, recursive: String(recursive) }).toString();
@@ -3399,6 +3409,99 @@ function registerDoctorCommand(program2, deps) {
 
 // apps/cli/src/commands/files.ts
 var import_promises = require("node:fs/promises");
+
+// apps/cli/src/http/upload-transfer.ts
+var import_node_crypto = require("node:crypto");
+var fs = __toESM(require("node:fs/promises"), 1);
+async function uploadFileWithProgress(client, options) {
+  const stat2 = await fs.stat(options.filePath);
+  const chunkSize = options.chunkSize ?? 8 * 1024 * 1024;
+  const retries = options.retries ?? 5;
+  const fingerprint = await createFingerprint(options.filePath, stat2.size, stat2.mtimeMs);
+  const init = await client.initUploadSession({
+    rootId: options.rootId,
+    path: options.path,
+    filename: options.filename,
+    size: stat2.size,
+    chunkSize,
+    lastModifiedMs: Math.trunc(stat2.mtimeMs),
+    fingerprint
+  });
+  const file = await fs.open(options.filePath, "r");
+  const startedAt = Date.now();
+  let uploadedBytes = init.uploadedBytes;
+  const uploadedParts = new Set(init.uploadedParts);
+  try {
+    for (let partNumber = 0; partNumber < init.partCount; partNumber += 1) {
+      if (uploadedParts.has(partNumber)) continue;
+      const offset = partNumber * init.chunkSize;
+      const size = resolvePartSize(init, partNumber);
+      const buffer = Buffer.alloc(size);
+      const { bytesRead } = await file.read(buffer, 0, size, offset);
+      if (bytesRead !== size) throw new CliError("IO_ERROR", `Expected ${size} bytes at offset ${offset}, got ${bytesRead}`);
+      await uploadPartWithRetry(client, init.uploadId, partNumber, buffer, { offset, size }, retries);
+      uploadedBytes += size;
+      options.onProgress?.({
+        filename: options.filename,
+        uploadedBytes,
+        totalBytes: stat2.size,
+        partNumber,
+        partCount: init.partCount,
+        attempt: 1,
+        rateBytesPerSecond: uploadedBytes / Math.max((Date.now() - startedAt) / 1e3, 1),
+        elapsedMs: Date.now() - startedAt
+      });
+    }
+    return await client.completeUploadSession(init.uploadId);
+  } catch (error) {
+    if (!isRetryable(error)) {
+      await client.abortUploadSession(init.uploadId).catch(() => void 0);
+    }
+    throw error;
+  } finally {
+    await file.close();
+  }
+}
+function resolvePartSize(init, partNumber) {
+  if (partNumber === init.partCount - 1) return init.size - init.chunkSize * (init.partCount - 1);
+  return init.chunkSize;
+}
+async function createFingerprint(filePath, size, mtimeMs) {
+  const file = await fs.open(filePath, "r");
+  try {
+    const head = Buffer.alloc(Math.min(size, 64 * 1024));
+    const tail = Buffer.alloc(Math.min(size, 64 * 1024));
+    await file.read(head, 0, head.length, 0);
+    await file.read(tail, 0, tail.length, Math.max(0, size - tail.length));
+    return (0, import_node_crypto.createHash)("sha256").update(String(size)).update(String(Math.trunc(mtimeMs))).update(head).update(tail).digest("hex");
+  } finally {
+    await file.close();
+  }
+}
+async function uploadPartWithRetry(client, uploadId, partNumber, buffer, meta, retries) {
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      await client.uploadPart(uploadId, partNumber, buffer, meta);
+      return;
+    } catch (error) {
+      if (!isRetryable(error) || attempt === retries) throw error;
+      await sleep(resolveBackoffMs(attempt));
+    }
+  }
+}
+function isRetryable(error) {
+  if (error instanceof CliError && error.code === "HTTP_ERROR") return [502, 503, 504].includes(error.status ?? 0);
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes("econnreset") || message.includes("etimedout") || message.includes("fetch failed") || message.includes("socket hang up");
+}
+function resolveBackoffMs(attempt) {
+  return [0, 2e3, 5e3, 1e4, 1e4, 1e4][attempt] ?? 1e4;
+}
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// apps/cli/src/commands/files.ts
 function rawWriter(value) {
   process.stdout.write(value);
   if (typeof value === "string" && !value.endsWith("\n")) process.stdout.write("\n");
@@ -3431,9 +3534,24 @@ function registerFilesCommands(program2, deps) {
   });
   files.command("upload").requiredOption("--client <clientId>").requiredOption("--root <rootId>").requiredOption("--path <path>").requiredOption("--file <file>").option("--filename <filename>").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    const bytes = await (0, import_promises.readFile)(options.file);
     const filename = options.filename ?? options.file.split(/[\\/]/).pop();
-    deps.write(successEnvelope(await client.uploadFile(options.root, options.path, filename, bytes)));
+    const result = await uploadFileWithProgress(client, {
+      rootId: options.root,
+      path: options.path,
+      filePath: options.file,
+      filename,
+      onProgress: (progress) => {
+        const percent = (progress.uploadedBytes / progress.totalBytes * 100).toFixed(1);
+        const kbPerSecond = (progress.rateBytesPerSecond / 1024).toFixed(1);
+        const remainingBytes = progress.totalBytes - progress.uploadedBytes;
+        const etaSeconds = progress.rateBytesPerSecond <= 0 ? 0 : Math.ceil(remainingBytes / progress.rateBytesPerSecond);
+        process.stderr.write(
+          `\rUploading ${progress.filename} ${percent}% (${progress.uploadedBytes}/${progress.totalBytes}) | ${kbPerSecond} KB/s | ETA ${etaSeconds}s | chunk ${progress.partNumber + 1}/${progress.partCount}`
+        );
+        if (progress.uploadedBytes === progress.totalBytes) process.stderr.write("\n");
+      }
+    });
+    deps.write(successEnvelope(result));
   });
   files.command("download").requiredOption("--client <clientId>").requiredOption("--root <rootId>").requiredOption("--path <path>").requiredOption("--output <output>").action(async (options) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));

@@ -4,10 +4,13 @@ import * as path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const BASE_URL = process.env.RAG_DEV_SERVER_URL ?? 'http://localhost:3000';
+const WEB_DEV_URL = process.env.RAG_DEV_WEB_URL ?? 'http://localhost:5174';
 const SERVER_START_TIMEOUT_MS = 15_000;
+const WEB_START_TIMEOUT_MS = 15_000;
 
 let serverProc: ChildProcess | null = null;
 let clientProc: ChildProcess | null = null;
+let webProc: ChildProcess | null = null;
 let shuttingDown = false;
 
 function prefixPipe(proc: ChildProcess, name: string): void {
@@ -53,6 +56,25 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForHttpReady(url: string, timeoutMs: number): Promise<void> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Service is still starting.
+    }
+
+    await sleep(500);
+  }
+
+  throw new Error(`Timed out waiting for readiness at ${url}`);
+}
+
 async function waitForServerReady(timeoutMs: number): Promise<void> {
   const startedAt = Date.now();
 
@@ -78,7 +100,7 @@ async function shutdown(exitCode = 0): Promise<void> {
   }
   shuttingDown = true;
 
-  const processes = [clientProc, serverProc].filter((proc): proc is ChildProcess => proc !== null);
+  const processes = [webProc, clientProc, serverProc].filter((proc): proc is ChildProcess => proc !== null);
   for (const proc of processes) {
     proc.kill('SIGTERM');
   }
@@ -103,6 +125,11 @@ async function main(): Promise<void> {
 
   console.log('Starting client...');
   clientProc = startProcess('client', '@rag/client');
+
+  console.log('Starting web...');
+  webProc = startProcess('web', '@rag/web');
+  await waitForHttpReady(WEB_DEV_URL, WEB_START_TIMEOUT_MS);
+  console.log(`Web ready at ${WEB_DEV_URL}`);
 
   process.on('SIGINT', () => {
     void shutdown(0);

@@ -241,31 +241,6 @@ export function registerFileRoutes(
     }
   });
 
-  router.add('POST', /^\/files\/upload$/, async (req, res, url) => {
-    if (!requireBearerToken(req, res, options.token)) return;
-    try {
-      const rootId = queryRootId(url);
-      const targetPath = queryPath(url);
-      const filename = url.searchParams.get('filename');
-      if (!filename || filename.includes('/') || filename.includes('\\')) return sendError(res, 400, 'INVALID_REQUEST', 'Invalid filename');
-      const targetDir = resolveRootPath(roots, rootId, targetPath);
-      ensureDir(targetDir);
-      const body = await readBody(req);
-      const responseBody = await audit.execute({
-        req, actionType: 'file.upload', resourceType: 'file',
-        method: 'POST', path: '/files/upload',
-        payload: { rootId, path: targetPath, filename, size: body.length },
-        run: async () => {
-          const fullPath = path.join(targetDir, filename);
-          fs.writeFileSync(fullPath, body);
-          const resultPath = path.posix.join(targetPath, filename);
-          return { httpStatus: 200, resultSummary: { size: body.length }, targetId: `${rootId}:${resultPath}`, status: 'success', body: { rootId, path: resultPath, size: body.length } };
-        },
-      });
-      sendOk(res, responseBody);
-    } catch (err) { handleFailure(res, err); }
-  });
-
   router.add('POST', /^\/files\/mkdir$/, async (req, res) => {
     if (!requireBearerToken(req, res, options.token)) return;
     try {

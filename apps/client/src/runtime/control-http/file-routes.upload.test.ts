@@ -63,6 +63,28 @@ function createResponseCapture() {
 }
 
 describe('upload routes', () => {
+  it('does not register the legacy single-request upload route', async () => {
+    const workDir = makeWorkDir();
+    const router = new ControlHttpRouter();
+
+    registerFileRoutes(router, {
+      token: 'test-token',
+      workspaceDir: path.join(workDir, 'workspace'),
+      allowedRoots: [path.join(workDir, 'workspace')],
+      clientId: 'client-1',
+    }, {
+      execute: async ({ run }: any) => {
+        const result = await run();
+        return result.body;
+      },
+    } as any);
+
+    const response = createResponseCapture();
+    const handled = await router.handle(binaryRequest('POST', '/files/upload?rootId=root-0&path=.&filename=demo.jar', 'ABCD') as any, response.res as any);
+
+    expect(handled).toBe(false);
+  });
+
   it('supports init, part upload, status, complete, and abort', async () => {
     const workDir = makeWorkDir();
     const router = new ControlHttpRouter();

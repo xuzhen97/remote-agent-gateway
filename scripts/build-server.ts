@@ -51,12 +51,13 @@ if (wasmPath) {
   fs.copyFileSync(wasmPath, path.join(DIST, 'sql-wasm.wasm'));
 }
 
-// Copy web console
-const webSrc = path.join(ROOT, 'apps', 'server', 'src', 'web');
+// Copy React web console build output
+const webSrc = path.join(ROOT, 'apps', 'web', 'dist');
 const webDst = path.join(DIST, 'web');
 if (fs.existsSync(webSrc)) {
+  fs.rmSync(webDst, { recursive: true, force: true });
   fs.cpSync(webSrc, webDst, { recursive: true });
-  console.log('  Copied web console');
+  console.log('  Copied React web console');
 }
 
 console.log('Server bundle: dist/server.bundle.cjs');
