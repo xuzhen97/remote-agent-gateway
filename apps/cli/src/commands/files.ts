@@ -1,6 +1,7 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import type { Command } from 'commander';
 import type { ClientHttpApi } from '../http/client-http.js';
+import { uploadFileWithProgress } from '../http/upload-transfer.js';
 import { successEnvelope } from '../output/json-output.js';
 import { requiredString } from '../util/args.js';
 
@@ -47,12 +48,33 @@ export function registerFilesCommands(program: Command, deps: FilesDeps): void {
     deps.write(successEnvelope(await client.writeFile(options.root, options.path, content)));
   });
 
-  files.command('upload').requiredOption('--client <clientId>').requiredOption('--root <rootId>').requiredOption('--path <path>').requiredOption('--file <file>').option('--filename <filename>').action(async (options: any) => {
-    const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
-    const bytes = await readFile(options.file);
-    const filename = options.filename ?? options.file.split(/[\\/]/).pop();
-    deps.write(successEnvelope(await client.uploadFile(options.root, options.path, filename, bytes)));
-  });
+  files.command('upload')
+    .requiredOption('--client <clientId>')
+    .requiredOption('--root <rootId>')
+    .requiredOption('--path <path>')
+    .requiredOption('--file <file>')
+    .option('--filename <filename>')
+    .action(async (options: any) => {
+      const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
+      const filename = options.filename ?? options.file.split(/[\\/]/).pop();
+      const result = await uploadFileWithProgress(client, {
+        rootId: options.root,
+        path: options.path,
+        filePath: options.file,
+        filename,
+        onProgress: (progress) => {
+          const percent = ((progress.uploadedBytes / progress.totalBytes) * 100).toFixed(1);
+          const kbPerSecond = (progress.rateBytesPerSecond / 1024).toFixed(1);
+          const remainingBytes = progress.totalBytes - progress.uploadedBytes;
+          const etaSeconds = progress.rateBytesPerSecond <= 0 ? 0 : Math.ceil(remainingBytes / progress.rateBytesPerSecond);
+          process.stderr.write(
+            `\rUploading ${progress.filename} ${percent}% (${progress.uploadedBytes}/${progress.totalBytes}) | ${kbPerSecond} KB/s | ETA ${etaSeconds}s | chunk ${progress.partNumber + 1}/${progress.partCount}`,
+          );
+          if (progress.uploadedBytes === progress.totalBytes) process.stderr.write('\n');
+        },
+      });
+      deps.write(successEnvelope(result));
+    });
 
   files.command('download').requiredOption('--client <clientId>').requiredOption('--root <rootId>').requiredOption('--path <path>').requiredOption('--output <output>').action(async (options: any) => {
     const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));

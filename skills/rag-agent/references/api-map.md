@@ -74,7 +74,9 @@ node ./run.cjs files write --client <id> --root root-0 --path f.txt --content "x
 
 node ./run.cjs files upload --client <id> --root root-0 --path . --file ./x
   -> GET /api/clients/:clientId
-  -> POST {clientHttpBaseUrl}/files/upload?rootId=root-0&path=.&filename=x  (body = file bytes)
+  -> POST {clientHttpBaseUrl}/files/uploads/init
+  -> PUT  {clientHttpBaseUrl}/files/uploads/:uploadId/parts/:partNumber?offset=...&size=...
+  -> POST {clientHttpBaseUrl}/files/uploads/:uploadId/complete
 
 node ./run.cjs files download --client <id> --root root-0 --path x --output ./x
   -> GET /api/clients/:clientId

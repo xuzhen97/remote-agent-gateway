@@ -140,6 +140,52 @@ export interface ClientFileRootCopyPayload {
   overwrite?: boolean;
 }
 
+export interface ClientFileUploadInitPayload {
+  rootId: string;
+  path: string;
+  filename: string;
+  size: number;
+  chunkSize?: number;
+  lastModifiedMs?: number;
+  fingerprint?: string;
+}
+
+export interface ClientFileUploadInitResult {
+  uploadId: string;
+  rootId: string;
+  path: string;
+  filename: string;
+  size: number;
+  chunkSize: number;
+  partCount: number;
+  uploadedParts: number[];
+  uploadedBytes: number;
+  resumed: boolean;
+}
+
+export interface ClientFileUploadStatusResult extends ClientFileUploadInitResult {
+  expiresAt: number;
+}
+
+export interface ClientFileUploadPartResult {
+  uploadId: string;
+  partNumber: number;
+  size: number;
+  uploadedBytes: number;
+}
+
+export interface ClientFileUploadCompleteResult {
+  uploadId: string;
+  rootId: string;
+  path: string;
+  size: number;
+}
+
+export interface ClientFileUploadAbortResult {
+  uploadId: string;
+  deleted: true;
+}
+
 export interface FileRecord {
   id: string;
   originalName: string;

@@ -69,6 +69,8 @@ node ./run.cjs files upload --client <clientId> --root root-0 --path . --file ./
 node ./run.cjs files upload --client <clientId> --root root-0 --path /tmp --file ./app.jar --filename my-app.jar
 ```
 
+`files upload` 会持续输出进度；大文件/弱网场景下如果命令被外层调用超时中断，重新执行相同命令会优先尝试续传。
+
 ## 7. Download a Remote File
 
 ```bash

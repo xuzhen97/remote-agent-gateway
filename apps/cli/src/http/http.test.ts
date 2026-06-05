@@ -98,4 +98,28 @@ describe('ClientHttpApi', () => {
     const bytes = await api.downloadFile('root-0', 'a.bin');
     expect(Array.from(bytes)).toEqual([1, 2, 3]);
   });
+
+  it('initializes upload sessions with json payload', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ uploadId: 'upl_1', partCount: 2 }), { status: 200 }));
+    const api = new ClientHttpApi({ baseUrl: 'http://client:20000', token: 'client-token' });
+
+    await api.initUploadSession({ rootId: 'root-0', path: 'drop', filename: 'demo.jar', size: 8, chunkSize: 4, fingerprint: 'fp' } as any);
+
+    expect(fetchMock).toHaveBeenCalledWith('http://client:20000/files/uploads/init', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({ Authorization: 'Bearer client-token', 'Content-Type': 'application/json' }),
+    }));
+  });
+
+  it('uploads one binary part with offset and size query params', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ uploadId: 'upl_1', partNumber: 0, size: 4, uploadedBytes: 4 }), { status: 200 }));
+    const api = new ClientHttpApi({ baseUrl: 'http://client:20000', token: 'client-token' });
+
+    await api.uploadPart('upl_1', 0, new Uint8Array([1, 2, 3, 4]), { offset: 0, size: 4 } as any);
+
+    expect(fetchMock).toHaveBeenCalledWith('http://client:20000/files/uploads/upl_1/parts/0?offset=0&size=4', expect.objectContaining({
+      method: 'PUT',
+      headers: expect.objectContaining({ Authorization: 'Bearer client-token', 'Content-Type': 'application/octet-stream' }),
+    }));
+  });
 });

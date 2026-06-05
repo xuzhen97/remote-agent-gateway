@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ControlHttpRouter } from './router.js';
 import { readBody, readJson, sendError, sendOk, setCorsHeaders } from './response.js';
+import { createUploadSessionManager } from './upload-session.js';
 import { requireBearerToken } from './auth.js';
 import { resolveAllowedRoots, resolveRootPath } from '../file-roots.js';
 import { toClientFileEntry, toClientFileStat } from '../file-paths.js';
@@ -16,6 +17,23 @@ function queryRootId(url: URL): string {
 
 function queryPath(url: URL): string {
   return url.searchParams.get('path') ?? '.';
+}
+
+function queryInteger(url: URL, key: string): number {
+  const raw = url.searchParams.get(key);
+  if (!raw) throw new Error(`${key} is required`);
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) throw new Error(`${key} must be a non-negative integer`);
+  return value;
+}
+
+function parseUploadRoute(url: URL): { uploadId: string; partNumber?: number } {
+  const match = url.pathname.match(/^\/files\/uploads\/([^/]+)(?:\/parts\/(\d+)|\/(status|complete))?$/);
+  if (!match) throw new Error('Invalid upload route');
+  return {
+    uploadId: decodeURIComponent(match[1]),
+    partNumber: match[2] === undefined ? undefined : Number(match[2]),
+  };
 }
 
 function mapError(err: unknown): { status: number; code: string; message: string } {
@@ -57,6 +75,10 @@ export function registerFileRoutes(
   audit: TaskAuditExecutor,
 ): void {
   const roots = resolveAllowedRoots(options.workspaceDir, options.allowedRoots);
+  const uploadSessions = createUploadSessionManager({
+    workspaceDir: options.workspaceDir,
+    ttlMs: 24 * 60 * 60 * 1000,
+  });
 
   router.add('GET', /^\/files\/roots$/, (req, res) => {
     if (!requireBearerToken(req, res, options.token)) return;
@@ -131,6 +153,92 @@ export function registerFileRoutes(
       });
       sendOk(res, responseBody);
     } catch (err) { handleFailure(res, err); }
+  });
+
+  router.add('POST', /^\/files\/uploads\/init$/, async (req, res) => {
+    if (!requireBearerToken(req, res, options.token)) return;
+    try {
+      const payload = await readJson<{ rootId: string; path: string; filename: string; size: number; chunkSize?: number; fingerprint?: string }>(req);
+      if (!payload.filename || payload.filename.includes('/') || payload.filename.includes('\\')) {
+        return sendError(res, 400, 'INVALID_REQUEST', 'Invalid filename');
+      }
+      const targetDir = resolveRootPath(roots, payload.rootId, payload.path);
+      ensureDir(targetDir);
+      const responseBody = await uploadSessions.init({
+        rootId: payload.rootId,
+        targetPath: payload.path,
+        filename: payload.filename,
+        size: payload.size,
+        chunkSize: payload.chunkSize ?? 8 * 1024 * 1024,
+        fingerprint: payload.fingerprint ?? `${payload.filename}:${payload.size}`,
+        resolvedTargetDir: targetDir,
+      });
+      sendOk(res, responseBody);
+    } catch (err) {
+      handleFailure(res, err);
+    }
+  });
+
+  router.add('GET', /^\/files\/uploads\/[^/]+\/status$/, (req, res, url) => {
+    if (!requireBearerToken(req, res, options.token)) return;
+    try {
+      const { uploadId } = parseUploadRoute(url);
+      sendOk(res, uploadSessions.getStatus(uploadId));
+    } catch (err) {
+      handleFailure(res, err);
+    }
+  });
+
+  router.add('PUT', /^\/files\/uploads\/[^/]+\/parts\/\d+$/, async (req, res, url) => {
+    if (!requireBearerToken(req, res, options.token)) return;
+    try {
+      const { uploadId, partNumber } = parseUploadRoute(url);
+      const offset = queryInteger(url, 'offset');
+      const size = queryInteger(url, 'size');
+      const responseBody = await uploadSessions.writePart(uploadId, partNumber!, req as AsyncIterable<Buffer>, { expectedOffset: offset, expectedSize: size });
+      sendOk(res, responseBody);
+    } catch (err) {
+      handleFailure(res, err);
+    }
+  });
+
+  router.add('POST', /^\/files\/uploads\/[^/]+\/complete$/, async (req, res, url) => {
+    if (!requireBearerToken(req, res, options.token)) return;
+    try {
+      const { uploadId } = parseUploadRoute(url);
+      const status = uploadSessions.getStatus(uploadId);
+      const responseBody = await audit.execute({
+        req,
+        actionType: 'file.upload',
+        resourceType: 'file',
+        method: 'POST',
+        path: '/files/uploads/:uploadId/complete',
+        payload: { rootId: status.rootId, path: status.path, filename: status.filename, size: status.size },
+        run: async () => {
+          const completed = await uploadSessions.complete(uploadId);
+          return {
+            httpStatus: 200,
+            resultSummary: { size: completed.size },
+            targetId: `${completed.rootId}:${completed.path}`,
+            status: 'success',
+            body: completed,
+          };
+        },
+      });
+      sendOk(res, responseBody);
+    } catch (err) {
+      handleFailure(res, err);
+    }
+  });
+
+  router.add('DELETE', /^\/files\/uploads\/[^/]+$/, (req, res, url) => {
+    if (!requireBearerToken(req, res, options.token)) return;
+    try {
+      const { uploadId } = parseUploadRoute(url);
+      sendOk(res, uploadSessions.abort(uploadId));
+    } catch (err) {
+      handleFailure(res, err);
+    }
   });
 
   router.add('POST', /^\/files\/upload$/, async (req, res, url) => {

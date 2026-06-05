@@ -1,3 +1,11 @@
+import type {
+  ClientFileUploadAbortResult,
+  ClientFileUploadCompleteResult,
+  ClientFileUploadInitPayload,
+  ClientFileUploadInitResult,
+  ClientFileUploadPartResult,
+  ClientFileUploadStatusResult,
+} from '@rag/shared';
 import { CliError } from './http-error.js';
 import { readResponse } from './server-api.js';
 
@@ -47,6 +55,22 @@ export class ClientHttpApi {
   downloadFile(rootId: string, path: string): Promise<Uint8Array> { return this.request('GET', `/files/download?${this.pathQuery(rootId, path)}`, undefined, 'bytes') as Promise<Uint8Array>; }
   writeFile(rootId: string, path: string, body: string | Uint8Array): Promise<unknown> { return this.request('PUT', `/files/write?${this.pathQuery(rootId, path)}`, body, 'json', 'application/octet-stream'); }
   uploadFile(rootId: string, path: string, filename: string, body: Uint8Array): Promise<unknown> { return this.request('POST', `/files/upload?${this.uploadQuery(rootId, path, filename)}`, body, 'json', 'application/octet-stream'); }
+  initUploadSession(payload: ClientFileUploadInitPayload): Promise<ClientFileUploadInitResult> {
+    return this.request('POST', '/files/uploads/init', payload) as Promise<ClientFileUploadInitResult>;
+  }
+  getUploadStatus(uploadId: string): Promise<ClientFileUploadStatusResult> {
+    return this.request('GET', `/files/uploads/${encodeURIComponent(uploadId)}/status`) as Promise<ClientFileUploadStatusResult>;
+  }
+  uploadPart(uploadId: string, partNumber: number, body: Uint8Array, options: { offset: number; size: number }): Promise<ClientFileUploadPartResult> {
+    const search = new URLSearchParams({ offset: String(options.offset), size: String(options.size) });
+    return this.request('PUT', `/files/uploads/${encodeURIComponent(uploadId)}/parts/${partNumber}?${search.toString()}`, body, 'json', 'application/octet-stream') as Promise<ClientFileUploadPartResult>;
+  }
+  completeUploadSession(uploadId: string): Promise<ClientFileUploadCompleteResult> {
+    return this.request('POST', `/files/uploads/${encodeURIComponent(uploadId)}/complete`, {}) as Promise<ClientFileUploadCompleteResult>;
+  }
+  abortUploadSession(uploadId: string): Promise<ClientFileUploadAbortResult> {
+    return this.request('DELETE', `/files/uploads/${encodeURIComponent(uploadId)}`) as Promise<ClientFileUploadAbortResult>;
+  }
   mkdir(rootId: string, path: string, recursive: boolean): Promise<unknown> { return this.request('POST', '/files/mkdir', { rootId, path, recursive }); }
   deleteFile(rootId: string, path: string, recursive: boolean): Promise<unknown> { return this.request('DELETE', `/files?${this.deleteQuery(rootId, path, recursive)}`); }
   move(rootId: string, from: string, to: string, overwrite: boolean): Promise<unknown> { return this.request('POST', '/files/move', { rootId, from, to, overwrite }); }

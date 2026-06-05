@@ -7,6 +7,14 @@ import { registerFrpCommands } from './frp.js';
 import { registerJobsCommands } from './jobs.js';
 import { registerTasksCommands } from './tasks.js';
 
+const { uploadFileWithProgressMock } = vi.hoisted(() => ({
+  uploadFileWithProgressMock: vi.fn(),
+}));
+
+vi.mock('../http/upload-transfer.js', () => ({
+  uploadFileWithProgress: uploadFileWithProgressMock,
+}));
+
 const serverApi = {
   listClients: vi.fn(),
   getClient: vi.fn(),
@@ -190,6 +198,36 @@ describe('client direct command groups', () => {
     await program.parseAsync(['files', 'read', '--client', 'client-1', '--root', 'root-0', '--path', 'README.md', '--raw'], { from: 'user' });
 
     expect(outputs[0]).toBe('hello');
+  });
+
+  it('runs files upload through the resumable transfer helper', async () => {
+    const outputs: unknown[] = [];
+    const clientHttp = {};
+    uploadFileWithProgressMock.mockResolvedValueOnce({
+      uploadId: 'upl_1',
+      rootId: 'root-0',
+      path: 'drop/demo.jar',
+      size: 12,
+    });
+
+    const program = new Command();
+    program.exitOverride();
+    registerFilesCommands(program, {
+      discoverClientHttp: async () => clientHttp as any,
+      write: (value) => outputs.push(value),
+      writeRaw: (value) => outputs.push(value),
+    });
+
+    await program.parseAsync(['files', 'upload', '--client', 'client-1', '--root', 'root-0', '--path', 'drop', '--file', 'demo.jar'], { from: 'user' });
+
+    expect(uploadFileWithProgressMock).toHaveBeenCalledWith(clientHttp, expect.objectContaining({
+      rootId: 'root-0',
+      path: 'drop',
+      filePath: 'demo.jar',
+      filename: 'demo.jar',
+      onProgress: expect.any(Function),
+    }));
+    expect(outputs[0]).toEqual({ ok: true, data: { uploadId: 'upl_1', rootId: 'root-0', path: 'drop/demo.jar', size: 12 } });
   });
 
   it('runs frp create', async () => {
