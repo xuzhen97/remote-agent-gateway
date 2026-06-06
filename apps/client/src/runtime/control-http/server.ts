@@ -7,6 +7,7 @@ import { registerJobRoutes } from './job-routes.js';
 import { JobManager } from './job-manager.js';
 import { registerFileRoutes } from './file-routes.js';
 import { registerFrpRoutes } from './frp-routes.js';
+import { registerTransferRoutes } from './transfer-routes.js';
 import { createTaskAuditStore } from './task-audit-store.js';
 import { createTaskAuditReporter } from './task-audit-reporter.js';
 import { createTaskAuditExecutor } from './task-audit.js';
@@ -73,6 +74,14 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
     frpcWorkDir: options.frpcWorkDir,
     workspaceDir: options.workspaceDir,
   }, audit);
+  registerTransferRoutes(router, {
+    token: options.token,
+    clientId: options.clientId,
+    apiBaseUrl: options.apiBaseUrl ?? '',
+    serverToken: options.serverToken ?? '',
+    workspaceDir: options.workspaceDir,
+    allowedRoots: options.allowedRoots,
+  });
 
   activeServer = http.createServer(async (req, res) => {
     try {

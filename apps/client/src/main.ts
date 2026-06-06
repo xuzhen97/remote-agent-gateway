@@ -4,6 +4,7 @@ import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
 import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-daemon.js';
 import { startControlHttpServer, stopControlHttpServer } from './runtime/control-http/server.js';
+import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler.js';
 import type { ServerAckPayload } from '@rag/shared';
 
 async function main(): Promise<void> {
@@ -58,6 +59,10 @@ async function main(): Promise<void> {
     try {
       message = JSON.parse(rawData);
     } catch {
+      return;
+    }
+
+    if (handleTransferWsMessage({ message, config, send: (out) => conn.send(out) })) {
       return;
     }
 
