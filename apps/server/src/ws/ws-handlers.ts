@@ -1,10 +1,11 @@
 import type { WebSocket } from 'ws';
-import { ClientRegisterPayloadSchema, ClientHeartbeatPayloadSchema, ClientHttpReadyPayloadSchema, ClientHttpFailedPayloadSchema } from '@rag/shared';
+import { ClientRegisterPayloadSchema, ClientHeartbeatPayloadSchema, ClientHttpReadyPayloadSchema, ClientHttpFailedPayloadSchema, ClientTransferProgressPayloadSchema, ClientTransferCompletePayloadSchema, ClientTransferFailedPayloadSchema } from '@rag/shared';
 import { clientsService } from '../modules/clients/clients.service.js';
 import { connectionManager } from '../modules/connections/connections.manager.js';
 import { auditService } from '../modules/audit/audit.service.js';
 import { getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
 import { clientHttpCoordinatorService } from '../modules/client-http/client-http-coordinator.service.js';
+import { transferService } from '../modules/transfers/transfer.service.js';
 import { saveDb } from '../db/index.js';
 
 export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<void> {
@@ -121,6 +122,41 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
         detail: reason,
       });
       ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'HTTP endpoint failure recorded' } }));
+      saveDb();
+      break;
+    }
+
+    case 'client.transfer.progress': {
+      const parsed = ClientTransferProgressPayloadSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'INVALID_PAYLOAD', message: parsed.error.message } }));
+        return;
+      }
+      transferService.recordClientProgress(parsed.data.transferId, { downloadedBytes: parsed.data.downloadedBytes, writtenBytes: parsed.data.writtenBytes, totalBytes: parsed.data.totalBytes });
+      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'Progress recorded' } }));
+      break;
+    }
+
+    case 'client.transfer.complete': {
+      const parsed = ClientTransferCompletePayloadSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'INVALID_PAYLOAD', message: parsed.error.message } }));
+        return;
+      }
+      transferService.completeClientDownload(parsed.data.transferId);
+      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'Transfer complete recorded' } }));
+      saveDb();
+      break;
+    }
+
+    case 'client.transfer.failed': {
+      const parsed = ClientTransferFailedPayloadSchema.safeParse(message.payload);
+      if (!parsed.success) {
+        ws.send(JSON.stringify({ type: 'server.error', requestId: message.requestId, payload: { code: 'INVALID_PAYLOAD', message: parsed.error.message } }));
+        return;
+      }
+      transferService.failTransfer(parsed.data.transferId, parsed.data);
+      ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'Transfer failure recorded' } }));
       saveDb();
       break;
     }
