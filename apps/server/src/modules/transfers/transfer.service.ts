@@ -162,6 +162,40 @@ export class TransferService {
     return this.getTransfer(transferId);
   }
 
+  async refreshUploadUrl(transferId: string, partNumbers?: number[]): Promise<{ uploadParts: Array<{ partNumber: number; uploadUrl: string; size: number }> }> {
+    const stmt = getDb().prepare('SELECT aliyun_drive_id, aliyun_file_id, aliyun_upload_id, total_bytes FROM transfer_jobs WHERE id = ?');
+    stmt.bind([transferId]);
+    try {
+      if (!stmt.step()) throw new Error('Transfer not found');
+      const row = stmt.getAsObject() as Record<string, unknown>;
+      const driveId = String(row.aliyun_drive_id ?? '');
+      const fileId = String(row.aliyun_file_id ?? '');
+      const uploadId = String(row.aliyun_upload_id ?? '');
+      const totalBytes = Number(row.total_bytes ?? 0);
+      if (!driveId || !fileId || !uploadId) throw new Error('Aliyun transfer metadata is missing');
+      const config = aliyunDriveAuthService.getConfig();
+      const auth = aliyunDriveAuthService.getAuth();
+      if (!config || !auth?.accessToken) throw new Error('Aliyun Drive auth is missing');
+      const client = new AliyunDriveOpenApiClient({ openapiBase: config.openapiBase, accessToken: auth.accessToken });
+      const requestedPartNumbers = partNumbers?.length ? partNumbers : [1];
+      const result = await client.getUploadUrl({ driveId, fileId, uploadId, partNumbers: requestedPartNumbers });
+      const remoteParts = (result.part_info_list ?? []) as Array<Record<string, unknown>>;
+      const partSize = resolveAliyunPartSize(totalBytes);
+      return {
+        uploadParts: remoteParts.map((part) => {
+          const partNumber = Number(part.part_number ?? 0);
+          return {
+            partNumber,
+            uploadUrl: String(part.upload_url ?? ''),
+            size: resolvePartSize(totalBytes, partSize, partNumber),
+          };
+        }),
+      };
+    } finally {
+      stmt.free();
+    }
+  }
+
   async refreshDownloadUrl(transferId: string): Promise<{ downloadUrl: string }> {
     const stmt = getDb().prepare('SELECT aliyun_drive_id, aliyun_file_id FROM transfer_jobs WHERE id = ?');
     stmt.bind([transferId]);
