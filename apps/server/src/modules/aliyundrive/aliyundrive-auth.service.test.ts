@@ -49,7 +49,7 @@ describe('AliyunDriveAuthService', () => {
     expect(result.authorizationUrl).toContain('https://openapi.alipan.com/oauth/authorize');
     expect(result.authorizationUrl).toContain('client_id=app-id');
     expect(result.authorizationUrl).toContain('redirect_uri=oob');
-    expect(result.authorizationUrl).toContain('code_challenge_method=S256');
+    expect(result.authorizationUrl).toContain('code_challenge_method=plain');
     expect(result.state).toHaveLength(32);
   });
 });

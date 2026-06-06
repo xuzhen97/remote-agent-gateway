@@ -146,8 +146,8 @@ export class AliyunDriveAuthService {
     url.searchParams.set('scope', config.scope);
     url.searchParams.set('response_type', 'code');
     url.searchParams.set('state', state);
-    url.searchParams.set('code_challenge', buildCodeChallenge(verifier));
-    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('code_challenge', verifier);
+    url.searchParams.set('code_challenge_method', 'plain');
     this.oauthSessions.set(state, { state, verifier, config, expiresAt: this.now() + 10 * 60 * 1000 });
     return { state, authorizationUrl: url.toString(), expiresAt: this.now() + 10 * 60 * 1000 };
   }
