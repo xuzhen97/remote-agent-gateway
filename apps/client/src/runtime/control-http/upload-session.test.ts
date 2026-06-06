@@ -1,4 +1,25 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { mkdirSyncFailureDirs, mkdirSyncCalls } = vi.hoisted(() => ({
+  mkdirSyncFailureDirs: new Set<string>(),
+  mkdirSyncCalls: [] as string[],
+}));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    mkdirSync: vi.fn((dir: fs.PathLike, options?: fs.MakeDirectoryOptions & { recursive?: boolean }) => {
+      const dirText = String(dir);
+      mkdirSyncCalls.push(dirText);
+      if (mkdirSyncFailureDirs.has(dirText)) {
+        throw Object.assign(new Error(`EPERM: operation not permitted, mkdir '${dirText}'`), { code: 'EPERM' });
+      }
+      return actual.mkdirSync(dir, options);
+    }),
+  };
+});
+
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -17,6 +38,8 @@ describe('createUploadSessionManager', () => {
 
   beforeEach(() => {
     workspaceDir = makeWorkspace();
+    mkdirSyncFailureDirs.clear();
+    mkdirSyncCalls.length = 0;
   });
 
   it('creates and resumes the same session for the same target fingerprint', async () => {
@@ -71,6 +94,33 @@ describe('createUploadSessionManager', () => {
     expect(completed.path).toBe('drop/demo.jar');
     expect(fs.readFileSync(path.join(targetRoot, 'drop', 'demo.jar'), 'utf8')).toBe('ABCDEFGHIJKL');
     expect(fs.existsSync(path.join(workspaceDir, '.rag-upload-sessions', session.uploadId))).toBe(false);
+  });
+
+  it('does not mkdir an existing resolved target directory during completion', async () => {
+    const targetRoot = path.join(workspaceDir, 'existing-root');
+    fs.mkdirSync(targetRoot, { recursive: true });
+    mkdirSyncCalls.length = 0;
+    const manager = createUploadSessionManager({ workspaceDir, ttlMs: 24 * 60 * 60 * 1000 });
+
+    const session = await manager.init({
+      rootId: 'root-0',
+      targetPath: '.',
+      filename: 'demo.txt',
+      size: 5,
+      chunkSize: 5,
+      fingerprint: 'existing-target-dir',
+      resolvedTargetDir: targetRoot,
+    });
+    await manager.writePart(session.uploadId, 0, bytes('hello'), { expectedSize: 5, expectedOffset: 0 });
+
+    mkdirSyncCalls.length = 0;
+    mkdirSyncFailureDirs.add(targetRoot);
+
+    const completed = await manager.complete(session.uploadId);
+
+    expect(completed.path).toBe('demo.txt');
+    expect(fs.readFileSync(path.join(targetRoot, 'demo.txt'), 'utf8')).toBe('hello');
+    expect(mkdirSyncCalls).not.toContain(targetRoot);
   });
 
   it('rejects completion when any part is missing', async () => {

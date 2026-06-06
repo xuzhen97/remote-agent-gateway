@@ -22,7 +22,7 @@ export async function downloadAliyunTransfer(options: {
     const detail = await detailResponse.json() as any;
     const roots = resolveAllowedRoots(options.workspaceDir, options.allowedRoots);
     const targetDir = resolveRootPath(roots, detail.rootId, detail.targetDir);
-    await fsp.mkdir(targetDir, { recursive: true });
+    await ensureDir(targetDir);
     const finalPath = path.join(targetDir, detail.filename);
     const tempPath = path.join(targetDir, `.rag-transfer-${options.transferId}.part`);
     const downloadUrl = detail.downloadUrl ?? await fetchDownloadUrl(fetchImpl, options);
@@ -46,6 +46,10 @@ export async function downloadAliyunTransfer(options: {
     options.sendWs({ type: 'client.transfer.failed', payload: { transferId: options.transferId, clientId: options.clientId, errorCode: 'DOWNLOAD_FAILED', errorMessage: error instanceof Error ? error.message : String(error) } });
     throw error;
   }
+}
+
+async function ensureDir(dir: string): Promise<void> {
+  if (!fs.existsSync(dir)) await fsp.mkdir(dir, { recursive: true });
 }
 
 async function fetchDownloadUrl(fetchImpl: typeof fetch, options: { apiBaseUrl: string; serverToken: string; transferId: string }): Promise<string> {

@@ -216,7 +216,7 @@ export function createUploadSessionManager(options: { workspaceDir: string; ttlM
       }
       const targetDir = meta.resolvedTargetDir;
       if (!targetDir) throw new Error('Missing resolved target directory');
-      fs.mkdirSync(targetDir, { recursive: true });
+      ensureDir(targetDir);
       const assemblingPath = path.join(sessionDir(uploadId), 'assembling.tmp');
       const buffers: Buffer[] = [];
       for (let partNumber = 0; partNumber < meta.partCount; partNumber += 1) {
