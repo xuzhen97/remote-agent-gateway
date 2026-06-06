@@ -112,6 +112,18 @@ export class TransferService {
     finally { stmt.free(); }
   }
 
+  listTransfers(limit = 20): TransferJobView[] {
+    const stmt = getDb().prepare('SELECT * FROM transfer_jobs ORDER BY updated_at DESC LIMIT ?');
+    stmt.bind([limit]);
+    const items: TransferJobView[] = [];
+    try {
+      while (stmt.step()) items.push(this.rowToView(stmt.getAsObject() as Record<string, unknown>));
+      return items;
+    } finally {
+      stmt.free();
+    }
+  }
+
   listEvents(transferId: string): unknown[] {
     const stmt = getDb().prepare('SELECT * FROM transfer_events WHERE transfer_id = ? ORDER BY created_at ASC');
     stmt.bind([transferId]);

@@ -36,6 +36,12 @@ const RefreshUrlSchema = z.object({
 export async function transferRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', authMiddleware);
 
+  app.get('/api/transfers', async (request, reply) => {
+    const limitRaw = Number((request.query as Record<string, unknown> | undefined)?.limit ?? 20);
+    const limit = Number.isInteger(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 20;
+    return reply.send({ items: transferService.listTransfers(limit) });
+  });
+
   app.post('/api/transfers/uploads', async (request, reply) => {
     const parsed = CreateUploadSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });

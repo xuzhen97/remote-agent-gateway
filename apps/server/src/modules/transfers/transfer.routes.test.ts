@@ -10,6 +10,7 @@ vi.mock('./transfer.service.js', () => ({
   transferService: {
     createUpload: vi.fn(async () => ({ mode: 'frps_chunked' })),
     getTransfer: vi.fn(() => ({ id: 'tr_1', status: 'completed' })),
+    listTransfers: vi.fn(() => ([{ id: 'tr_2', status: 'completed' }])),
     listEvents: vi.fn(() => []),
     recordCliProgress: vi.fn(() => ({ id: 'tr_1' })),
     completeCliUpload: vi.fn(async () => ({ id: 'tr_1', status: 'waiting_client_download' })),
@@ -21,6 +22,14 @@ vi.mock('./transfer.service.js', () => ({
 }));
 
 describe('transferRoutes', () => {
+  it('lists recent transfers', async () => {
+    const app = Fastify();
+    await app.register(transferRoutes);
+    const res = await app.inject({ method: 'GET', url: '/api/transfers?limit=10', headers: { authorization: 'Bearer token' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ items: [{ id: 'tr_2', status: 'completed' }] });
+  });
+
   it('creates an upload transfer', async () => {
     const app = Fastify();
     await app.register(transferRoutes);

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, QRCode, Space, Table, Tag, Typography } from 'antd';
+import { Alert, App, Button, Card, Descriptions, Drawer, Form, Input, InputNumber, QRCode, Space, Table, Tag, Typography } from 'antd';
 import type { Api } from '../api/http';
-import { completeAliyunDriveOAuth, getAliyunDriveStatus, saveAliyunDriveConfig, startAliyunDriveOAuth, testAliyunDriveAuthorization, type AliyunDriveAuthorizationTestResult, type AliyunDriveStatus } from '../api/aliyundrive';
+import { completeAliyunDriveOAuth, getAliyunDriveStatus, saveAliyunDriveConfig, startAliyunDriveOAuth, testAliyunDriveAuthorization, listTransfers, getTransferEvents, type AliyunDriveAuthorizationTestResult, type AliyunDriveStatus, type TransferEventItem, type TransferListItem } from '../api/aliyundrive';
+import { StatusTag } from '../components/StatusTag';
 
 interface Props { api: Api }
 
@@ -14,6 +15,10 @@ export function AliyunDrivePage({ api }: Props) {
   const [loading, setLoading] = useState(false);
   const [testingAuthorization, setTestingAuthorization] = useState(false);
   const [authTest, setAuthTest] = useState<AliyunDriveAuthorizationTestResult | null>(null);
+  const [transfers, setTransfers] = useState<TransferListItem[]>([]);
+  const [transferEvents, setTransferEvents] = useState<TransferEventItem[]>([]);
+  const [selectedTransfer, setSelectedTransfer] = useState<TransferListItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   async function runAuthorizationTest(showSuccessMessage = false) {
     setTestingAuthorization(true);
@@ -35,6 +40,10 @@ export function AliyunDrivePage({ api }: Props) {
     }
   }
 
+  async function loadTransfers() {
+    setTransfers(await listTransfers(api, 20));
+  }
+
   async function refresh() {
     const next = await getAliyunDriveStatus(api);
     setStatus(next);
@@ -46,6 +55,7 @@ export function AliyunDrivePage({ api }: Props) {
       transferFolder: next.transferFolder ?? 'RemoteAgentGatewayTransfers',
       cleanupTtlHours: Math.round((next.cleanupTtlMs ?? 86400000) / 3600000),
     });
+    await loadTransfers();
     if (next.authorizationState === 'authorized') {
       void runAuthorizationTest(false);
     } else {
@@ -53,7 +63,11 @@ export function AliyunDrivePage({ api }: Props) {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => { void loadTransfers(); }, 3000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function saveConfig(values: any) {
     setLoading(true);
@@ -157,17 +171,47 @@ export function AliyunDrivePage({ api }: Props) {
         </Space>
       </Card>
 
-      <Card title="Transfer 监控">
-        <Table rowKey="id" dataSource={[]} columns={[
-          { title: 'ID', dataIndex: 'id' },
+      <Card title="Transfer 监控" extra={<Button onClick={() => void loadTransfers()}>刷新</Button>}>
+        <Table rowKey="id" dataSource={transfers} size="small" columns={[
+          { title: 'ID', dataIndex: 'id', render: (value: string) => <Typography.Text code>{value.slice(0, 12)}</Typography.Text> },
           { title: 'Client', dataIndex: 'clientId' },
           { title: '文件名', dataIndex: 'filename' },
-          { title: '状态', dataIndex: 'status' },
-          { title: '上传', dataIndex: 'uploadedBytes' },
-          { title: '下载', dataIndex: 'downloadedBytes' },
+          { title: '模式', dataIndex: 'mode' },
+          { title: '状态', dataIndex: 'status', render: (value: string) => <StatusTag status={value} /> },
+          { title: '上传', key: 'uploaded', render: (_: unknown, row: TransferListItem) => `${row.uploadedBytes}/${row.totalBytes}` },
+          { title: '下载', key: 'downloaded', render: (_: unknown, row: TransferListItem) => `${row.downloadedBytes}/${row.totalBytes}` },
           { title: '清理', dataIndex: 'cleanupStatus' },
+          { title: '更新时间', key: 'updatedAt', render: (_: unknown, row: TransferListItem) => new Date(row.updatedAt).toLocaleString() },
+          {
+            title: '操作', key: 'actions', render: (_: unknown, row: TransferListItem) => (
+              <Button size="small" onClick={async () => {
+                setSelectedTransfer(row);
+                setTransferEvents(await getTransferEvents(api, row.id));
+                setDrawerOpen(true);
+              }}>查看事件</Button>
+            ),
+          },
         ]} />
       </Card>
+
+      <Drawer title="Transfer 事件" open={drawerOpen} width={720} onClose={() => setDrawerOpen(false)}>
+        {selectedTransfer ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={16}>
+            <div>
+              <Typography.Text strong>ID</Typography.Text>
+              <pre>{selectedTransfer.id}</pre>
+            </div>
+            <div>
+              <Typography.Text strong>状态</Typography.Text>
+              <pre>{JSON.stringify(selectedTransfer, null, 2)}</pre>
+            </div>
+            <div>
+              <Typography.Text strong>事件流</Typography.Text>
+              <pre>{JSON.stringify(transferEvents, null, 2)}</pre>
+            </div>
+          </Space>
+        ) : null}
+      </Drawer>
     </Space>
   );
 }

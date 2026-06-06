@@ -23,6 +23,38 @@ export interface AliyunDriveAuthorizationTestResult {
   authorizedAccountName?: string;
 }
 
+export interface TransferListItem {
+  id: string;
+  clientId: string;
+  rootId: string;
+  targetDir: string;
+  filename: string;
+  size: number;
+  mode: string;
+  status: string;
+  cleanupStatus: string;
+  uploadedBytes: number;
+  downloadedBytes: number;
+  writtenBytes: number;
+  totalBytes: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number | null;
+  cleanupAfterAt?: number | null;
+}
+
+export interface TransferEventItem {
+  id: number;
+  transferId: string;
+  source: string;
+  type: string;
+  message: string;
+  payload: unknown;
+  createdAt: number;
+}
+
 export function getAliyunDriveStatus(api: Api): Promise<AliyunDriveStatus> {
   return api.get('/api/aliyundrive/status');
 }
@@ -41,4 +73,13 @@ export function completeAliyunDriveOAuth(api: Api, payload: { state: string; cod
 
 export function testAliyunDriveAuthorization(api: Api): Promise<AliyunDriveAuthorizationTestResult> {
   return api.post('/api/aliyundrive/test', {});
+}
+
+export async function listTransfers(api: Api, limit = 20): Promise<TransferListItem[]> {
+  const data = await api.get(`/api/transfers?limit=${limit}`) as { items?: TransferListItem[] };
+  return data.items ?? [];
+}
+
+export function getTransferEvents(api: Api, transferId: string): Promise<TransferEventItem[]> {
+  return api.get(`/api/transfers/${encodeURIComponent(transferId)}/events`);
 }
