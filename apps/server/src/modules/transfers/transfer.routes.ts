@@ -80,6 +80,16 @@ export async function transferRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.post<{ Params: { transferId: string } }>('/api/transfers/:transferId/web-upload-complete', async (request, reply) => {
+    try {
+      const job = await transferService.completeBrowserUpload(request.params.transferId);
+      if (!job) return reply.code(404).send({ error: 'Transfer not found' });
+      return reply.send(job);
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.post<{ Params: { transferId: string } }>('/api/transfers/:transferId/client-progress', async (request, reply) => {
     const parsed = ClientProgressSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });

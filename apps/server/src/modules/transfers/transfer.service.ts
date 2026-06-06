@@ -162,6 +162,29 @@ export class TransferService {
     return this.getTransfer(transferId);
   }
 
+  async completeBrowserUpload(transferId: string): Promise<TransferJobView | null> {
+    const job = this.getTransfer(transferId);
+    if (!job) throw new Error('Transfer not found');
+    const stmt = getDb().prepare('SELECT aliyun_drive_id, aliyun_file_id, aliyun_upload_id FROM transfer_jobs WHERE id = ?');
+    stmt.bind([transferId]);
+    try {
+      if (!stmt.step()) throw new Error('Transfer not found');
+      const row = stmt.getAsObject() as Record<string, unknown>;
+      const driveId = String(row.aliyun_drive_id ?? '');
+      const fileId = String(row.aliyun_file_id ?? '');
+      const uploadId = String(row.aliyun_upload_id ?? '');
+      if (!driveId || !fileId || !uploadId) throw new Error('Aliyun transfer metadata is missing');
+      const config = aliyunDriveAuthService.getConfig();
+      const auth = aliyunDriveAuthService.getAuth();
+      if (!config || !auth?.accessToken) throw new Error('Aliyun Drive auth is missing');
+      const client = new AliyunDriveOpenApiClient({ openapiBase: config.openapiBase, accessToken: auth.accessToken });
+      await client.completeUpload({ driveId, fileId, uploadId });
+    } finally {
+      stmt.free();
+    }
+    return await this.completeCliUpload(transferId);
+  }
+
   async refreshUploadUrl(transferId: string, partNumbers?: number[]): Promise<{ uploadParts: Array<{ partNumber: number; uploadUrl: string; size: number }> }> {
     const stmt = getDb().prepare('SELECT aliyun_drive_id, aliyun_file_id, aliyun_upload_id, total_bytes FROM transfer_jobs WHERE id = ?');
     stmt.bind([transferId]);

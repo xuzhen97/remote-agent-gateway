@@ -49,7 +49,7 @@ describe('uploadClientFileViaRelay', () => {
           };
         }
         if (path === '/api/transfers/tr_1/cli-progress') return { ok: true };
-        if (path === '/api/transfers/tr_1/cli-upload-complete') return { ok: true };
+        if (path === '/api/transfers/tr_1/web-upload-complete') return { ok: true };
         throw new Error(`unexpected post ${path}`);
       }),
       get: vi.fn(async () => ({ id: 'tr_1', status: 'completed', downloadedBytes: 5, writtenBytes: 5, totalBytes: 5 })),
@@ -74,7 +74,7 @@ describe('uploadClientFileViaRelay', () => {
     expect(result).toEqual({ kind: 'completed', transferId: 'tr_1', resolvedMode: 'aliyundrive' });
     expect(onStateChange).toHaveBeenCalled();
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(api.post).toHaveBeenCalledWith('/api/transfers/tr_1/cli-upload-complete', {});
+    expect(api.post).toHaveBeenCalledWith('/api/transfers/tr_1/web-upload-complete', {});
     expect(api.get).toHaveBeenCalledWith('/api/transfers/tr_1');
   });
 });

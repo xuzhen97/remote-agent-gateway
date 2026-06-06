@@ -20,6 +20,11 @@ export interface RelayUploadUiState {
 interface RelayAliyunPlan {
   mode: 'aliyundrive';
   transferId: string;
+  accessToken: string;
+  openapiBase: string;
+  driveId: string;
+  fileId: string;
+  uploadId: string;
   partSize: number;
   partCount: number;
   uploadParts: Array<{ partNumber: number; uploadUrl: string; size: number }>;
@@ -119,7 +124,7 @@ export async function uploadClientFileViaRelay(options: {
     }));
   }
 
-  await options.api.post(`/api/transfers/${encodeURIComponent(plan.transferId)}/cli-upload-complete`, {});
+  await options.api.post(`/api/transfers/${encodeURIComponent(plan.transferId)}/web-upload-complete`, {});
   options.onStateChange?.(buildRelayUiState({
     requestedMode: options.requestedMode,
     transferId: plan.transferId,
