@@ -3,16 +3,18 @@ import type { ClientConfig } from '../config/client.config.js';
 
 export type MessageHandler = (data: string) => void;
 export type CloseHandler = () => void;
+export type ConnectHandler = (isReconnect: boolean) => void;
 
 export class ConnectionManager {
   private ws: WebSocket | null = null;
   private config: ClientConfig;
   private messageHandler: MessageHandler | null = null;
   private closeHandler: CloseHandler | null = null;
+  private connectHandler: ConnectHandler | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
   private connected = false;
+  private firstConnectDone = false;
 
   constructor(config: ClientConfig) {
     this.config = config;
@@ -26,6 +28,10 @@ export class ConnectionManager {
     this.closeHandler = handler;
   }
 
+  onConnect(handler: ConnectHandler): void {
+    this.connectHandler = handler;
+  }
+
   connect(): void {
     if (this.ws) {
       this.ws.close();
@@ -37,8 +43,11 @@ export class ConnectionManager {
 
     this.ws.on('open', () => {
       this.connected = true;
+      const isReconnect = this.firstConnectDone;
+      this.firstConnectDone = true;
       this.reconnectAttempts = 0;
-      console.log(`Connected to server: ${this.config.serverUrl}`);
+      console.log(`Connected to server: ${this.config.serverUrl}${isReconnect ? ' (reconnect)' : ''}`);
+      if (this.connectHandler) this.connectHandler(isReconnect);
     });
 
     this.ws.on('message', (data: Buffer) => {
@@ -76,20 +85,17 @@ export class ConnectionManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.maxReconnectAttempts = 0; // prevent reconnect
     this.ws?.close();
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnect attempts reached');
-      return;
-    }
-
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30_000);
+    const baseDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30_000);
+    // Add ±25% jitter to avoid thundering herd
+    const jitter = baseDelay * (0.5 + Math.random() * 0.5);
+    const delay = Math.round(jitter);
     this.reconnectAttempts++;
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}, max backoff 30s)`);
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();

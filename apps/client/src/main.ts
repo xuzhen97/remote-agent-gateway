@@ -156,6 +156,21 @@ async function main(): Promise<void> {
     console.log('Disconnected from server');
   });
 
+  // Handle (re)connect — re-register on every connection
+  conn.onConnect(async (isReconnect: boolean) => {
+    if (isReconnect) {
+      console.log('Reconnected, re-registering...');
+      try {
+        await sendRegister(conn, config);
+        // Restart heartbeat with fresh interval to avoid duplicate timers
+        startHeartbeat(conn, config);
+        console.log('Re-registration complete');
+      } catch (err) {
+        console.error('Re-registration failed:', err instanceof Error ? err.message : err);
+      }
+    }
+  });
+
   // Connect to server
   conn.connect();
 
