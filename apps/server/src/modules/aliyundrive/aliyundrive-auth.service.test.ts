@@ -26,11 +26,17 @@ describe('AliyunDriveAuthService', () => {
     expect(buildCodeChallenge('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV')).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
+  it('challenge-verifier round-trip is consistent', () => {
+    const verifier = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV';
+    const challenge1 = buildCodeChallenge(verifier);
+    const challenge2 = buildCodeChallenge(verifier);
+    expect(challenge1).toBe(challenge2);
+  });
+
   it('builds an authorization URL with OOB redirect', async () => {
     const service = new AliyunDriveAuthService({
       fetchImpl: vi.fn() as any,
       now: () => 1000,
-      randomString: () => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV',
     });
     const result = await service.startOAuth({
       clientId: 'app-id',

@@ -9,8 +9,12 @@ const DEFAULT_REDIRECT_URI = 'oob';
 const DEFAULT_TRANSFER_FOLDER = 'RemoteAgentGatewayTransfers';
 const DEFAULT_CLEANUP_TTL_MS = 24 * 60 * 60 * 1000;
 
-export function buildCodeVerifier(randomString = randomBytes(48).toString('base64url')): string {
-  return randomString.replace(/[^A-Za-z0-9]/g, '').slice(0, 96).padEnd(43, 'A');
+export function buildCodeVerifier(): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const bytes = randomBytes(64);
+  let result = '';
+  for (const byte of bytes) result += alphabet[byte % alphabet.length];
+  return result;
 }
 
 export function buildCodeChallenge(verifier: string): string {
@@ -23,7 +27,6 @@ export class AliyunDriveAuthService {
   constructor(private readonly deps: {
     fetchImpl?: typeof fetch;
     now?: () => number;
-    randomString?: () => string;
   } = {}) {}
 
   private now(): number { return this.deps.now?.() ?? Date.now(); }
@@ -135,7 +138,7 @@ export class AliyunDriveAuthService {
   async startOAuth(configInput?: Partial<AliyunDriveConfigRecord> & { clientId: string }) {
     const config = configInput ? this.saveConfig(configInput) : this.getConfig();
     if (!config?.clientId) throw new Error('Aliyun Drive client_id is not configured');
-    const verifier = buildCodeVerifier(this.deps.randomString?.());
+    const verifier = buildCodeVerifier();
     const state = randomBytes(16).toString('hex');
     const url = new URL(`${config.openapiBase}/oauth/authorize`);
     url.searchParams.set('client_id', config.clientId);
