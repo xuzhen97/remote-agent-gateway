@@ -45,6 +45,26 @@ export class ServerApi {
     return this.request('GET', `/api/tasks/${encodeURIComponent(recordId)}`);
   }
 
+  async createUploadTransfer(input: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', '/api/transfers/uploads', input);
+  }
+
+  async getTransfer(transferId: string): Promise<unknown> {
+    return this.request('GET', `/api/transfers/${encodeURIComponent(transferId)}`);
+  }
+
+  async reportCliProgress(transferId: string, input: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', `/api/transfers/${encodeURIComponent(transferId)}/cli-progress`, input);
+  }
+
+  async completeCliUpload(transferId: string): Promise<unknown> {
+    return this.request('POST', `/api/transfers/${encodeURIComponent(transferId)}/cli-upload-complete`, {});
+  }
+
+  async refreshUploadUrl(transferId: string, partNumbers: number[]): Promise<unknown> {
+    return this.request('POST', `/api/transfers/${encodeURIComponent(transferId)}/refresh-upload-url`, { partNumbers });
+  }
+
   private async request(method: string, path: string, body?: unknown): Promise<unknown> {
     let response: Response;
     try {

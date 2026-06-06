@@ -1,14 +1,22 @@
-import { writeFile } from 'node:fs/promises';
+import { writeFile, stat } from 'node:fs/promises';
 import type { Command } from 'commander';
 import type { ClientHttpApi } from '../http/client-http.js';
 import { uploadFileWithProgress } from '../http/upload-transfer.js';
+import { uploadFileToAliyunDrive, type AliyunUploadPlan } from '../http/aliyundrive-upload.js';
 import { successEnvelope } from '../output/json-output.js';
 import { requiredString } from '../util/args.js';
 
-interface FilesDeps {
+export interface FilesDeps {
   discoverClientHttp(clientId: string): Promise<ClientHttpApi>;
   write(value: unknown): void;
   writeRaw?: (value: string | Uint8Array) => void;
+  serverApi?: {
+    createUploadTransfer(input: Record<string, unknown>): Promise<unknown>;
+    getTransfer(transferId: string): Promise<unknown>;
+    reportCliProgress(transferId: string, input: Record<string, unknown>): Promise<unknown>;
+    completeCliUpload(transferId: string): Promise<unknown>;
+    refreshUploadUrl(transferId: string, partNumbers: number[]): Promise<unknown>;
+  };
 }
 
 function rawWriter(value: string | Uint8Array): void {
@@ -54,9 +62,70 @@ export function registerFilesCommands(program: Command, deps: FilesDeps): void {
     .requiredOption('--path <path>')
     .requiredOption('--file <file>')
     .option('--filename <filename>')
+    .option('--transfer <mode>', 'auto | aliyundrive | direct', 'auto')
     .action(async (options: any) => {
-      const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
       const filename = options.filename ?? options.file.split(/[\\/]/).pop();
+      const transferMode: 'auto' | 'aliyundrive' | 'direct' = options.transfer;
+
+      // If server API is available, try aliyundrive path first
+      if (deps.serverApi && transferMode !== 'direct') {
+        const result = await deps.serverApi.createUploadTransfer({
+          clientId: requiredString(options.client, '--client'),
+          rootId: options.root,
+          path: options.path,
+          filename,
+          size: (await stat(options.file)).size,
+          transfer: transferMode,
+        });
+
+        if ((result as any).mode === 'aliyundrive') {
+          const plan = result as AliyunUploadPlan;
+          process.stderr.write(`[1/5] 创建传输任务 ${plan.transferId}\n`);
+          await uploadFileToAliyunDrive({
+            filePath: options.file,
+            plan,
+            serverApi: deps.serverApi,
+            onProgress: (progress) => {
+              const percent = ((progress.uploadedBytes / progress.totalBytes) * 100).toFixed(1);
+              process.stderr.write(`\r[2/5] 上传到阿里云盘 ${percent}% | part ${progress.partNumber}/${progress.partCount} | ETA ${Math.ceil((progress.totalBytes - progress.uploadedBytes) / Math.max(progress.rateBytesPerSecond, 1))}s`);
+              if (progress.uploadedBytes === progress.totalBytes) process.stderr.write('\n');
+            },
+          });
+          process.stderr.write(`[3/5] 阿里云盘合并完成\n`);
+          process.stderr.write(`[4/5] 等待 client 下载...\n`);
+
+          // Poll until transfer completes or fails
+          for (let i = 0; i < 600; i += 1) {
+            const job = await deps.serverApi.getTransfer(plan.transferId) as any;
+            if (job.status === 'completed') {
+              process.stderr.write(`[5/5] 写入完成 root=${job.rootId} path=${job.targetDir}/${job.filename} size=${job.size}\n`);
+              deps.write(successEnvelope({
+                transferId: plan.transferId,
+                mode: 'aliyundrive',
+                clientId: options.client,
+                rootId: options.root,
+                path: options.path,
+                filename,
+                size: job.size,
+                status: 'completed',
+              }));
+              return;
+            }
+            if (job.status === 'failed') {
+              throw new Error(`Transfer failed: ${job.errorMessage ?? 'unknown error'}`);
+            }
+            if (job.phase === 'client_downloading') {
+              const pct = job.totalBytes > 0 ? ((job.downloadedBytes / job.totalBytes) * 100).toFixed(1) : '0';
+              process.stderr.write(`\r[4/5] Client 下载 ${pct}%`);
+            }
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+          throw new Error('Transfer timed out after 20 minutes');
+        }
+      }
+
+      // Fallback: direct chunked upload through frps/frpc
+      const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
       const result = await uploadFileWithProgress(client, {
         rootId: options.root,
         path: options.path,

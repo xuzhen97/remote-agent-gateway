@@ -5,7 +5,9 @@ export type CliErrorCode =
   | 'NETWORK_ERROR'
   | 'CLIENT_DISCOVERY_ERROR'
   | 'IO_ERROR'
-  | 'PARSE_ERROR';
+  | 'PARSE_ERROR'
+  | 'ALIYUN_PLAN_ERROR'
+  | 'ALIYUN_UPLOAD_ERROR';
 
 export class CliError extends Error {
   constructor(

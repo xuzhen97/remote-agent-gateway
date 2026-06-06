@@ -61,7 +61,17 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
   }
 
   registerJobsCommands(program, { discoverClientHttp, write });
-  registerFilesCommands(program, { discoverClientHttp, write });
+  registerFilesCommands(program, {
+    discoverClientHttp,
+    write,
+    serverApi: {
+      createUploadTransfer: (input) => requireServerApi().createUploadTransfer(input),
+      getTransfer: (id) => requireServerApi().getTransfer(id),
+      reportCliProgress: (id, input) => requireServerApi().reportCliProgress(id, input),
+      completeCliUpload: (id) => requireServerApi().completeCliUpload(id),
+      refreshUploadUrl: (id, partNumbers) => requireServerApi().refreshUploadUrl(id, partNumbers),
+    },
+  });
   registerFrpCommands(program, { discoverClientHttp, write });
 
   return program;
