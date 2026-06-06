@@ -259,3 +259,84 @@ export interface ClientTaskHistoryItem {
   reportedAt: number;
   receivedAt?: number;
 }
+
+export type TransferMode = 'aliyundrive' | 'frps_chunked';
+
+export type TransferStatus =
+  | 'created'
+  | 'waiting_cli_upload'
+  | 'cli_uploading'
+  | 'aliyun_uploaded'
+  | 'waiting_client_download'
+  | 'client_downloading'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type TransferCleanupStatus = 'none' | 'cleanup_pending' | 'cleanup_done' | 'cleanup_failed';
+
+export interface ServerTransferDownloadStartPayload {
+  transferId: string;
+  clientId: string;
+}
+
+export interface ClientTransferProgressPayload {
+  transferId: string;
+  clientId: string;
+  phase: TransferStatus;
+  downloadedBytes?: number;
+  writtenBytes?: number;
+  totalBytes: number;
+  message?: string;
+}
+
+export interface ClientTransferCompletePayload {
+  transferId: string;
+  clientId: string;
+  rootId: string;
+  path: string;
+  size: number;
+}
+
+export interface ClientTransferFailedPayload {
+  transferId: string;
+  clientId: string;
+  errorCode: string;
+  errorMessage: string;
+}
+
+export interface AliyunDrivePublicStatus {
+  configured: boolean;
+  authorized: boolean;
+  clientId?: string;
+  scope?: string;
+  openapiBase?: string;
+  redirectUri?: string;
+  transferFolder?: string;
+  cleanupTtlMs?: number;
+  expiresAt?: number;
+  driveId?: string;
+  authorizedAccountName?: string;
+}
+
+export interface TransferJobView {
+  id: string;
+  clientId: string;
+  rootId: string;
+  targetDir: string;
+  filename: string;
+  size: number;
+  mode: TransferMode;
+  status: TransferStatus;
+  cleanupStatus: TransferCleanupStatus;
+  uploadedBytes: number;
+  downloadedBytes: number;
+  writtenBytes: number;
+  totalBytes: number;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number | null;
+  cleanupAfterAt?: number | null;
+}

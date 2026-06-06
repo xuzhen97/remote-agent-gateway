@@ -1,14 +1,27 @@
-import type { ClientInfo, ClientHttpControl, ClientHttpReadyPayload, ClientHttpFailedPayload } from './types.js';
+import type {
+  ClientInfo,
+  ClientHttpControl,
+  ClientHttpReadyPayload,
+  ClientHttpFailedPayload,
+  ServerTransferDownloadStartPayload,
+  ClientTransferProgressPayload,
+  ClientTransferCompletePayload,
+  ClientTransferFailedPayload,
+} from './types.js';
 
 export type ClientMessageType =
   | 'client.register'
   | 'client.heartbeat'
   | 'client.http_ready'
-  | 'client.http_failed';
+  | 'client.http_failed'
+  | 'client.transfer.progress'
+  | 'client.transfer.complete'
+  | 'client.transfer.failed';
 
 export type ServerMessageType =
   | 'server.ack'
-  | 'server.error';
+  | 'server.error'
+  | 'transfer.download.start';
 
 export interface WsMessage<T extends string, P = unknown> {
   type: T;
@@ -31,11 +44,19 @@ export type ClientHeartbeatMessage = WsMessage<
 export type ClientHttpReadyMessage = WsMessage<'client.http_ready', ClientHttpReadyPayload>;
 export type ClientHttpFailedMessage = WsMessage<'client.http_failed', ClientHttpFailedPayload>;
 
+export type ServerTransferDownloadStartMessage = WsMessage<'transfer.download.start', ServerTransferDownloadStartPayload>;
+export type ClientTransferProgressMessage = WsMessage<'client.transfer.progress', ClientTransferProgressPayload>;
+export type ClientTransferCompleteMessage = WsMessage<'client.transfer.complete', ClientTransferCompletePayload>;
+export type ClientTransferFailedMessage = WsMessage<'client.transfer.failed', ClientTransferFailedPayload>;
+
 export type ClientMessage =
   | ClientRegisterMessage
   | ClientHeartbeatMessage
   | ClientHttpReadyMessage
-  | ClientHttpFailedMessage;
+  | ClientHttpFailedMessage
+  | ClientTransferProgressMessage
+  | ClientTransferCompleteMessage
+  | ClientTransferFailedMessage;
 
 export interface ServerAckPayload {
   message: string;
@@ -48,4 +69,5 @@ export type ServerErrorMessage = WsMessage<'server.error', { code: string; messa
 
 export type ServerMessage =
   | ServerAckMessage
-  | ServerErrorMessage;
+  | ServerErrorMessage
+  | ServerTransferDownloadStartMessage;

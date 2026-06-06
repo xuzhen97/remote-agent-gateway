@@ -164,6 +164,48 @@ export const ClientFrpMappingCreatePayloadSchema = z.object({
   customDomain: z.string().optional(),
 });
 
+export const TransferStatusSchema = z.enum([
+  'created',
+  'waiting_cli_upload',
+  'cli_uploading',
+  'aliyun_uploaded',
+  'waiting_client_download',
+  'client_downloading',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+
+export const ServerTransferDownloadStartPayloadSchema = z.object({
+  transferId: z.string().min(1).max(128),
+  clientId: z.string().min(1).max(128),
+});
+
+export const ClientTransferProgressPayloadSchema = z.object({
+  transferId: z.string().min(1).max(128),
+  clientId: z.string().min(1).max(128),
+  phase: TransferStatusSchema,
+  downloadedBytes: z.number().int().min(0).optional(),
+  writtenBytes: z.number().int().min(0).optional(),
+  totalBytes: z.number().int().min(0),
+  message: z.string().max(512).optional(),
+});
+
+export const ClientTransferCompletePayloadSchema = z.object({
+  transferId: z.string().min(1).max(128),
+  clientId: z.string().min(1).max(128),
+  rootId: ClientFileRootIdSchema,
+  path: RelativeClientPathSchema,
+  size: z.number().int().min(0),
+});
+
+export const ClientTransferFailedPayloadSchema = z.object({
+  transferId: z.string().min(1).max(128),
+  clientId: z.string().min(1).max(128),
+  errorCode: z.string().min(1).max(128),
+  errorMessage: z.string().min(1).max(2048),
+});
+
 export {
   TaskResourceTypeSchema,
   TaskActionTypeSchema,
