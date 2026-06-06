@@ -18,4 +18,22 @@ describe('AliyunDriveOpenApiClient', () => {
     const client = new AliyunDriveOpenApiClient({ openapiBase: 'https://openapi.alipan.com', accessToken: 'token', fetchImpl: fetchImpl as any });
     await expect(client.post('/x', {})).rejects.toThrow('Aliyun OpenAPI failed: HTTP 401');
   });
+
+  it('ensures nested transfer folders before upload', async () => {
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body ?? '{}'));
+      if (payload.parent_file_id === 'root' && payload.type === 'folder') {
+        return new Response(JSON.stringify({ items: [{ name: 'relay', file_id: 'fld-relay' }] }), { status: 200 });
+      }
+      if (payload.parent_file_id === 'fld-relay' && payload.type === 'folder' && payload.limit) {
+        return new Response(JSON.stringify({ items: [] }), { status: 200 });
+      }
+      if (payload.parent_file_id === 'fld-relay' && payload.type === 'folder' && payload.check_name_mode === 'refuse') {
+        return new Response(JSON.stringify({ file_id: 'fld-uploads' }), { status: 200 });
+      }
+      throw new Error(`unexpected payload ${JSON.stringify(payload)}`);
+    });
+    const client = new AliyunDriveOpenApiClient({ openapiBase: 'https://openapi.alipan.com', accessToken: 'token', fetchImpl: fetchImpl as any });
+    await expect(client.ensureFolderPath({ driveId: 'drive-1', folderPath: 'relay/uploads' })).resolves.toBe('fld-uploads');
+  });
 });

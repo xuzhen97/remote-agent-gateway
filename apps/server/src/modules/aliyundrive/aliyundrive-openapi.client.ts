@@ -38,6 +38,47 @@ export class AliyunDriveOpenApiClient {
     return { driveId, raw: data };
   }
 
+  async listChildren(input: { driveId: string; parentFileId: string; type?: 'file' | 'folder' }) {
+    const payload: Record<string, unknown> = {
+      drive_id: input.driveId,
+      parent_file_id: input.parentFileId,
+      limit: 100,
+      order_by: 'name',
+      order_direction: 'ASC',
+    };
+    if (input.type) payload.type = input.type;
+    const data = await this.post<Record<string, unknown>>('/adrive/v1.0/openFile/list', payload);
+    return (data.items ?? []) as Array<Record<string, unknown>>;
+  }
+
+  async createFolder(input: { driveId: string; parentFileId: string; name: string }) {
+    return await this.post<Record<string, unknown>>('/adrive/v1.0/openFile/create', {
+      drive_id: input.driveId,
+      parent_file_id: input.parentFileId,
+      name: input.name,
+      type: 'folder',
+      check_name_mode: 'refuse',
+    });
+  }
+
+  async ensureFolderPath(input: { driveId: string; folderPath: string }): Promise<string> {
+    const segments = input.folderPath.split(/[\\/]+/).map((segment) => segment.trim()).filter(Boolean);
+    let parentFileId = 'root';
+    for (const segment of segments) {
+      const children = await this.listChildren({ driveId: input.driveId, parentFileId, type: 'folder' });
+      const matched = children.find((item) => String(item.name ?? '') === segment);
+      if (matched) {
+        parentFileId = String(matched.file_id ?? matched.fileId ?? '');
+        if (!parentFileId) throw new Error(`Aliyun folder ${segment} is missing file_id`);
+        continue;
+      }
+      const created = await this.createFolder({ driveId: input.driveId, parentFileId, name: segment });
+      parentFileId = String(created.file_id ?? created.fileId ?? '');
+      if (!parentFileId) throw new Error(`Aliyun create folder ${segment} did not return file_id`);
+    }
+    return parentFileId;
+  }
+
   async createFileUpload(input: { driveId: string; parentFileId: string; name: string; size: number; partInfoList: Array<{ part_number: number }> }) {
     return await this.post<Record<string, unknown>>('/adrive/v1.0/openFile/create', {
       drive_id: input.driveId,

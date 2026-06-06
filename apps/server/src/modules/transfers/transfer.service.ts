@@ -53,9 +53,10 @@ export class TransferService {
     const partSize = resolveAliyunPartSize(input.size);
     const partInfoList = buildPartInfoList(input.size, partSize);
     const client = new AliyunDriveOpenApiClient({ openapiBase: config.openapiBase, accessToken: auth.accessToken });
+    const parentFileId = await client.ensureFolderPath({ driveId, folderPath: config.transferFolder });
     const createResult = await client.createFileUpload({
       driveId,
-      parentFileId: 'root',
+      parentFileId,
       name: `${transferId}-${input.filename}`,
       size: input.size,
       partInfoList,
@@ -77,7 +78,7 @@ export class TransferService {
       aliyunDriveId: driveId,
       aliyunFileId: fileId,
       aliyunUploadId: uploadId,
-      aliyunParentFileId: 'root',
+      aliyunParentFileId: parentFileId,
       aliyunFileName: `${transferId}-${input.filename}`,
       totalBytes: input.size,
       partCount: partInfoList.length,
