@@ -3,7 +3,7 @@ import { ConnectionManager } from './core/connection.js';
 import { sendRegister } from './core/register.js';
 import { startHeartbeat } from './core/heartbeat.js';
 import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-daemon.js';
-import { startControlHttpServer, stopControlHttpServer } from './runtime/control-http/server.js';
+import { startControlHttpServer, stopControlHttpServer, getJobManager } from './runtime/control-http/server.js';
 import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler.js';
 import type { ServerAckPayload } from '@rag/shared';
 
@@ -145,6 +145,61 @@ async function main(): Promise<void> {
       case 'server.error':
         console.error('Server error:', (message.payload as Record<string, unknown>)?.message);
         break;
+
+      case 'server.job.run': {
+        const mgr = getJobManager();
+        if (!mgr) {
+          conn.send({
+            type: 'client.job.event',
+            requestId: (message as { requestId?: string }).requestId,
+            payload: { event: 'job.failed', data: { error: 'Job manager not available' } },
+          });
+          break;
+        }
+        const runPayload = message.payload as { command: string; args?: string[]; timeoutMs?: number; cwd?: string; env?: Record<string, string> };
+        try {
+          const job = mgr.createCommand({
+            command: runPayload.command,
+            args: runPayload.args,
+            timeoutMs: runPayload.timeoutMs,
+            cwd: runPayload.cwd,
+            env: runPayload.env,
+          });
+          const jobId = job.jobId;
+          conn.send({
+            type: 'client.job.event',
+            requestId: (message as { requestId?: string }).requestId,
+            payload: { jobId, event: 'job.started', data: job },
+          });
+          // Subscribe to job events and forward via WebSocket
+          mgr.subscribe(jobId, (event) => {
+            conn.send({
+              type: 'client.job.event',
+              requestId: (message as { requestId?: string }).requestId,
+              payload: { jobId, event: event.event, data: event.data },
+            });
+          });
+        } catch (err) {
+          conn.send({
+            type: 'client.job.event',
+            requestId: (message as { requestId?: string }).requestId,
+            payload: { event: 'job.failed', data: { error: err instanceof Error ? err.message : String(err) } },
+          });
+        }
+        break;
+      }
+
+      case 'server.job.cancel': {
+        const mgr = getJobManager();
+        if (!mgr) break;
+        const cancelPayload = message.payload as { jobId: string };
+        try {
+          mgr.cancel(cancelPayload.jobId);
+        } catch (err) {
+          console.error('Failed to cancel job:', err instanceof Error ? err.message : err);
+        }
+        break;
+      }
 
       default:
         console.log('Unknown message type:', message.type);

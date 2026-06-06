@@ -36,6 +36,7 @@ export interface ControlHttpServerState {
 
 let activeServer: http.Server | null = null;
 let activeState: ControlHttpServerState | null = null;
+let activeJobManager: JobManager | null = null;
 
 export async function startControlHttpServer(options: StartOptions): Promise<ControlHttpServerState> {
   await stopControlHttpServer();
@@ -47,6 +48,7 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
     logBufferLines: options.job.logBufferLines,
     workspaceDir: options.workspaceDir,
   });
+  activeJobManager = jobManager;
 
   router.add('GET', /^\/ping$/, (_req, res) => sendJson(res, 200, { ok: true }));
   router.add('GET', /^\/health$/, (req, res) => {
@@ -106,10 +108,15 @@ export async function stopControlHttpServer(): Promise<void> {
   const server = activeServer;
   activeServer = null;
   activeState = null;
+  activeJobManager = null;
   server.close();
   await once(server, 'close');
 }
 
 export function getControlHttpServerState(): ControlHttpServerState | null {
   return activeState;
+}
+
+export function getJobManager(): JobManager | null {
+  return activeJobManager;
 }

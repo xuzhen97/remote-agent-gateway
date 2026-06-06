@@ -65,6 +65,10 @@ export class ServerApi {
     return this.request('POST', `/api/transfers/${encodeURIComponent(transferId)}/refresh-upload-url`, { partNumbers });
   }
 
+  async proxyJob(clientId: string, payload: { command: string; args?: string[]; timeoutMs?: number; cwd?: string; env?: Record<string, string> }): Promise<unknown> {
+    return this.request('POST', `/api/clients/${encodeURIComponent(clientId)}/jobs/run`, payload);
+  }
+
   private async request(method: string, path: string, body?: unknown): Promise<unknown> {
     let response: Response;
     try {

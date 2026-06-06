@@ -60,7 +60,11 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
     return new ClientHttpApi({ baseUrl: discovered.baseUrl, token: discovered.token });
   }
 
-  registerJobsCommands(program, { discoverClientHttp, write });
+  registerJobsCommands(program, {
+    discoverClientHttp,
+    proxyJob: (clientId, payload) => requireServerApi().proxyJob(clientId, payload),
+    write,
+  });
   registerFilesCommands(program, {
     discoverClientHttp,
     write,

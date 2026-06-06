@@ -6,6 +6,7 @@ import { auditService } from '../modules/audit/audit.service.js';
 import { getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
 import { clientHttpCoordinatorService } from '../modules/client-http/client-http-coordinator.service.js';
 import { transferService } from '../modules/transfers/transfer.service.js';
+import { resolveJobEvent } from '../modules/jobs/jobs-proxy.routes.js';
 import { saveDb } from '../db/index.js';
 
 export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<void> {
@@ -158,6 +159,15 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
       transferService.failTransfer(parsed.data.transferId, parsed.data);
       ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: 'Transfer failure recorded' } }));
       saveDb();
+      break;
+    }
+
+    case 'client.job.event': {
+      const eventPayload = message.payload as { jobId?: string; event?: string; data?: Record<string, unknown> };
+      if (eventPayload.event && eventPayload.data) {
+        // Find the clientId from the connection manager
+      resolveJobEvent(message.requestId ?? '', eventPayload.event, eventPayload.data);
+      }
       break;
     }
 

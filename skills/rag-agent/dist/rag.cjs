@@ -3150,6 +3150,9 @@ var ServerApi = class {
   async refreshUploadUrl(transferId, partNumbers) {
     return this.request("POST", `/api/transfers/${encodeURIComponent(transferId)}/refresh-upload-url`, { partNumbers });
   }
+  async proxyJob(clientId, payload) {
+    return this.request("POST", `/api/clients/${encodeURIComponent(clientId)}/jobs/run`, payload);
+  }
   async request(method, path, body) {
     let response;
     try {
@@ -3820,7 +3823,13 @@ function registerJobsCommands(program2, deps) {
     if (options.logs && !options.wait) throw new CliError("ARGUMENT_ERROR", "--logs requires --wait");
     if (options.wait && options.events) throw new CliError("ARGUMENT_ERROR", "--wait cannot be combined with --events");
     const timeoutMs = optionalNumber(options.timeoutMs, "--timeout-ms");
-    const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
+    const clientId = requiredString(options.client, "--client");
+    if (options.wait) {
+      const result = await deps.proxyJob(clientId, { command: cmd[0], args: cmd.slice(1), timeoutMs });
+      deps.write(result);
+      return;
+    }
+    const client = await deps.discoverClientHttp(clientId);
     const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), timeoutMs });
     await maybeFollowJob(options, client, created, deps.write, timeoutMs);
   });
@@ -3907,7 +3916,11 @@ function buildProgram(input = {}) {
     const discovered = await deps.serverApi.discoverClientHttp(clientId);
     return new ClientHttpApi({ baseUrl: discovered.baseUrl, token: discovered.token });
   }
-  registerJobsCommands(program2, { discoverClientHttp, write });
+  registerJobsCommands(program2, {
+    discoverClientHttp,
+    proxyJob: (clientId, payload) => requireServerApi().proxyJob(clientId, payload),
+    write
+  });
   registerFilesCommands(program2, {
     discoverClientHttp,
     write,

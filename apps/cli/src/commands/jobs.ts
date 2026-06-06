@@ -7,6 +7,7 @@ import { optionalNumber, requiredString } from '../util/args.js';
 
 interface JobsDeps {
   discoverClientHttp(clientId: string): Promise<ClientHttpApi>;
+  proxyJob(clientId: string, payload: { command: string; args?: string[]; timeoutMs?: number; cwd?: string; env?: Record<string, string> }): Promise<unknown>;
   write(value: unknown): void;
 }
 
@@ -95,7 +96,18 @@ export function registerJobsCommands(program: Command, deps: JobsDeps): void {
       if (options.logs && !options.wait) throw new CliError('ARGUMENT_ERROR', '--logs requires --wait');
       if (options.wait && options.events) throw new CliError('ARGUMENT_ERROR', '--wait cannot be combined with --events');
       const timeoutMs = optionalNumber(options.timeoutMs, '--timeout-ms');
-      const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
+      const clientId = requiredString(options.client, '--client');
+
+      // When --wait is used, route through the server's WebSocket proxy
+      // instead of polling directly over the FRP tunnel
+      if (options.wait) {
+        const result = await deps.proxyJob(clientId, { command: cmd[0], args: cmd.slice(1), timeoutMs });
+        deps.write(result);
+        return;
+      }
+
+      // Non-wait path: create job directly on client (fire-and-forget)
+      const client = await deps.discoverClientHttp(clientId);
       const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), timeoutMs });
       await maybeFollowJob(options, client, created, deps.write, timeoutMs);
     });
