@@ -12,13 +12,16 @@ import {
 } from '@ant-design/icons';
 import type { Api } from '../api/http';
 import { getClient } from '../api/clients';
-import { uploadClientFile } from './client-file-upload';
+import { uploadClientFile, type UploadClientFileProgress } from './client-file-upload';
+import { uploadClientFileViaRelay, type RelayUploadUiState, type UploadStageState } from './client-file-relay-upload';
 
 const { Title, Text } = Typography;
 
 interface FileEntry { name: string; path: string; type: string; size: number; mtimeMs: number }
 
 interface Root { id: string; label: string; path: string }
+
+type UploadDialogState = RelayUploadUiState;
 
 interface ClientFilesPageProps {
   api: Api;
@@ -42,7 +45,8 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
   const [writePath, setWritePath] = useState('');
   const [writeContent, setWriteContent] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<{ percent: number; text: string } | null>(null);
+  const [uploadMode, setUploadMode] = useState<'auto' | 'aliyundrive' | 'direct'>('auto');
+  const [uploadProgress, setUploadProgress] = useState<UploadDialogState | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Discover client HTTP endpoint — poll until httpReady, then fetch token.
@@ -175,6 +179,60 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
     } catch { message.error('Write failed'); }
   };
 
+  function mapDirectProgressToDialogState(progress: UploadClientFileProgress, fallbackMessage?: string): UploadDialogState {
+    const percent = progress.totalBytes > 0 ? (progress.uploadedBytes / progress.totalBytes) * 100 : 0;
+    const kbPerSecond = (progress.rateBytesPerSecond / 1024).toFixed(1);
+    const remainingBytes = progress.totalBytes - progress.uploadedBytes;
+    const etaSeconds = progress.rateBytesPerSecond <= 0 ? 0 : Math.ceil(remainingBytes / progress.rateBytesPerSecond);
+    const stages: UploadStageState[] = [
+      { key: 'prepare', label: '准备上传', status: 'completed', percent: 100, detailText: progress.filename },
+      { key: 'direct', label: '直传到客户端', status: progress.uploadedBytes === progress.totalBytes ? 'completed' : 'running', percent, detailText: `${progress.uploadedBytes}/${progress.totalBytes} | ${kbPerSecond} KB/s | ETA ${etaSeconds}s | chunk ${progress.partNumber + 1}/${progress.partCount}` },
+      { key: 'write', label: '客户端写入完成', status: progress.uploadedBytes === progress.totalBytes ? 'completed' : 'waiting', percent: progress.uploadedBytes === progress.totalBytes ? 100 : 0, detailText: progress.uploadedBytes === progress.totalBytes ? '等待服务端确认完成' : '等待中' },
+    ];
+    return {
+      requestedMode: fallbackMessage ? 'auto' : 'direct',
+      resolvedMode: 'direct',
+      overallPercent: percent,
+      overallStatusText: fallbackMessage ?? `正在直传到客户端 ${percent.toFixed(1)}%`,
+      stages,
+    };
+  }
+
+  async function handleUpload(file: File) {
+    if (uploadMode === 'direct') {
+      await uploadClientFile({
+        baseUrl,
+        token,
+        rootId,
+        path: currentPath,
+        file,
+        onProgress: (progress) => setUploadProgress(mapDirectProgressToDialogState(progress)),
+      });
+      return;
+    }
+
+    const relayResult = await uploadClientFileViaRelay({
+      api,
+      clientId,
+      rootId,
+      path: currentPath,
+      file,
+      requestedMode: uploadMode,
+      onStateChange: setUploadProgress,
+    });
+
+    if (relayResult.kind === 'fallback_to_direct') {
+      await uploadClientFile({
+        baseUrl,
+        token,
+        rootId,
+        path: currentPath,
+        file,
+        onProgress: (progress) => setUploadProgress(mapDirectProgressToDialogState(progress, '阿里云中转不可用，已自动回退为直传')),
+      });
+    }
+  }
+
   if (initLoading) return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />;
   if (!baseUrl || !token) return <Alert type="error" message="Client HTTP endpoint is not ready" showIcon />;
 
@@ -252,42 +310,52 @@ export function ClientFilesPage({ api, clientId, clientName, onBack }: ClientFil
       </Modal>
 
       <Modal title="上传文件" open={uploadOpen} onCancel={() => { setUploadOpen(false); setUploadProgress(null); }} footer={null}>
+        <Select
+          aria-label="上传模式"
+          value={uploadMode}
+          style={{ width: '100%', marginBottom: 12 }}
+          options={[
+            { value: 'auto', label: '自动（推荐）' },
+            { value: 'aliyundrive', label: '阿里云中转' },
+            { value: 'direct', label: '直传' },
+          ]}
+          onChange={(value) => setUploadMode(value)}
+        />
         {uploadProgress && (
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 12 }}
-            message={`上传进度 ${uploadProgress.percent.toFixed(1)}%`}
-            description={uploadProgress.text}
-          />
+          <>
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={`上传进度 ${uploadProgress.overallPercent.toFixed(1)}%`}
+              description={uploadProgress.overallStatusText}
+            />
+            <Table
+              pagination={false}
+              size="small"
+              rowKey="key"
+              dataSource={uploadProgress.stages}
+              style={{ marginBottom: 12 }}
+              columns={[
+                { title: '阶段', dataIndex: 'label', key: 'label' },
+                { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
+                { title: '进度', key: 'percent', width: 100, render: (_: unknown, row: UploadStageState) => `${Math.round(row.percent ?? 0)}%` },
+                { title: '说明', dataIndex: 'detailText', key: 'detailText' },
+              ]}
+            />
+          </>
         )}
         <Upload
           customRequest={async ({ file, onSuccess, onError }) => {
             try {
-              const f = file as File;
-              await uploadClientFile({
-                baseUrl,
-                token,
-                rootId,
-                path: currentPath,
-                file: f,
-                onProgress: (progress) => {
-                  const percent = (progress.uploadedBytes / progress.totalBytes) * 100;
-                  const kbPerSecond = (progress.rateBytesPerSecond / 1024).toFixed(1);
-                  const remainingBytes = progress.totalBytes - progress.uploadedBytes;
-                  const etaSeconds = progress.rateBytesPerSecond <= 0 ? 0 : Math.ceil(remainingBytes / progress.rateBytesPerSecond);
-                  setUploadProgress({
-                    percent,
-                    text: `${progress.filename} | ${progress.uploadedBytes}/${progress.totalBytes} | ${kbPerSecond} KB/s | ETA ${etaSeconds}s | chunk ${progress.partNumber + 1}/${progress.partCount}`,
-                  });
-                },
-              });
+              await handleUpload(file as File);
               message.success('Uploaded');
-              setUploadProgress(null);
               setUploadOpen(false);
+              setUploadProgress(null);
               setReloadKey((k) => k + 1);
               (onSuccess as any)?.();
             } catch (err: any) {
+              setUploadProgress((current) => current ? { ...current, overallStatusText: err.message } : current);
               message.error(err.message);
               (onError as any)?.(err);
             }
