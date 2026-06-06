@@ -8,7 +8,13 @@ const ConfigPayloadSchema = z.object({
   clientId: z.string().min(1),
   clientSecret: z.string().optional().nullable(),
   scope: z.string().optional(),
-  openapiBase: z.string().url().optional(),
+  openapiBase: z
+    .string()
+    .transform((v) => {
+      if (!v) return v;
+      return v.startsWith('http://') || v.startsWith('https://') ? v : `https://${v}`;
+    })
+    .optional(),
   redirectUri: z.string().optional(),
   transferFolder: z.string().min(1).optional(),
   cleanupTtlMs: z.number().int().positive().optional(),

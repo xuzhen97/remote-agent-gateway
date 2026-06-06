@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Descriptions, Form, Input, InputNumber, QRCode, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, QRCode, Space, Table, Tag, Typography } from 'antd';
 import type { Api } from '../api/http';
 import { completeAliyunDriveOAuth, getAliyunDriveStatus, saveAliyunDriveConfig, startAliyunDriveOAuth, type AliyunDriveStatus } from '../api/aliyundrive';
 
 interface Props { api: Api }
 
 export function AliyunDrivePage({ api }: Props) {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [codeForm] = Form.useForm();
   const [status, setStatus] = useState<AliyunDriveStatus | null>(null);
@@ -30,9 +31,20 @@ export function AliyunDrivePage({ api }: Props) {
   async function saveConfig(values: any) {
     setLoading(true);
     try {
-      await saveAliyunDriveConfig(api, { ...values, cleanupTtlMs: Number(values.cleanupTtlHours ?? 24) * 3600000 });
+      const payload = {
+        clientId: values.clientId,
+        clientSecret: values.clientSecret || undefined,
+        scope: values.scope,
+        openapiBase: values.openapiBase,
+        redirectUri: values.redirectUri,
+        transferFolder: values.transferFolder,
+        cleanupTtlMs: Number(values.cleanupTtlHours ?? 24) * 3600000,
+      };
+      await saveAliyunDriveConfig(api, payload);
       message.success('阿里云盘配置已保存');
       await refresh();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '保存失败');
     } finally { setLoading(false); }
   }
 
@@ -69,7 +81,7 @@ export function AliyunDrivePage({ api }: Props) {
           <Form.Item name="clientId" label="client_id" rules={[{ required: true, message: '请输入 client_id' }]}><Input /></Form.Item>
           <Form.Item name="clientSecret" label="client_secret（可选）"><Input.Password /></Form.Item>
           <Form.Item name="scope" label="scope"><Input /></Form.Item>
-          <Form.Item name="openapiBase" label="openapi_base"><Input /></Form.Item>
+          <Form.Item name="openapiBase" label="openapi_base" rules={[{ type: 'url', message: '请输入有效的 URL' }]}><Input /></Form.Item>
           <Form.Item name="redirectUri" label="redirect_uri"><Input /></Form.Item>
           <Form.Item name="transferFolder" label="中转目录"><Input /></Form.Item>
           <Form.Item name="cleanupTtlHours" label="清理 TTL（小时）"><InputNumber min={1} /></Form.Item>

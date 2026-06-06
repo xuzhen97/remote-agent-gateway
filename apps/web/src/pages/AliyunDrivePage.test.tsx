@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { App } from 'antd';
 import { AliyunDrivePage } from './AliyunDrivePage.js';
 
 describe('AliyunDrivePage', () => {
@@ -10,7 +11,7 @@ describe('AliyunDrivePage', () => {
       put: vi.fn(),
       delete: vi.fn(),
     } as any;
-    render(<AliyunDrivePage api={api} />);
+    render(<App><AliyunDrivePage api={api} /></App>);
     expect(await screen.findByText(/未授权/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /生成授权二维码/ }));
     expect(await screen.findByText(/授权链接/)).toBeInTheDocument();

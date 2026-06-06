@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { ConfigProvider, theme } from 'antd';
+import { ConfigProvider, theme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { TokenLogin } from './components/TokenLogin';
 import { AppLayout } from './components/AppLayout';
@@ -41,7 +41,9 @@ export function App() {
   if (!token) {
     return (
       <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }} locale={zhCN}>
-        <TokenLogin onLogin={handleLogin} />
+        <AntApp>
+          <TokenLogin onLogin={handleLogin} />
+        </AntApp>
       </ConfigProvider>
     );
   }
@@ -126,7 +128,8 @@ export function App() {
 
   return (
     <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }} locale={zhCN}>
-      <AppLayout
+      <AntApp>
+        <AppLayout
         current={navKey}
         onNavigate={(key) => {
           if (key === 'dashboard') setRoute({ page: 'dashboard' });
@@ -139,6 +142,7 @@ export function App() {
       >
         {content}
       </AppLayout>
+      </AntApp>
     </ConfigProvider>
   );
 }
