@@ -15,6 +15,7 @@ import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
 import { cleanupStaleFrpsProxies } from './modules/frp/frps-cleanup.js';
+import { transferCleanupService } from './modules/transfers/transfer-cleanup.service.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   await app.register(taskRoutes);
   await app.register(aliyunDriveRoutes);
   await app.register(transferRoutes);
+  transferCleanupService.start();
 
   // Register WebSocket
   await registerWsRoutes(app);
@@ -148,6 +150,7 @@ async function main(): Promise<void> {
   // Graceful shutdown
   const shutdown = async () => {
     console.log('Shutting down...');
+    transferCleanupService.stop();
     stopFrps();
     saveDb();
     await app.close();
