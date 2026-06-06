@@ -16,6 +16,7 @@ vi.mock('./transfer.service.js', () => ({
     recordClientProgress: vi.fn(() => ({ id: 'tr_1' })),
     completeClientDownload: vi.fn(() => ({ id: 'tr_1', status: 'completed' })),
     failTransfer: vi.fn(() => ({ id: 'tr_1', status: 'failed' })),
+    refreshDownloadUrl: vi.fn(async () => ({ downloadUrl: 'https://download.example/signature' })),
   },
 }));
 
@@ -43,5 +44,18 @@ describe('transferRoutes', () => {
       payload: { uploadedBytes: 5, totalBytes: 10, currentPart: 1 },
     });
     expect(res.statusCode).toBe(200);
+  });
+
+  it('returns a refreshed aliyun download url', async () => {
+    const app = Fastify();
+    await app.register(transferRoutes);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/transfers/tr_1/refresh-download-url',
+      headers: { authorization: 'Bearer token' },
+      payload: {},
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ downloadUrl: 'https://download.example/signature' });
   });
 });

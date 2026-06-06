@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { getDb, saveDb } from '../../db/index.js';
 import type { AliyunDriveAuthRecord, AliyunDriveConfigRecord, AliyunOAuthSession } from './aliyundrive-types.js';
+import { AliyunDriveOpenApiClient } from './aliyundrive-openapi.client.js';
 
 const DEFAULT_ID = 'default';
 const DEFAULT_SCOPE = 'user:base,file:all:read,file:all:write';
@@ -120,9 +121,13 @@ export class AliyunDriveAuthService {
   getStatus() {
     const config = this.getConfig();
     const auth = this.getAuth();
+    const hasAuth = Boolean(auth?.accessToken);
+    const isExpired = Boolean(auth?.expiresAt && auth.expiresAt <= this.now());
+    const authorizationState = !hasAuth ? 'unauthorized' : isExpired ? 'expired' : 'authorized';
     return {
       configured: Boolean(config?.clientId),
       authorized: Boolean(auth?.accessToken && auth.expiresAt > this.now() + 300_000),
+      authorizationState,
       clientId: config?.clientId,
       scope: config?.scope,
       openapiBase: config?.openapiBase,
@@ -182,6 +187,54 @@ export class AliyunDriveAuthService {
     this.saveAuth(record);
     this.oauthSessions.delete(input.state);
     return this.getStatus();
+  }
+
+  async testAuthorization(): Promise<{
+    state: 'unauthorized' | 'expired' | 'valid' | 'invalid' | 'network_error';
+    message: string;
+    checkedAt: number;
+    driveId?: string;
+    authorizedAccountName?: string;
+  }> {
+    const checkedAt = this.now();
+    const config = this.getConfig();
+    const auth = this.getAuth();
+    if (!config?.clientId || !auth?.accessToken) {
+      return { state: 'unauthorized', message: '尚未授权', checkedAt };
+    }
+    if (auth.expiresAt <= checkedAt) {
+      return { state: 'expired', message: '本地授权已过期', checkedAt };
+    }
+    try {
+      const client = new AliyunDriveOpenApiClient({
+        openapiBase: config.openapiBase,
+        accessToken: auth.accessToken,
+        fetchImpl: this.fetchImpl(),
+      });
+      const info = await client.getDriveInfo();
+      const raw = (info.raw ?? {}) as Record<string, unknown>;
+      const authorizedAccountName = String(raw.nick_name ?? raw.nickName ?? raw.user_name ?? raw.userName ?? raw.name ?? '').trim() || undefined;
+      const updatedAuth: AliyunDriveAuthRecord = {
+        ...auth,
+        driveId: info.driveId,
+        authorizedAccountName: authorizedAccountName ?? auth.authorizedAccountName ?? null,
+        updatedAt: checkedAt,
+      };
+      this.saveAuth(updatedAuth);
+      return {
+        state: 'valid',
+        message: '授权有效',
+        checkedAt,
+        driveId: info.driveId,
+        authorizedAccountName: updatedAuth.authorizedAccountName ?? undefined,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/HTTP 401|HTTP 403|invalid|token/i.test(message)) {
+        return { state: 'invalid', message: '授权已失效', checkedAt };
+      }
+      return { state: 'network_error', message: '远程校验失败', checkedAt };
+    }
   }
 
   saveAuth(record: AliyunDriveAuthRecord): void {

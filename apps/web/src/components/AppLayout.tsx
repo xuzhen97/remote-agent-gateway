@@ -28,8 +28,8 @@ const menuItems = [
 
 export function AppLayout({ current, onNavigate, onLogout, children }: AppLayoutProps) {
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={220} theme="dark">
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+      <Sider width={220} theme="dark" style={{ height: '100vh', overflow: 'hidden' }}>
         <div style={{ padding: '16px', color: '#fff', fontWeight: 700, fontSize: 16, borderBottom: '1px solid #303030' }}>
           RAG 控制台
         </div>
@@ -47,8 +47,8 @@ export function AppLayout({ current, onNavigate, onLogout, children }: AppLayout
           </Button>
         </div>
       </Sider>
-      <Layout>
-        <Content style={{ padding: 24, background: '#0f1117', overflow: 'auto' }}>
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        <Content style={{ padding: 24, background: '#0f1117', overflow: 'auto', height: '100vh' }}>
           {children}
         </Content>
       </Layout>

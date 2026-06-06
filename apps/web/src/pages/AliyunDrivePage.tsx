@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, App, Button, Card, Descriptions, Form, Input, InputNumber, QRCode, Space, Table, Tag, Typography } from 'antd';
 import type { Api } from '../api/http';
-import { completeAliyunDriveOAuth, getAliyunDriveStatus, saveAliyunDriveConfig, startAliyunDriveOAuth, type AliyunDriveStatus } from '../api/aliyundrive';
+import { completeAliyunDriveOAuth, getAliyunDriveStatus, saveAliyunDriveConfig, startAliyunDriveOAuth, testAliyunDriveAuthorization, type AliyunDriveAuthorizationTestResult, type AliyunDriveStatus } from '../api/aliyundrive';
 
 interface Props { api: Api }
 
@@ -12,6 +12,28 @@ export function AliyunDrivePage({ api }: Props) {
   const [status, setStatus] = useState<AliyunDriveStatus | null>(null);
   const [oauth, setOauth] = useState<{ state: string; authorizationUrl: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [testingAuthorization, setTestingAuthorization] = useState(false);
+  const [authTest, setAuthTest] = useState<AliyunDriveAuthorizationTestResult | null>(null);
+
+  async function runAuthorizationTest(showSuccessMessage = false) {
+    setTestingAuthorization(true);
+    try {
+      const result = await testAliyunDriveAuthorization(api);
+      setAuthTest(result);
+      setStatus((prev) => prev ? {
+        ...prev,
+        driveId: result.driveId ?? prev.driveId,
+        authorizedAccountName: result.authorizedAccountName ?? prev.authorizedAccountName,
+      } : prev);
+      if (showSuccessMessage) message.success(result.message);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '测试授权失败';
+      setAuthTest({ state: 'network_error', message: msg, checkedAt: Date.now() });
+      if (showSuccessMessage) message.error(msg);
+    } finally {
+      setTestingAuthorization(false);
+    }
+  }
 
   async function refresh() {
     const next = await getAliyunDriveStatus(api);
@@ -24,6 +46,11 @@ export function AliyunDrivePage({ api }: Props) {
       transferFolder: next.transferFolder ?? 'RemoteAgentGatewayTransfers',
       cleanupTtlHours: Math.round((next.cleanupTtlMs ?? 86400000) / 3600000),
     });
+    if (next.authorizationState === 'authorized') {
+      void runAuthorizationTest(false);
+    } else {
+      setAuthTest(null);
+    }
   }
 
   useEffect(() => { void refresh(); }, []);
@@ -67,12 +94,34 @@ export function AliyunDrivePage({ api }: Props) {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card title="阿里云盘状态">
+      <Card title="阿里云盘状态" extra={<Button onClick={() => void runAuthorizationTest(true)} loading={testingAuthorization} disabled={!status || status.authorizationState === 'unauthorized'}>测试授权</Button>}>
         <Descriptions column={2} bordered size="small">
           <Descriptions.Item label="配置状态">{status?.configured ? <Tag color="blue">已配置</Tag> : <Tag>未配置</Tag>}</Descriptions.Item>
-          <Descriptions.Item label="授权状态">{status?.authorized ? <Tag color="green">已授权</Tag> : <Tag color="red">未授权</Tag>}</Descriptions.Item>
-          <Descriptions.Item label="Drive ID">{status?.driveId ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="授权记录状态">{
+            status?.authorizationState === 'authorized'
+              ? <Tag color="green">已授权</Tag>
+              : status?.authorizationState === 'expired'
+                ? <Tag color="orange">已过期</Tag>
+                : <Tag color="red">未授权</Tag>
+          }</Descriptions.Item>
+          <Descriptions.Item label="远程校验状态">{
+            testingAuthorization
+              ? <Tag color="processing">检测中</Tag>
+              : authTest?.state === 'valid'
+                ? <Tag color="green">有效</Tag>
+                : authTest?.state === 'invalid'
+                  ? <Tag color="red">已失效</Tag>
+                  : authTest?.state === 'expired'
+                    ? <Tag color="orange">已过期</Tag>
+                    : authTest?.state === 'network_error'
+                      ? <Tag color="default">网络异常</Tag>
+                      : <Tag>未检测</Tag>
+          }</Descriptions.Item>
+          <Descriptions.Item label="校验说明">{authTest?.message ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="账户名">{status?.authorizedAccountName ?? authTest?.authorizedAccountName ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="Drive ID">{status?.driveId ?? authTest?.driveId ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="过期时间">{status?.expiresAt ? new Date(status.expiresAt).toLocaleString() : '-'}</Descriptions.Item>
+          <Descriptions.Item label="最近检测时间">{authTest?.checkedAt ? new Date(authTest.checkedAt).toLocaleString() : '-'}</Descriptions.Item>
         </Descriptions>
       </Card>
 

@@ -3,6 +3,7 @@ import type { Api } from './http';
 export interface AliyunDriveStatus {
   configured: boolean;
   authorized: boolean;
+  authorizationState?: 'unauthorized' | 'authorized' | 'expired';
   clientId?: string;
   scope?: string;
   openapiBase?: string;
@@ -10,6 +11,14 @@ export interface AliyunDriveStatus {
   transferFolder?: string;
   cleanupTtlMs?: number;
   expiresAt?: number;
+  driveId?: string;
+  authorizedAccountName?: string;
+}
+
+export interface AliyunDriveAuthorizationTestResult {
+  state: 'unauthorized' | 'expired' | 'valid' | 'invalid' | 'network_error';
+  message: string;
+  checkedAt: number;
   driveId?: string;
   authorizedAccountName?: string;
 }
@@ -28,4 +37,8 @@ export function startAliyunDriveOAuth(api: Api): Promise<{ state: string; author
 
 export function completeAliyunDriveOAuth(api: Api, payload: { state: string; code: string }): Promise<AliyunDriveStatus> {
   return api.post('/api/aliyundrive/oauth/complete', payload);
+}
+
+export function testAliyunDriveAuthorization(api: Api): Promise<AliyunDriveAuthorizationTestResult> {
+  return api.post('/api/aliyundrive/test', {});
 }

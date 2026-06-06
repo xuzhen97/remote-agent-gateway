@@ -8,10 +8,11 @@ vi.mock('../auth/auth.middleware.js', () => ({
 
 vi.mock('./aliyundrive-auth.service.js', () => ({
   aliyunDriveAuthService: {
-    getStatus: vi.fn(() => ({ configured: false, authorized: false })),
+    getStatus: vi.fn(() => ({ configured: false, authorized: false, authorizationState: 'unauthorized' })),
     saveConfig: vi.fn((input) => ({ id: 'default', ...input, createdAt: 1, updatedAt: 2 })),
     startOAuth: vi.fn(async () => ({ state: 'state-1', authorizationUrl: 'https://openapi.alipan.com/oauth/authorize?client_id=app', expiresAt: 123 })),
-    completeOAuth: vi.fn(async () => ({ configured: true, authorized: true })),
+    completeOAuth: vi.fn(async () => ({ configured: true, authorized: true, authorizationState: 'authorized' })),
+    testAuthorization: vi.fn(async () => ({ state: 'valid', message: '授权有效', checkedAt: 123 })),
     revoke: vi.fn(),
   },
 }));
@@ -22,7 +23,7 @@ describe('aliyunDriveRoutes', () => {
     await app.register(aliyunDriveRoutes);
     const res = await app.inject({ method: 'GET', url: '/api/aliyundrive/status', headers: { authorization: 'Bearer token' } });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ configured: false, authorized: false });
+    expect(res.json()).toEqual({ configured: false, authorized: false, authorizationState: 'unauthorized' });
   });
 
   it('saves config', async () => {
@@ -44,5 +45,13 @@ describe('aliyunDriveRoutes', () => {
     const res = await app.inject({ method: 'POST', url: '/api/aliyundrive/oauth/start', headers: { authorization: 'Bearer token' } });
     expect(res.statusCode).toBe(200);
     expect(res.json().authorizationUrl).toContain('openapi.alipan.com');
+  });
+
+  it('tests authorization remotely', async () => {
+    const app = Fastify();
+    await app.register(aliyunDriveRoutes);
+    const res = await app.inject({ method: 'POST', url: '/api/aliyundrive/test', headers: { authorization: 'Bearer token' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ state: 'valid', message: '授权有效', checkedAt: 123 });
   });
 });

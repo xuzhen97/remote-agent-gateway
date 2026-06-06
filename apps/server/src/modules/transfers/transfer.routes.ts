@@ -108,7 +108,11 @@ export async function transferRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ uploadParts: [] });
   });
 
-  app.post<{ Params: { transferId: string } }>('/api/transfers/:transferId/refresh-download-url', async (_request, reply) => {
-    return reply.send({ downloadUrl: null });
+  app.post<{ Params: { transferId: string } }>('/api/transfers/:transferId/refresh-download-url', async (request, reply) => {
+    try {
+      return reply.send(await transferService.refreshDownloadUrl(request.params.transferId));
+    } catch (error) {
+      return reply.code(400).send({ error: error instanceof Error ? error.message : String(error) });
+    }
   });
 }

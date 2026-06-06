@@ -77,6 +77,21 @@ export async function uploadFileToAliyunDrive(options: {
       options.onProgress?.(progress);
       await options.serverApi.reportCliProgress(options.plan.transferId, progress as unknown as Record<string, unknown>);
     }
+    const completeResponse = await fetchImpl(`${options.plan.openapiBase.replace(/\/+$/, '')}/adrive/v1.0/openFile/complete`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${options.plan.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        drive_id: options.plan.driveId,
+        file_id: options.plan.fileId,
+        upload_id: options.plan.uploadId,
+      }),
+    });
+    if (!completeResponse.ok) {
+      throw new CliError('ALIYUN_UPLOAD_ERROR', `Complete upload failed: HTTP ${completeResponse.status}`, completeResponse.status);
+    }
     await options.serverApi.completeCliUpload(options.plan.transferId);
   } finally {
     await file.close();

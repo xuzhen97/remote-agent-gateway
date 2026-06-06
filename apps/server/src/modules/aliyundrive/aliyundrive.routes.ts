@@ -65,5 +65,5 @@ export async function aliyunDriveRoutes(app: FastifyInstance): Promise<void> {
     return { revoked: true };
   });
 
-  app.post('/api/aliyundrive/test', async () => aliyunDriveAuthService.getStatus());
+  app.post('/api/aliyundrive/test', async () => await aliyunDriveAuthService.testAuthorization());
 }

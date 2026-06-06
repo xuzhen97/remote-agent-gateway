@@ -149,6 +149,40 @@ export class TransferService {
     return this.getTransfer(transferId);
   }
 
+  async refreshDownloadUrl(transferId: string): Promise<{ downloadUrl: string }> {
+    const stmt = getDb().prepare('SELECT aliyun_drive_id, aliyun_file_id FROM transfer_jobs WHERE id = ?');
+    stmt.bind([transferId]);
+    try {
+      if (!stmt.step()) throw new Error('Transfer not found');
+      const row = stmt.getAsObject() as Record<string, unknown>;
+      const driveId = String(row.aliyun_drive_id ?? '');
+      const fileId = String(row.aliyun_file_id ?? '');
+      if (!driveId || !fileId) throw new Error('Aliyun transfer metadata is missing');
+      const config = aliyunDriveAuthService.getConfig();
+      const auth = aliyunDriveAuthService.getAuth();
+      if (!config || !auth?.accessToken) throw new Error('Aliyun Drive auth is missing');
+      const client = new AliyunDriveOpenApiClient({ openapiBase: config.openapiBase, accessToken: auth.accessToken });
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= 10; attempt += 1) {
+        try {
+          const result = await client.getDownloadUrl({ driveId, fileId });
+          const downloadUrl = String((result as Record<string, unknown>).download_url ?? (result as Record<string, unknown>).url ?? '');
+          if (!downloadUrl) throw new Error('Aliyun did not return download_url');
+          return { downloadUrl };
+        } catch (error) {
+          lastError = error;
+          const message = error instanceof Error ? error.message : String(error);
+          const retryable = /InvalidResource\.File|File status is not available/i.test(message);
+          if (!retryable || attempt === 10) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+      throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    } finally {
+      stmt.free();
+    }
+  }
+
   recordClientProgress(transferId: string, progress: { downloadedBytes?: number; writtenBytes?: number; totalBytes: number }): TransferJobView | null {
     this.updateProgress(transferId, 'client_downloading', { downloaded_bytes: progress.downloadedBytes ?? 0, written_bytes: progress.writtenBytes ?? 0, total_bytes: progress.totalBytes });
     this.addEvent(transferId, 'client', 'progress', 'Client download progress', progress);
