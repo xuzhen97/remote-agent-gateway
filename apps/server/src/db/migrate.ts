@@ -87,6 +87,81 @@ export function migrate(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_task_history_status ON task_history(status);
   `);
 
+  // Aliyun Drive and transfer tables
+  db.run(`
+    CREATE TABLE IF NOT EXISTS aliyundrive_config (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      client_secret TEXT,
+      scope TEXT NOT NULL,
+      openapi_base TEXT NOT NULL,
+      redirect_uri TEXT NOT NULL,
+      transfer_folder TEXT NOT NULL,
+      cleanup_ttl_ms INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS aliyundrive_auth (
+      id TEXT PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      token_type TEXT,
+      expires_at INTEGER NOT NULL,
+      drive_id TEXT,
+      authorized_account_name TEXT,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS transfer_jobs (
+      id TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      root_id TEXT NOT NULL,
+      target_dir TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      sha256 TEXT,
+      mode TEXT NOT NULL,
+      status TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      error_code TEXT,
+      error_message TEXT,
+      aliyun_drive_id TEXT,
+      aliyun_file_id TEXT,
+      aliyun_upload_id TEXT,
+      aliyun_parent_file_id TEXT,
+      aliyun_file_name TEXT,
+      uploaded_bytes INTEGER NOT NULL DEFAULT 0,
+      downloaded_bytes INTEGER NOT NULL DEFAULT 0,
+      written_bytes INTEGER NOT NULL DEFAULT 0,
+      total_bytes INTEGER NOT NULL,
+      part_count INTEGER,
+      current_part INTEGER,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      cleanup_after_at INTEGER,
+      cleanup_status TEXT NOT NULL DEFAULT 'none'
+    );
+
+    CREATE TABLE IF NOT EXISTS transfer_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transfer_id TEXT NOT NULL,
+      source TEXT NOT NULL,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      payload TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  db.run(`
+    CREATE INDEX IF NOT EXISTS idx_transfer_jobs_client_id ON transfer_jobs(client_id);
+    CREATE INDEX IF NOT EXISTS idx_transfer_jobs_updated_at ON transfer_jobs(updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_transfer_jobs_cleanup_after_at ON transfer_jobs(cleanup_after_at);
+    CREATE INDEX IF NOT EXISTS idx_transfer_events_transfer_id ON transfer_events(transfer_id, created_at ASC);
+  `);
+
   // Idempotent column additions for client HTTP control plane
   addColumnIfMissing(db, 'clients', 'http_local_host', 'TEXT');
   addColumnIfMissing(db, 'clients', 'http_local_port', 'INTEGER');
