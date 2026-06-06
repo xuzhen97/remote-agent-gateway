@@ -3787,7 +3787,7 @@ async function waitForJobCompletion(client, jobId, timeoutMs = DEFAULT_WAIT_TIME
   }
   throw new CliError("NETWORK_ERROR", `Timed out waiting for job ${jobId} to finish`);
 }
-async function maybeFollowJob(options, client, created, write) {
+async function maybeFollowJob(options, client, created, write, commandTimeoutMs) {
   const jobId = getJobId(created);
   if (options.events) {
     writeJsonLine({ ok: true, event: "job.created", data: unwrapClientPayload(created) });
@@ -3803,7 +3803,8 @@ async function maybeFollowJob(options, client, created, write) {
     write(successEnvelope(unwrapClientPayload(created)));
     return true;
   }
-  const job = await waitForJobCompletion(client, jobId);
+  const waitTimeoutMs = commandTimeoutMs ? commandTimeoutMs + 1e4 : DEFAULT_WAIT_TIMEOUT_MS;
+  const job = await waitForJobCompletion(client, jobId, waitTimeoutMs);
   if (!options.logs) {
     write(successEnvelope(job));
     return true;
@@ -3814,13 +3815,14 @@ async function maybeFollowJob(options, client, created, write) {
 }
 function registerJobsCommands(program2, deps) {
   const jobs = program2.command("jobs").description("Create and inspect live client HTTP jobs");
-  jobs.command("run").description("Run a command job on a client").requiredOption("--client <clientId>", "Client ID").option("--wait", "Wait for the job to finish").option("--logs", "Fetch logs after waiting for completion").option("--events", "Stream job events after creation").allowUnknownOption(true).allowExcessArguments(true).argument("[cmd...]", "Command after --").action(async (cmd, options) => {
+  jobs.command("run").description("Run a command job on a client").requiredOption("--client <clientId>", "Client ID").option("--wait", "Wait for the job to finish").option("--logs", "Fetch logs after waiting for completion").option("--events", "Stream job events after creation").option("--timeout-ms <timeoutMs>", "Timeout in milliseconds (client-side process kill + CLI wait)").allowUnknownOption(true).allowExcessArguments(true).argument("[cmd...]", "Command after --").action(async (cmd, options) => {
     if (!cmd.length) throw new CliError("ARGUMENT_ERROR", "Command after -- is required");
     if (options.logs && !options.wait) throw new CliError("ARGUMENT_ERROR", "--logs requires --wait");
     if (options.wait && options.events) throw new CliError("ARGUMENT_ERROR", "--wait cannot be combined with --events");
+    const timeoutMs = optionalNumber(options.timeoutMs, "--timeout-ms");
     const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
-    const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1) });
-    await maybeFollowJob(options, client, created, deps.write);
+    const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), timeoutMs });
+    await maybeFollowJob(options, client, created, deps.write, timeoutMs);
   });
   jobs.command("script").description("Run an inline or file-backed script job on a client").requiredOption("--client <clientId>", "Client ID").option("--file <file>", "Local script file").option("--inline <script>", "Inline script content").option("--runtime <runtime>", "node, python, bash, or powershell", "node").option("--cwd <cwd>", "Remote working directory").option("--timeout-ms <timeoutMs>", "Timeout in milliseconds").option("--wait", "Wait for the job to finish").option("--logs", "Fetch logs after waiting for completion").option("--events", "Stream job events after creation").action(async (options) => {
     const script = options.inline ?? (options.file ? await (0, import_promises2.readFile)(options.file, "utf8") : void 0);

@@ -45,7 +45,7 @@ async function waitForJobCompletion(client: ClientHttpApi, jobId: string, timeou
   throw new CliError('NETWORK_ERROR', `Timed out waiting for job ${jobId} to finish`);
 }
 
-async function maybeFollowJob(options: { wait?: boolean; logs?: boolean; events?: boolean }, client: ClientHttpApi, created: unknown, write: (value: unknown) => void) {
+async function maybeFollowJob(options: { wait?: boolean; logs?: boolean; events?: boolean }, client: ClientHttpApi, created: unknown, write: (value: unknown) => void, commandTimeoutMs?: number) {
   const jobId = getJobId(created);
 
   if (options.events) {
@@ -64,7 +64,9 @@ async function maybeFollowJob(options: { wait?: boolean; logs?: boolean; events?
     return true;
   }
 
-  const job = await waitForJobCompletion(client, jobId);
+  // Wait slightly longer than the client-side process timeout to avoid race conditions
+  const waitTimeoutMs = commandTimeoutMs ? commandTimeoutMs + 10_000 : DEFAULT_WAIT_TIMEOUT_MS;
+  const job = await waitForJobCompletion(client, jobId, waitTimeoutMs);
   if (!options.logs) {
     write(successEnvelope(job));
     return true;
@@ -84,16 +86,18 @@ export function registerJobsCommands(program: Command, deps: JobsDeps): void {
     .option('--wait', 'Wait for the job to finish')
     .option('--logs', 'Fetch logs after waiting for completion')
     .option('--events', 'Stream job events after creation')
+    .option('--timeout-ms <timeoutMs>', 'Timeout in milliseconds (client-side process kill + CLI wait)')
     .allowUnknownOption(true)
     .allowExcessArguments(true)
     .argument('[cmd...]', 'Command after --')
-    .action(async (cmd: string[], options: { client?: string; wait?: boolean; logs?: boolean; events?: boolean }) => {
+    .action(async (cmd: string[], options: { client?: string; wait?: boolean; logs?: boolean; events?: boolean; timeoutMs?: string }) => {
       if (!cmd.length) throw new CliError('ARGUMENT_ERROR', 'Command after -- is required');
       if (options.logs && !options.wait) throw new CliError('ARGUMENT_ERROR', '--logs requires --wait');
       if (options.wait && options.events) throw new CliError('ARGUMENT_ERROR', '--wait cannot be combined with --events');
+      const timeoutMs = optionalNumber(options.timeoutMs, '--timeout-ms');
       const client = await deps.discoverClientHttp(requiredString(options.client, '--client'));
-      const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1) });
-      await maybeFollowJob(options, client, created, deps.write);
+      const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), timeoutMs });
+      await maybeFollowJob(options, client, created, deps.write, timeoutMs);
     });
 
   jobs.command('script')
