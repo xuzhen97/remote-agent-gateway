@@ -9,6 +9,7 @@ import { ClientDetailPage } from './pages/ClientDetailPage';
 import { MappingsPage } from './pages/MappingsPage';
 import { ClientFilesPage } from './pages/ClientFilesPage';
 import { TasksPage } from './pages/TasksPage';
+import { AliyunDrivePage } from './pages/AliyunDrivePage';
 import { createApiClient, type Api } from './api/http';
 import { getClient } from './api/clients';
 
@@ -18,7 +19,8 @@ type Route =
   | { page: 'client-detail'; clientId: string }
   | { page: 'client-files'; clientId: string; clientName: string }
   | { page: 'tasks'; clientId?: string; clientName?: string }
-  | { page: 'mappings'; clientId?: string; clientName?: string };
+  | { page: 'mappings'; clientId?: string; clientName?: string }
+  | { page: 'aliyundrive' };
 
 export function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('rag_token'));
@@ -113,6 +115,10 @@ export function App() {
         />
       );
       break;
+    case 'aliyundrive':
+      navKey = 'aliyundrive';
+      content = <AliyunDrivePage api={api} />;
+      break;
     default:
       navKey = 'dashboard';
       content = <DashboardPage api={api} />;
@@ -127,6 +133,7 @@ export function App() {
           else if (key === 'clients') setRoute({ page: 'clients' });
           else if (key === 'tasks') setRoute({ page: 'tasks' });
           else if (key === 'mappings') setRoute({ page: 'mappings' });
+          else if (key === 'aliyundrive') setRoute({ page: 'aliyundrive' });
         }}
         onLogout={handleLogout}
       >

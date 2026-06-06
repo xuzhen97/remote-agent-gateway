@@ -3,6 +3,7 @@ import { Layout, Menu, Button } from 'antd';
 import {
   DashboardOutlined,
   CloudServerOutlined,
+  CloudUploadOutlined,
   LinkOutlined,
   OrderedListOutlined,
   LogoutOutlined,
@@ -22,6 +23,7 @@ const menuItems = [
   { key: 'clients', icon: <CloudServerOutlined />, label: '客户端' },
   { key: 'tasks', icon: <OrderedListOutlined />, label: '任务' },
   { key: 'mappings', icon: <LinkOutlined />, label: '端口映射' },
+  { key: 'aliyundrive', icon: <CloudUploadOutlined />, label: '阿里云盘' },
 ];
 
 export function AppLayout({ current, onNavigate, onLogout, children }: AppLayoutProps) {
