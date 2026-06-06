@@ -9,6 +9,8 @@ import type {
 import { CliError } from './http-error.js';
 import { readResponse } from './server-api.js';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
+
 export interface ClientHttpApiConfig {
   baseUrl: string;
   token: string;
@@ -118,6 +120,8 @@ export class ClientHttpApi {
   }
 
   private async request(method: string, path: string, body?: unknown, mode: 'json' | 'text' | 'bytes' = 'json', contentType = 'application/json'): Promise<unknown> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
     let response: Response;
     try {
       response = await fetch(`${this.config.baseUrl}${path}`, {
@@ -127,9 +131,13 @@ export class ClientHttpApi {
           ...(body === undefined ? {} : { 'Content-Type': contentType }),
         },
         body: body === undefined ? undefined : contentType === 'application/json' ? JSON.stringify(body) : body as BodyInit,
+        signal: controller.signal,
       });
     } catch (error) {
+      if (controller.signal.aborted) throw new CliError('NETWORK_ERROR', `Request to ${path} timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms`);
       throw new CliError('NETWORK_ERROR', error instanceof Error ? error.message : String(error));
+    } finally {
+      clearTimeout(timer);
     }
     return readResponse(response, mode);
   }

@@ -965,7 +965,7 @@ var require_command = __commonJS({
     var EventEmitter = require("node:events").EventEmitter;
     var childProcess = require("node:child_process");
     var path = require("node:path");
-    var fs2 = require("node:fs");
+    var fs3 = require("node:fs");
     var process2 = require("node:process");
     var { Argument: Argument2, humanReadableArgName } = require_argument();
     var { CommanderError: CommanderError2 } = require_error();
@@ -1898,10 +1898,10 @@ Expecting one of '${allowedValues.join("', '")}'`);
         const sourceExt = [".js", ".ts", ".tsx", ".mjs", ".cjs"];
         function findFile(baseDir, baseName) {
           const localBin = path.resolve(baseDir, baseName);
-          if (fs2.existsSync(localBin)) return localBin;
+          if (fs3.existsSync(localBin)) return localBin;
           if (sourceExt.includes(path.extname(baseName))) return void 0;
           const foundExt = sourceExt.find(
-            (ext) => fs2.existsSync(`${localBin}${ext}`)
+            (ext) => fs3.existsSync(`${localBin}${ext}`)
           );
           if (foundExt) return `${localBin}${foundExt}`;
           return void 0;
@@ -1913,7 +1913,7 @@ Expecting one of '${allowedValues.join("', '")}'`);
         if (this._scriptPath) {
           let resolvedScriptPath;
           try {
-            resolvedScriptPath = fs2.realpathSync(this._scriptPath);
+            resolvedScriptPath = fs3.realpathSync(this._scriptPath);
           } catch (err) {
             resolvedScriptPath = this._scriptPath;
           }
@@ -3135,6 +3135,21 @@ var ServerApi = class {
   async getTaskRecord(recordId) {
     return this.request("GET", `/api/tasks/${encodeURIComponent(recordId)}`);
   }
+  async createUploadTransfer(input) {
+    return this.request("POST", "/api/transfers/uploads", input);
+  }
+  async getTransfer(transferId) {
+    return this.request("GET", `/api/transfers/${encodeURIComponent(transferId)}`);
+  }
+  async reportCliProgress(transferId, input) {
+    return this.request("POST", `/api/transfers/${encodeURIComponent(transferId)}/cli-progress`, input);
+  }
+  async completeCliUpload(transferId) {
+    return this.request("POST", `/api/transfers/${encodeURIComponent(transferId)}/cli-upload-complete`, {});
+  }
+  async refreshUploadUrl(transferId, partNumbers) {
+    return this.request("POST", `/api/transfers/${encodeURIComponent(transferId)}/refresh-upload-url`, { partNumbers });
+  }
   async request(method, path, body) {
     let response;
     try {
@@ -3205,6 +3220,7 @@ function exitCodeFor(error) {
 }
 
 // apps/cli/src/http/client-http.ts
+var DEFAULT_REQUEST_TIMEOUT_MS = 1e4;
 var ClientHttpApi = class {
   constructor(config) {
     this.config = config;
@@ -3322,6 +3338,8 @@ var ClientHttpApi = class {
     return new URLSearchParams({ rootId, path, recursive: String(recursive) }).toString();
   }
   async request(method, path, body, mode = "json", contentType = "application/json") {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_REQUEST_TIMEOUT_MS);
     let response;
     try {
       response = await fetch(`${this.config.baseUrl}${path}`, {
@@ -3330,10 +3348,14 @@ var ClientHttpApi = class {
           Authorization: `Bearer ${this.config.token}`,
           ...body === void 0 ? {} : { "Content-Type": contentType }
         },
-        body: body === void 0 ? void 0 : contentType === "application/json" ? JSON.stringify(body) : body
+        body: body === void 0 ? void 0 : contentType === "application/json" ? JSON.stringify(body) : body,
+        signal: controller.signal
       });
     } catch (error) {
+      if (controller.signal.aborted) throw new CliError("NETWORK_ERROR", `Request to ${path} timed out after ${DEFAULT_REQUEST_TIMEOUT_MS}ms`);
       throw new CliError("NETWORK_ERROR", error instanceof Error ? error.message : String(error));
+    } finally {
+      clearTimeout(timer);
     }
     return readResponse(response, mode);
   }
@@ -3414,17 +3436,17 @@ var import_promises = require("node:fs/promises");
 var import_node_crypto = require("node:crypto");
 var fs = __toESM(require("node:fs/promises"), 1);
 async function uploadFileWithProgress(client, options) {
-  const stat2 = await fs.stat(options.filePath);
+  const stat4 = await fs.stat(options.filePath);
   const chunkSize = options.chunkSize ?? 8 * 1024 * 1024;
   const retries = options.retries ?? 5;
-  const fingerprint = await createFingerprint(options.filePath, stat2.size, stat2.mtimeMs);
+  const fingerprint = await createFingerprint(options.filePath, stat4.size, stat4.mtimeMs);
   const init = await client.initUploadSession({
     rootId: options.rootId,
     path: options.path,
     filename: options.filename,
-    size: stat2.size,
+    size: stat4.size,
     chunkSize,
-    lastModifiedMs: Math.trunc(stat2.mtimeMs),
+    lastModifiedMs: Math.trunc(stat4.mtimeMs),
     fingerprint
   });
   const file = await fs.open(options.filePath, "r");
@@ -3444,7 +3466,7 @@ async function uploadFileWithProgress(client, options) {
       options.onProgress?.({
         filename: options.filename,
         uploadedBytes,
-        totalBytes: stat2.size,
+        totalBytes: stat4.size,
         partNumber,
         partCount: init.partCount,
         attempt: 1,
@@ -3501,6 +3523,74 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// apps/cli/src/http/aliyundrive-upload.ts
+var fs2 = __toESM(require("node:fs/promises"), 1);
+async function uploadFileToAliyunDrive(options) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const retries = options.retries ?? 5;
+  const stat4 = await fs2.stat(options.filePath);
+  const file = await fs2.open(options.filePath, "r");
+  const startedAt = Date.now();
+  let uploadedBytes = 0;
+  try {
+    const parts = new Map(options.plan.uploadParts.map((part) => [part.partNumber, part]));
+    for (let partNumber = 1; partNumber <= options.plan.partCount; partNumber += 1) {
+      let part = parts.get(partNumber);
+      if (!part) throw new CliError("ALIYUN_PLAN_ERROR", `Missing upload part ${partNumber}`);
+      const offset = (partNumber - 1) * options.plan.partSize;
+      const buffer = Buffer.alloc(part.size);
+      const { bytesRead } = await file.read(buffer, 0, part.size, offset);
+      if (bytesRead !== part.size) throw new CliError("IO_ERROR", `Expected ${part.size} bytes at offset ${offset}, got ${bytesRead}`);
+      for (let attempt = 1; attempt <= retries; attempt += 1) {
+        const response = await fetchImpl(part.uploadUrl, { method: "PUT", headers: { "Content-Type": "" }, body: buffer });
+        if (response.ok) break;
+        if ((response.status === 403 || response.status === 401) && attempt < retries) {
+          const refreshed = await options.serverApi.refreshUploadUrl(options.plan.transferId, [partNumber]);
+          const replacement = refreshed.uploadParts?.find((item) => item.partNumber === partNumber);
+          if (replacement) part = replacement;
+          await sleep2(500 * attempt);
+          continue;
+        }
+        if (attempt === retries) throw new CliError("ALIYUN_UPLOAD_ERROR", `Upload part ${partNumber} failed: HTTP ${response.status}`, response.status);
+        await sleep2(500 * attempt);
+      }
+      uploadedBytes += part.size;
+      const progress = {
+        transferId: options.plan.transferId,
+        uploadedBytes,
+        totalBytes: stat4.size,
+        partNumber,
+        partCount: options.plan.partCount,
+        rateBytesPerSecond: uploadedBytes / Math.max((Date.now() - startedAt) / 1e3, 1),
+        elapsedMs: Date.now() - startedAt
+      };
+      options.onProgress?.(progress);
+      await options.serverApi.reportCliProgress(options.plan.transferId, progress);
+    }
+    const completeResponse = await fetchImpl(`${options.plan.openapiBase.replace(/\/+$/, "")}/adrive/v1.0/openFile/complete`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${options.plan.accessToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        drive_id: options.plan.driveId,
+        file_id: options.plan.fileId,
+        upload_id: options.plan.uploadId
+      })
+    });
+    if (!completeResponse.ok) {
+      throw new CliError("ALIYUN_UPLOAD_ERROR", `Complete upload failed: HTTP ${completeResponse.status}`, completeResponse.status);
+    }
+    await options.serverApi.completeCliUpload(options.plan.transferId);
+  } finally {
+    await file.close();
+  }
+}
+function sleep2(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // apps/cli/src/commands/files.ts
 function rawWriter(value) {
   process.stdout.write(value);
@@ -3532,9 +3622,66 @@ function registerFilesCommands(program2, deps) {
     const content = options.stdin ? await readStdinText() : requiredString(options.content, "--content or --stdin");
     deps.write(successEnvelope(await client.writeFile(options.root, options.path, content)));
   });
-  files.command("upload").requiredOption("--client <clientId>").requiredOption("--root <rootId>").requiredOption("--path <path>").requiredOption("--file <file>").option("--filename <filename>").action(async (options) => {
-    const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
+  files.command("upload").requiredOption("--client <clientId>").requiredOption("--root <rootId>").requiredOption("--path <path>").requiredOption("--file <file>").option("--filename <filename>").option("--transfer <mode>", "auto | aliyundrive | direct", "auto").action(async (options) => {
     const filename = options.filename ?? options.file.split(/[\\/]/).pop();
+    const transferMode = options.transfer;
+    if (deps.serverApi && transferMode !== "direct") {
+      const result2 = await deps.serverApi.createUploadTransfer({
+        clientId: requiredString(options.client, "--client"),
+        rootId: options.root,
+        path: options.path,
+        filename,
+        size: (await (0, import_promises.stat)(options.file)).size,
+        transfer: transferMode
+      });
+      if (result2.mode === "aliyundrive") {
+        const plan = result2;
+        process.stderr.write(`[1/5] \u521B\u5EFA\u4F20\u8F93\u4EFB\u52A1 ${plan.transferId}
+`);
+        await uploadFileToAliyunDrive({
+          filePath: options.file,
+          plan,
+          serverApi: deps.serverApi,
+          onProgress: (progress) => {
+            const percent = (progress.uploadedBytes / progress.totalBytes * 100).toFixed(1);
+            process.stderr.write(`\r[2/5] \u4E0A\u4F20\u5230\u963F\u91CC\u4E91\u76D8 ${percent}% | part ${progress.partNumber}/${progress.partCount} | ETA ${Math.ceil((progress.totalBytes - progress.uploadedBytes) / Math.max(progress.rateBytesPerSecond, 1))}s`);
+            if (progress.uploadedBytes === progress.totalBytes) process.stderr.write("\n");
+          }
+        });
+        process.stderr.write(`[3/5] \u963F\u91CC\u4E91\u76D8\u5408\u5E76\u5B8C\u6210
+`);
+        process.stderr.write(`[4/5] \u7B49\u5F85 client \u4E0B\u8F7D...
+`);
+        for (let i = 0; i < 600; i += 1) {
+          const job = await deps.serverApi.getTransfer(plan.transferId);
+          if (job.status === "completed") {
+            process.stderr.write(`[5/5] \u5199\u5165\u5B8C\u6210 root=${job.rootId} path=${job.targetDir}/${job.filename} size=${job.size}
+`);
+            deps.write(successEnvelope({
+              transferId: plan.transferId,
+              mode: "aliyundrive",
+              clientId: options.client,
+              rootId: options.root,
+              path: options.path,
+              filename,
+              size: job.size,
+              status: "completed"
+            }));
+            return;
+          }
+          if (job.status === "failed") {
+            throw new Error(`Transfer failed: ${job.errorMessage ?? "unknown error"}`);
+          }
+          if (job.phase === "client_downloading") {
+            const pct = job.totalBytes > 0 ? (job.downloadedBytes / job.totalBytes * 100).toFixed(1) : "0";
+            process.stderr.write(`\r[4/5] Client \u4E0B\u8F7D ${pct}%`);
+          }
+          await new Promise((r) => setTimeout(r, 2e3));
+        }
+        throw new Error("Transfer timed out after 20 minutes");
+      }
+    }
+    const client = await deps.discoverClientHttp(requiredString(options.client, "--client"));
     const result = await uploadFileWithProgress(client, {
       rootId: options.root,
       path: options.path,
@@ -3759,7 +3906,17 @@ function buildProgram(input = {}) {
     return new ClientHttpApi({ baseUrl: discovered.baseUrl, token: discovered.token });
   }
   registerJobsCommands(program2, { discoverClientHttp, write });
-  registerFilesCommands(program2, { discoverClientHttp, write });
+  registerFilesCommands(program2, {
+    discoverClientHttp,
+    write,
+    serverApi: {
+      createUploadTransfer: (input2) => requireServerApi().createUploadTransfer(input2),
+      getTransfer: (id) => requireServerApi().getTransfer(id),
+      reportCliProgress: (id, input2) => requireServerApi().reportCliProgress(id, input2),
+      completeCliUpload: (id) => requireServerApi().completeCliUpload(id),
+      refreshUploadUrl: (id, partNumbers) => requireServerApi().refreshUploadUrl(id, partNumbers)
+    }
+  });
   registerFrpCommands(program2, { discoverClientHttp, write });
   return program2;
 }
