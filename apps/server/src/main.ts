@@ -9,6 +9,7 @@ import { fileRoutes } from './modules/files/files.routes.js';
 import { clientHttpAdminRoutes } from './modules/client-http/client-http-admin.routes.js';
 import { clientHttpPortRoutes } from './modules/client-http/client-http-port.routes.js';
 import { taskRoutes } from './modules/tasks/tasks.routes.js';
+import { aliyunDriveRoutes } from './modules/aliyundrive/aliyundrive.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
   await app.register(clientHttpAdminRoutes);
   await app.register(clientHttpPortRoutes);
   await app.register(taskRoutes);
+  await app.register(aliyunDriveRoutes);
 
   // Register WebSocket
   await registerWsRoutes(app);
