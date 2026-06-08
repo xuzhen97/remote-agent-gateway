@@ -118,7 +118,7 @@ describe('client direct command groups', () => {
     const clientHttp = { createCommandJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'queued' }) };
     const program = new Command();
     program.exitOverride();
-    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob: vi.fn(), write: (value) => outputs.push(value) });
 
     await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--', 'node', '-v'], { from: 'user' });
 
@@ -126,36 +126,45 @@ describe('client direct command groups', () => {
     expect(outputs[0]).toEqual({ ok: true, data: { jobId: 'job_1', status: 'queued' } });
   });
 
-  it('runs jobs run --wait and returns final job state', async () => {
+  it('runs jobs run --wait through the server job proxy', async () => {
     const outputs: unknown[] = [];
+    const proxyJob = vi.fn().mockResolvedValue({ ok: true, data: { job: { jobId: 'job_1', status: 'success', exitCode: 0 }, logs: { jobId: 'job_1', logs: [], nextSeq: 0 } } });
     const clientHttp = {
-      createCommandJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'queued' }),
-      getJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'success', exitCode: 0 }),
+      createCommandJob: vi.fn(),
+      getJob: vi.fn(),
+      getJobLogs: vi.fn(),
     };
     const program = new Command();
     program.exitOverride();
-    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob, write: (value) => outputs.push(value) });
 
     await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--wait', '--', 'node', '-v'], { from: 'user' });
 
-    expect(clientHttp.getJob).toHaveBeenCalledWith('job_1');
-    expect(outputs[0]).toEqual({ ok: true, data: { jobId: 'job_1', status: 'success', exitCode: 0 } });
+    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined });
+    expect(clientHttp.createCommandJob).not.toHaveBeenCalled();
+    expect(clientHttp.getJob).not.toHaveBeenCalled();
+    expect(clientHttp.getJobLogs).not.toHaveBeenCalled();
+    expect(outputs[0]).toEqual({ ok: true, data: { job: { jobId: 'job_1', status: 'success', exitCode: 0 }, logs: { jobId: 'job_1', logs: [], nextSeq: 0 } } });
   });
 
-  it('runs jobs run --wait --logs and returns final job plus logs', async () => {
+  it('runs jobs run --wait --logs through the server job proxy', async () => {
     const outputs: unknown[] = [];
+    const proxyJob = vi.fn().mockResolvedValue({ ok: true, data: { job: { jobId: 'job_1', status: 'success', exitCode: 0 }, logs: { jobId: 'job_1', logs: [{ seq: 1, stream: 'stdout', content: 'hello', timestamp: 1 }], nextSeq: 1 } } });
     const clientHttp = {
-      createCommandJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'queued' }),
-      getJob: vi.fn().mockResolvedValue({ jobId: 'job_1', status: 'success', exitCode: 0 }),
-      getJobLogs: vi.fn().mockResolvedValue({ jobId: 'job_1', logs: [{ seq: 1, stream: 'stdout', content: 'hello', timestamp: 1 }], nextSeq: 1 }),
+      createCommandJob: vi.fn(),
+      getJob: vi.fn(),
+      getJobLogs: vi.fn(),
     };
     const program = new Command();
     program.exitOverride();
-    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob, write: (value) => outputs.push(value) });
 
     await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--wait', '--logs', '--', 'node', '-v'], { from: 'user' });
 
-    expect(clientHttp.getJobLogs).toHaveBeenCalledWith('job_1', 0, 500);
+    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined });
+    expect(clientHttp.createCommandJob).not.toHaveBeenCalled();
+    expect(clientHttp.getJob).not.toHaveBeenCalled();
+    expect(clientHttp.getJobLogs).not.toHaveBeenCalled();
     expect(outputs[0]).toEqual({ ok: true, data: { job: { jobId: 'job_1', status: 'success', exitCode: 0 }, logs: { jobId: 'job_1', logs: [{ seq: 1, stream: 'stdout', content: 'hello', timestamp: 1 }], nextSeq: 1 } } });
   });
 
@@ -168,7 +177,7 @@ describe('client direct command groups', () => {
     };
     const program = new Command();
     program.exitOverride();
-    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, write: (value) => outputs.push(value) });
+    registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob: vi.fn(), write: (value) => outputs.push(value) });
 
     await program.parseAsync(['jobs', 'script', '--client', 'client-1', '--inline', 'console.log(1)', '--wait', '--logs'], { from: 'user' });
 

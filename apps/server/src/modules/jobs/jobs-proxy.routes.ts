@@ -16,6 +16,16 @@ interface PendingJob {
 
 const pendingJobs = new Map<string, PendingJob>();
 
+export const __testing = {
+  pendingJobs,
+  clearPendingJobs(): void {
+    for (const pending of pendingJobs.values()) {
+      clearTimeout(pending.timer);
+    }
+    pendingJobs.clear();
+  },
+};
+
 export function resolveJobEvent(requestId: string, event: string, data: Record<string, unknown>): void {
   const pending = pendingJobs.get(requestId);
   if (!pending) return;
@@ -37,9 +47,11 @@ export function resolveJobEvent(requestId: string, event: string, data: Record<s
       break;
     }
     case 'job.completed':
-    case 'job.failed': {
+    case 'job.failed':
+    case 'job.cancelled': {
       clearTimeout(pending.timer);
-      pending.job = { ...pending.job, ...data, status: event === 'job.completed' ? 'success' : 'failed' };
+      const status = event === 'job.completed' ? 'success' : event === 'job.failed' ? 'failed' : 'cancelled';
+      pending.job = { ...pending.job, ...data, status };
       pending.resolve({ job: pending.job, logs: { jobId: pending.job?.jobId, logs: pending.logs, nextSeq: pending.seqCounter } });
       pendingJobs.delete(requestId);
       break;

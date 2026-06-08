@@ -5,6 +5,7 @@ import { startHeartbeat } from './core/heartbeat.js';
 import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-daemon.js';
 import { startControlHttpServer, stopControlHttpServer, getJobManager } from './runtime/control-http/server.js';
 import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler.js';
+import { forwardServerJobRun } from './server-job-runner.js';
 import type { ServerAckPayload } from '@rag/shared';
 
 async function main(): Promise<void> {
@@ -157,35 +158,18 @@ async function main(): Promise<void> {
           break;
         }
         const runPayload = message.payload as { command: string; args?: string[]; timeoutMs?: number; cwd?: string; env?: Record<string, string> };
-        try {
-          const job = mgr.createCommand({
+        await forwardServerJobRun({
+          requestId: (message as { requestId?: string }).requestId,
+          payload: {
             command: runPayload.command,
             args: runPayload.args,
             timeoutMs: runPayload.timeoutMs,
             cwd: runPayload.cwd,
             env: runPayload.env,
-          });
-          const jobId = job.jobId;
-          conn.send({
-            type: 'client.job.event',
-            requestId: (message as { requestId?: string }).requestId,
-            payload: { jobId, event: 'job.started', data: job },
-          });
-          // Subscribe to job events and forward via WebSocket
-          mgr.subscribe(jobId, (event) => {
-            conn.send({
-              type: 'client.job.event',
-              requestId: (message as { requestId?: string }).requestId,
-              payload: { jobId, event: event.event, data: event.data },
-            });
-          });
-        } catch (err) {
-          conn.send({
-            type: 'client.job.event',
-            requestId: (message as { requestId?: string }).requestId,
-            payload: { event: 'job.failed', data: { error: err instanceof Error ? err.message : String(err) } },
-          });
-        }
+          },
+          manager: mgr,
+          send: (out) => conn.send(out),
+        });
         break;
       }
 

@@ -35,8 +35,11 @@ interface JobInternal {
   logs: ClientJobLogEntry[];
   seqCounter: number;
   subscribers: Set<(event: JobEvent) => void>;
+  activeReleased: boolean;
   resolve?: (record: JobRecord) => void;
 }
+
+const TERMINAL_STATUSES = new Set<ClientJobStatus>(['success', 'failed', 'cancelled']);
 
 export class JobManager {
   private readonly jobs = new Map<string, JobInternal>();
@@ -45,28 +48,42 @@ export class JobManager {
   constructor(private readonly options: JobManagerOptions) {}
 
   createCommand(payload: ClientJobCommandPayload): JobRecord {
+    this.assertCapacity();
     const jobId = `job_${randomUUID().slice(0, 12)}`;
     const internal: JobInternal = {
       record: { jobId, type: 'command', status: 'queued' },
       logs: [],
       seqCounter: 0,
       subscribers: new Set(),
+      activeReleased: false,
     };
     this.jobs.set(jobId, internal);
-    this.startJob(jobId, internal, () => this.runCommand(jobId, payload, internal));
+    try {
+      this.startJob(jobId, internal, () => this.runCommand(jobId, payload, internal));
+    } catch (err) {
+      this.jobs.delete(jobId);
+      throw err;
+    }
     return internal.record;
   }
 
   createScript(payload: ClientJobScriptPayload): JobRecord {
+    this.assertCapacity();
     const jobId = `job_${randomUUID().slice(0, 12)}`;
     const internal: JobInternal = {
       record: { jobId, type: 'script', status: 'queued' },
       logs: [],
       seqCounter: 0,
       subscribers: new Set(),
+      activeReleased: false,
     };
     this.jobs.set(jobId, internal);
-    this.startJob(jobId, internal, () => this.runScript(jobId, payload, internal));
+    try {
+      this.startJob(jobId, internal, () => this.runScript(jobId, payload, internal));
+    } catch (err) {
+      this.jobs.delete(jobId);
+      throw err;
+    }
     return internal.record;
   }
 
@@ -87,19 +104,14 @@ export class JobManager {
     if (ji.process && !ji.process.killed) {
       ji.process.kill('SIGTERM');
     }
-    ji.record.status = 'cancelled';
-    ji.record.finishedAt = Date.now();
-    this.emit(ji, { event: 'job.cancelled', data: ji.record });
-    ji.resolve?.(ji.record);
-    this.active = Math.max(0, this.active - 1);
-    this.drain();
+    this.finalize(ji, 'cancelled', 'job.cancelled', { exitCode: null });
     return ji.record;
   }
 
   wait(jobId: string): Promise<JobRecord> {
     const ji = this.jobs.get(jobId);
     if (!ji) throw new Error('Job not found');
-    if (ji.record.status === 'success' || ji.record.status === 'failed' || ji.record.status === 'cancelled') {
+    if (TERMINAL_STATUSES.has(ji.record.status)) {
       return Promise.resolve(ji.record);
     }
     return new Promise((resolve) => { ji.resolve = resolve; });
@@ -112,21 +124,20 @@ export class JobManager {
     return () => ji.subscribers.delete(listener);
   }
 
-  private startJob(jobId: string, ji: JobInternal, run: () => Promise<void>): void {
+  private assertCapacity(): void {
     if (this.active >= this.options.maxConcurrent) {
       throw new Error(`Concurrent job limit ${this.options.maxConcurrent} exceeded`);
     }
+  }
+
+  private startJob(jobId: string, ji: JobInternal, run: () => Promise<void>): void {
+    this.assertCapacity();
     this.active++;
     ji.record.status = 'running';
     ji.record.startedAt = Date.now();
     this.emit(ji, { event: 'job.started', data: ji.record });
     run().catch((err) => {
-      if (ji.record.status === 'cancelled') return;
-      ji.record.status = 'failed';
-      ji.record.error = err instanceof Error ? err.message : String(err);
-      ji.record.finishedAt = Date.now();
-      this.emit(ji, { event: 'job.failed', data: ji.record });
-      ji.resolve?.(ji.record);
+      this.finalize(ji, 'failed', 'job.failed', { error: err instanceof Error ? err.message : String(err) });
     });
   }
 
@@ -145,24 +156,11 @@ export class JobManager {
     child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', decodeConsoleBuffer(d)));
 
     child.on('close', (code) => {
-      ji.record.exitCode = code;
-      ji.record.finishedAt = Date.now();
-      ji.record.status = code === 0 ? 'success' : 'failed';
-      this.emit(ji, { event: code === 0 ? 'job.completed' : 'job.failed', data: ji.record });
-      ji.resolve?.(ji.record);
-      this.active = Math.max(0, this.active - 1);
-      this.drain();
+      this.finalize(ji, code === 0 ? 'success' : 'failed', code === 0 ? 'job.completed' : 'job.failed', { exitCode: code });
     });
 
     child.on('error', (err) => {
-      if (ji.record.status === 'cancelled') return;
-      ji.record.status = 'failed';
-      ji.record.error = err.message;
-      ji.record.finishedAt = Date.now();
-      this.emit(ji, { event: 'job.failed', data: ji.record });
-      ji.resolve?.(ji.record);
-      this.active = Math.max(0, this.active - 1);
-      this.drain();
+      this.finalize(ji, 'failed', 'job.failed', { error: err.message });
     });
   }
 
@@ -193,25 +191,35 @@ export class JobManager {
     child.stderr?.on('data', (d: Buffer) => this.appendLog(ji, 'stderr', decodeConsoleBuffer(d)));
 
     child.on('close', (code) => {
-      ji.record.exitCode = code;
-      ji.record.finishedAt = Date.now();
-      ji.record.status = code === 0 ? 'success' : 'failed';
-      this.emit(ji, { event: code === 0 ? 'job.completed' : 'job.failed', data: ji.record });
-      ji.resolve?.(ji.record);
-      this.active = Math.max(0, this.active - 1);
-      this.drain();
+      this.finalize(ji, code === 0 ? 'success' : 'failed', code === 0 ? 'job.completed' : 'job.failed', { exitCode: code });
     });
 
     child.on('error', (err) => {
-      if (ji.record.status === 'cancelled') return;
-      ji.record.status = 'failed';
-      ji.record.error = err.message;
-      ji.record.finishedAt = Date.now();
-      this.emit(ji, { event: 'job.failed', data: ji.record });
-      ji.resolve?.(ji.record);
-      this.active = Math.max(0, this.active - 1);
-      this.drain();
+      this.finalize(ji, 'failed', 'job.failed', { error: err.message });
     });
+  }
+
+  private finalize(
+    ji: JobInternal,
+    status: 'success' | 'failed' | 'cancelled',
+    event: 'job.completed' | 'job.failed' | 'job.cancelled',
+    updates: { exitCode?: number | null; error?: string | null } = {},
+  ): void {
+    if (TERMINAL_STATUSES.has(ji.record.status)) return;
+    ji.record.status = status;
+    if ('exitCode' in updates) ji.record.exitCode = updates.exitCode;
+    if ('error' in updates) ji.record.error = updates.error;
+    ji.record.finishedAt = Date.now();
+    this.emit(ji, { event, data: ji.record });
+    ji.resolve?.(ji.record);
+    this.releaseActive(ji);
+  }
+
+  private releaseActive(ji: JobInternal): void {
+    if (ji.activeReleased) return;
+    ji.activeReleased = true;
+    this.active = Math.max(0, this.active - 1);
+    this.drain();
   }
 
   private appendLog(ji: JobInternal, stream: 'stdout' | 'stderr', content: string): void {
