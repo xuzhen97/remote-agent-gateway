@@ -24,6 +24,7 @@ import { registerFilesCommands } from './commands/files.js';
 import { registerFrpCommands } from './commands/frp.js';
 import { registerJobsCommands } from './commands/jobs.js';
 import { registerTasksCommands } from './commands/tasks.js';
+import { registerUpdatesCommands } from './commands/updates.js';
 
 const VERSION = '0.1.0';
 
@@ -100,6 +101,15 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
     },
   });
   registerFrpCommands(program, { discoverClientHttp, write });
+  registerUpdatesCommands(program, {
+    serverApi: {
+      listUpdateReleases: () => requireServerApi().listUpdateReleases(),
+      createUpdateCampaign: (input) => requireServerApi().createUpdateCampaign(input),
+      getUpdateCampaign: (id) => requireServerApi().getUpdateCampaign(id),
+      retryUpdateCampaign: (id, input) => requireServerApi().retryUpdateCampaign(id, input),
+    },
+    write,
+  });
 
   return program;
 }

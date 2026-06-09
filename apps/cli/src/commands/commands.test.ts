@@ -6,6 +6,7 @@ import { registerFilesCommands } from './files.js';
 import { registerFrpCommands } from './frp.js';
 import { registerJobsCommands } from './jobs.js';
 import { registerTasksCommands } from './tasks.js';
+import { registerUpdatesCommands } from './updates.js';
 
 const { uploadFileWithProgressMock } = vi.hoisted(() => ({
   uploadFileWithProgressMock: vi.fn(),
@@ -250,5 +251,27 @@ describe('client direct command groups', () => {
 
     expect(clientHttp.createMapping).toHaveBeenCalledWith({ name: 'web', type: 'tcp', localHost: '127.0.0.1', localPort: 3000, remotePort: undefined, customDomain: undefined });
     expect(outputs[0]).toEqual({ ok: true, data: { id: 'pm_1' } });
+  });
+
+  it('runs updates campaigns start through the server api', async () => {
+    const outputs: unknown[] = [];
+    const api = {
+      createUpdateCampaign: vi.fn().mockResolvedValue({ campaignId: 'camp_1', targets: 5 }),
+    };
+    const program = new Command();
+    program.exitOverride();
+    registerUpdatesCommands(program, { serverApi: api as any, write: (value) => outputs.push(value) });
+
+    await program.parseAsync(['updates', 'campaigns', 'start', '--version', 'v1.4.0', '--all-clients'], { from: 'user' });
+
+    expect(api.createUpdateCampaign).toHaveBeenCalledWith({
+      targetVersion: 'v1.4.0',
+      includeServer: true,
+      batchSize: 10,
+      maxConcurrency: 5,
+      scope: { all: true },
+      createdBy: 'cli',
+    });
+    expect(outputs[0]).toEqual({ ok: true, data: { campaignId: 'camp_1', targets: 5 } });
   });
 });

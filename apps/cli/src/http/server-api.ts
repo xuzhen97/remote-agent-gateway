@@ -95,6 +95,26 @@ export class ServerApi {
     return this.request('POST', `/api/clients/${encodeURIComponent(clientId)}/jobs/run`, payload);
   }
 
+  /** 列出所有发布版本 */
+  async listUpdateReleases(): Promise<unknown> {
+    return this.request('GET', '/admin/updates/releases');
+  }
+
+  /** 创建更新编排 */
+  async createUpdateCampaign(input: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', '/admin/updates/campaigns', input);
+  }
+
+  /** 查询更新编排 */
+  async getUpdateCampaign(id: string): Promise<unknown> {
+    return this.request('GET', `/admin/updates/campaigns/${encodeURIComponent(id)}`);
+  }
+
+  /** 重试更新编排 */
+  async retryUpdateCampaign(id: string, input: Record<string, unknown>): Promise<unknown> {
+    return this.request('POST', `/admin/updates/campaigns/${encodeURIComponent(id)}/retry`, input);
+  }
+
   /** 通用 HTTP 请求方法 */
   private async request(method: string, path: string, body?: unknown): Promise<unknown> {
     let response: Response;
