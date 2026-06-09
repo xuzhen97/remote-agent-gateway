@@ -12,7 +12,7 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
 import { env, envSource } from './config/env.js';
-import { initDb, saveDb } from './db/index.js';
+import { initDb, saveDb, getDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
 import { clientHttpAdminRoutes } from './modules/client-http/client-http-admin.routes.js';
@@ -22,6 +22,8 @@ import { aliyunDriveRoutes } from './modules/aliyundrive/aliyundrive.routes.js';
 import { transferRoutes } from './modules/transfers/transfer.routes.js';
 import { jobsProxyRoutes } from './modules/jobs/jobs-proxy.routes.js';
 import { releaseRoutes } from './modules/updates/release.routes.js';
+import { createCampaignRunner } from './modules/updates/campaign-runner.js';
+import { createUpdateRepository } from './modules/updates/update-repository.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -35,6 +37,15 @@ async function main(): Promise<void> {
   await initDb();
   console.log('数据库已初始化');
   console.log(`服务端配置: ${envSource.path} (${envSource.format})`);
+
+  // ==================== 恢复未完成的更新 Campaign ====================
+  const updateRepo = createUpdateRepository(getDb());
+  const campaignRunner = createCampaignRunner({
+    repo: updateRepo,
+    runServerUpdate: async () => {},
+    verifyServerVersion: () => '0.1.0',
+  });
+  await campaignRunner.recoverPendingCampaigns();
 
   // ==================== FRP 模式初始化 ====================
   console.log(`FRP 模式: ${env.FRP_MODE}`);
