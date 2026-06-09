@@ -71,7 +71,7 @@ describe('JobManager lifecycle finalization', () => {
     first.emit('close', 0);
 
     manager.createCommand({ command: 'node' });
-    expect(() => manager.createCommand({ command: 'node' })).toThrow(/Concurrent job limit 2 exceeded/);
+    expect(() => manager.createCommand({ command: 'node' })).toThrow(/并发任务已达上限 2/);
   });
 
   it('releases the active slot when command startup throws before a child is attached', async () => {
@@ -105,7 +105,7 @@ describe('JobManager lifecycle finalization', () => {
     const manager = createManager(workspaceDir, 1);
 
     manager.createCommand({ command: 'node' });
-    expect(() => manager.createCommand({ command: 'node' })).toThrow(/Concurrent job limit 1 exceeded/);
+    expect(() => manager.createCommand({ command: 'node' })).toThrow(/并发任务已达上限 1/);
 
     expect((manager as unknown as { jobs: Map<string, unknown> }).jobs.size).toBe(1);
   });

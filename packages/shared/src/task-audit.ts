@@ -1,24 +1,37 @@
+/** @file 任务审计相关的 Zod 校验规则和 TypeScript 类型 */
 import { z } from 'zod';
 
+/** 受审计的资源类型：任务、文件、FRP 映射 */
 export const TaskResourceTypeSchema = z.enum(['job', 'file', 'frp_mapping']);
+
+/** 受审计的操作类型 */
 export const TaskActionTypeSchema = z.enum([
-  'job.command',
-  'job.script',
-  'job.cancel',
-  'file.write',
-  'file.upload',
-  'file.mkdir',
-  'file.delete',
-  'file.move',
-  'file.copy',
-  'frp_mapping.create',
-  'frp_mapping.delete',
+  'job.command',      // 执行命令
+  'job.script',       // 执行脚本
+  'job.cancel',       // 取消任务
+  'file.write',       // 写入文件
+  'file.upload',      // 分片上传完成
+  'file.mkdir',       // 创建目录
+  'file.delete',      // 删除文件/目录
+  'file.move',        // 移动/重命名
+  'file.copy',        // 复制
+  'frp_mapping.create',  // 创建 FRP 映射
+  'frp_mapping.delete',  // 删除 FRP 映射
 ]);
+
+/** 操作状态 */
 export const TaskStatusSchema = z.enum(['success', 'failed', 'cancelled']);
+
+/** 请求来源类型 */
 export const TaskSourceTypeSchema = z.enum(['web-console', 'agent-api', 'server-proxy', 'direct-client-http', 'unknown']);
+
+/** 操作者身份类型 */
 export const TaskActorTypeSchema = z.enum(['admin-token', 'agent-token', 'client-token', 'unknown-token']);
+
+/** 审计记录同步状态 */
 export const TaskSyncStatusSchema = z.enum(['pending', 'synced', 'sync_failed']);
 
+/** JSON 摘要字段 Schema */
 export const TaskSummaryJsonSchema = z.record(z.string(), z.unknown());
 
 export const ClientTaskAuditMirrorRecordSchema = z.object({

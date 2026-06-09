@@ -11,7 +11,7 @@ describe('resolveWorkspace', () => {
 
   it('rejects path traversal', () => {
     const ws = path.resolve('/tmp/workspace');
-    expect(() => resolveWorkspace(ws, '..', 'etc')).toThrow('Path traversal denied');
+    expect(() => resolveWorkspace(ws, '..', 'etc')).toThrow('路径遍历被拒绝');
   });
 
   it('allows workspace root itself', () => {

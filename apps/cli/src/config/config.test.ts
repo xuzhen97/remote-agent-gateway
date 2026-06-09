@@ -19,7 +19,7 @@ describe('parseKeyValueConfig', () => {
 
 describe('maskToken', () => {
   it('does not reveal full tokens', () => {
-    expect(maskToken('')).toBe('(empty)');
+    expect(maskToken('')).toBe('(空)');
     expect(maskToken('short')).toBe('sho...');
     expect(maskToken('test_agent_token_123456')).toBe('test_age...3456');
   });

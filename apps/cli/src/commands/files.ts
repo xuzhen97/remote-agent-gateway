@@ -1,3 +1,6 @@
+/** @file Files 命令 — 客户端文件管理
+ * 提供了完整的远程文件操作能力。
+ */
 import { writeFile, stat } from 'node:fs/promises';
 import type { Command } from 'commander';
 import type { ClientHttpApi } from '../http/client-http.js';

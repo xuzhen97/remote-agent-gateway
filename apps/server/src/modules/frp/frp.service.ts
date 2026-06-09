@@ -1,8 +1,14 @@
+/** @file FRP 端口映射服务
+ *
+ * 管理服务端数据库中存储的端口映射记录（CRUD 操作）。
+ * 实际的 FRP 代理创建/删除由客户端通过 client HTTP API 执行。
+ */
 import { getDb } from '../../db/index.js';
 import { v4 as uuid } from 'uuid';
 import { env, resolveFrpsHost, buildFrpPublicUrl } from '../../config/env.js';
 import { portAllocatorService } from '../ports/port-allocator.service.js';
 
+/** 数据库中的端口映射行记录 */
 export interface PortMappingRow {
   id: string;
   client_id: string;
@@ -18,7 +24,12 @@ export interface PortMappingRow {
   updated_at: number;
 }
 
+/** 端口映射服务 */
 export class FrpService {
+  /**
+   * 创建端口映射
+   * 自动分配远程端口，生成公网 URL。
+   */
   async createMapping(params: {
     clientId: string;
     name: string;
@@ -32,12 +43,14 @@ export class FrpService {
     const id = `pm_${uuid().slice(0, 8)}`;
     const now = Date.now();
 
+    // 分配远程端口（优先使用请求中指定的端口）
     const remotePort = await portAllocatorService.allocate(
       params.clientId,
       typeof params.remotePort === 'number'
         ? { preferredPort: params.remotePort }
         : undefined,
     );
+    // 生成公网访问 URL
     const publicUrl = buildFrpPublicUrl(remotePort, {
       proxyType: params.proxyType as 'tcp' | 'http' | 'https',
       customDomain: params.customDomain,
@@ -51,6 +64,7 @@ export class FrpService {
     return this.getMapping(id)!;
   }
 
+  /** 获取单个映射记录 */
   getMapping(mappingId: string): PortMappingRow | undefined {
     const db = getDb();
     const stmt = db.prepare('SELECT * FROM port_mappings WHERE id = ?');
@@ -64,6 +78,10 @@ export class FrpService {
     return undefined;
   }
 
+  /**
+   * 列出端口映射
+   * @param clientId - 可选，筛选特定客户端的映射
+   */
   listMappings(clientId?: string): PortMappingRow[] {
     const db = getDb();
     let sql = 'SELECT * FROM port_mappings';
@@ -86,6 +104,7 @@ export class FrpService {
     return results;
   }
 
+  /** 更新映射状态 */
   updateMappingStatus(mappingId: string, status: string, publicUrl?: string): void {
     const db = getDb();
     const now = Date.now();
@@ -96,21 +115,27 @@ export class FrpService {
     }
   }
 
+  /**
+   * 删除映射记录并释放远程端口
+   */
   deleteMapping(mappingId: string): void {
     const db = getDb();
     const mapping = this.getMapping(mappingId);
     db.run('DELETE FROM port_mappings WHERE id = ?', [mappingId]);
+    // 释放占用的端口资源
     if (mapping?.remote_port) {
       portAllocatorService.release(mapping.remote_port);
     }
   }
 
+  /** 删除指定客户端的所有映射 */
   deleteMappingsByClientId(clientId: string): number {
     const db = getDb();
     db.run('DELETE FROM port_mappings WHERE client_id = ?', [clientId]);
     return db.getRowsModified();
   }
 
+  /** 将数据库行转换为 API 响应格式 */
   toApi(mapping: PortMappingRow): Record<string, unknown> {
     return {
       id: mapping.id,
@@ -130,8 +155,8 @@ export class FrpService {
 }
 
 /**
- * Build the FRP connection info that gets passed to clients
- * so they know which frps to connect to.
+ * 获取 FRP 连接信息（下发给客户端）
+ * 客户端需要这些信息来连接 frps 并建立控制隧道。
  */
 export function getFrpsConnectionInfo() {
   return {
@@ -141,4 +166,5 @@ export function getFrpsConnectionInfo() {
   };
 }
 
+/** 全局 FRP 服务单例 */
 export const frpService = new FrpService();

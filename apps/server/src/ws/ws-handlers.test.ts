@@ -123,7 +123,7 @@ describe('client HTTP control over WS', () => {
     }));
 
     const sent = JSON.parse(wsSendMock.mock.calls.at(-1)![0]);
-    expect(sent.payload.message).toBe('HTTP endpoint ready');
+    expect(sent.payload.message).toBe('HTTP 端点就绪');
     expect(markHttpReadyMock).toHaveBeenCalledWith('client-1', 'http://frps.example.com:20317', 20317);
   });
 
@@ -136,7 +136,7 @@ describe('client HTTP control over WS', () => {
     }));
 
     const sent = JSON.parse(wsSendMock.mock.calls.at(-1)![0]);
-    expect(sent.payload.message).toBe('HTTP endpoint failure recorded');
+    expect(sent.payload.message).toBe('HTTP 端点失败已记录');
     expect(markHttpFailedMock).toHaveBeenCalledWith('client-1');
   });
 });

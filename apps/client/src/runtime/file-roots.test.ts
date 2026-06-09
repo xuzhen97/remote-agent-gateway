@@ -14,6 +14,6 @@ describe('file roots', () => {
   it('rejects path traversal outside a root', () => {
     const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'rag-root-'));
     const roots = resolveAllowedRoots(workspace, ['./workspace']);
-    expect(() => resolveRootPath(roots, 'root-0', '../secret.txt')).toThrow('Path outside allowed root');
+    expect(() => resolveRootPath(roots, 'root-0', '../secret.txt')).toThrow('路径超出允许的根目录范围');
   });
 });

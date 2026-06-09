@@ -12,7 +12,7 @@ describe('json output envelopes', () => {
     expect(envelope.ok).toBe(false);
     expect(envelope.error.code).toBe('HTTP_ERROR');
     expect(envelope.error.status).toBe(500);
-    expect(envelope.error.message).toContain('[redacted]');
+    expect(envelope.error.message).toContain('[已脱敏]');
     expect(envelope.error.message).not.toContain('secret-token');
   });
 

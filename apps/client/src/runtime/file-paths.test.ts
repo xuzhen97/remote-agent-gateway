@@ -11,9 +11,9 @@ describe('client file path utilities', () => {
   });
 
   it('rejects traversal and absolute paths', () => {
-    expect(() => resolveClientFilePath(workspace, '../x.txt')).toThrow('Path traversal denied');
-    expect(() => resolveClientFilePath(workspace, '/tmp/x.txt')).toThrow('Path traversal denied');
-    expect(() => resolveClientFilePath(workspace, 'C:\\Windows\\win.ini')).toThrow('Path traversal denied');
+    expect(() => resolveClientFilePath(workspace, '../x.txt')).toThrow('路径遍历被拒绝');
+    expect(() => resolveClientFilePath(workspace, '/tmp/x.txt')).toThrow('路径遍历被拒绝');
+    expect(() => resolveClientFilePath(workspace, 'C:\\Windows\\win.ini')).toThrow('路径遍历被拒绝');
   });
 
   it('converts fs stats to API metadata', () => {

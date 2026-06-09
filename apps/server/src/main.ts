@@ -1,3 +1,12 @@
+/** @file 服务端入口
+ *
+ * 启动 Fastify HTTP/WebSocket 服务，初始化数据库、FRP、路由和中间件。
+ *
+ * 架构说明：
+ * - 控制面（WebSocket）：客户端注册、心跳、配置协调
+ * - 数据面（client HTTP）：任务执行、文件管理、FRP 映射
+ * - 管理面（HTTP API）：客户端发现、审计查询、AliyunDrive 管理
+ */
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
@@ -21,38 +30,39 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 async function main(): Promise<void> {
-  // Initialize database
+  // ==================== 初始化数据库 ====================
   await initDb();
-  console.log('Database initialized');
-  console.log(`Server config: ${envSource.path} (${envSource.format})`);
+  console.log('数据库已初始化');
+  console.log(`服务端配置: ${envSource.path} (${envSource.format})`);
 
-  // FRP mode
-  console.log(`FRP mode: ${env.FRP_MODE}`);
+  // ==================== FRP 模式初始化 ====================
+  console.log(`FRP 模式: ${env.FRP_MODE}`);
   if (env.FRP_MODE === 'builtin') {
+    // 内置 frps：服务端自动下载并管理 frps 进程
     await startFrps();
   } else if (env.FRP_MODE === 'remote') {
-    console.log(`  frps address: ${env.FRPS_HOST}:${env.FRPS_PORT}`);
+    console.log(`  frps 地址: ${env.FRPS_HOST}:${env.FRPS_PORT}`);
   } else {
-    console.log('  Using external frps (user-managed)');
+    console.log('  使用外部 frps（用户自行管理）');
   }
 
-  // Mark all clients as offline on startup
+  // 启动时将所有客户端标记为离线（确保状态一致）
   const allClients = clientsService.listClients();
   for (const client of allClients) {
     clientsService.setOffline(client.id);
   }
   saveDb();
 
-  // Clean up stale frps proxies left over from unclean shutdowns
+  // 清理因非正常关闭遗留的 FRPS 残留代理
   if (env.FRP_MODE === 'remote') {
     cleanupStaleFrpsProxies().catch((err: unknown) => {
-      console.warn('[frps-cleanup] background cleanup failed:', err instanceof Error ? err.message : err);
+      console.warn('[frps-cleanup] 后台清理失败:', err instanceof Error ? err.message : err);
     });
   }
 
-  // Create Fastify instance
-  // In bundled mode, pino worker threads can't resolve internal modules.
-  // Detect bundled mode: running from a .cjs file that's not in node_modules.
+  // ==================== 创建 Fastify 实例 ====================
+  // 在打包模式下，pino worker 线程无法解析内部模块
+  // 检测是否在打包模式：从 .cjs 文件且不在 node_modules 中运行
   const isBundled = typeof __dirname !== 'undefined'
     && !__dirname.includes('node_modules')
     && (process.argv[1] ?? '').endsWith('.cjs');
@@ -73,32 +83,32 @@ async function main(): Promise<void> {
 
   const app = Fastify({ logger: loggerConfig });
 
-  // Register plugins
+  // ==================== 注册插件 ====================
   await app.register(cors);
   await app.register(websocket);
   await app.register(multipart);
 
-  // Register routes
-  await app.register(clientRoutes);
-  await app.register(fileRoutes);
-  await app.register(clientHttpAdminRoutes);
-  await app.register(clientHttpPortRoutes);
-  await app.register(taskRoutes);
-  await app.register(aliyunDriveRoutes);
-  await app.register(transferRoutes);
-  await app.register(jobsProxyRoutes);
-  transferCleanupService.start();
+  // ==================== 注册 HTTP 路由 ====================
+  await app.register(clientRoutes);           // 客户端发现 API
+  await app.register(fileRoutes);             // 服务端文件仓库 API
+  await app.register(clientHttpAdminRoutes);  // 客户端轻量管理编排 API
+  await app.register(clientHttpPortRoutes);   // 业务映射端口分配 API
+  await app.register(taskRoutes);             // 任务审计历史 API
+  await app.register(aliyunDriveRoutes);      // 阿里云盘管理 API
+  await app.register(transferRoutes);         // 文件传输 API
+  await app.register(jobsProxyRoutes);        // 任务代理路由
+  transferCleanupService.start();             // 传输清理定时任务
 
-  // Register WebSocket
+  // ==================== 注册 WebSocket 路由 ====================
   await registerWsRoutes(app);
 
-  // Web console — serve React SPA (or legacy index.html fallback)
+  // ==================== Web 控制台（React SPA） ====================
   const webDir = path.resolve(
     typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname,
     'web',
   );
   const webIndexPath = path.join(webDir, 'index.html');
-  const hasWeb = fs.existsSync(webIndexPath);
+  const hasWeb = fs.existsSync(webIndexPath);  // 检测 web 构建产物是否存在
 
   const contentTypeMap: Record<string, string> = {
     '.html': 'text/html; charset=utf-8',
@@ -109,6 +119,7 @@ async function main(): Promise<void> {
     '.ico': 'image/x-icon',
   };
 
+  /** 发送 web 静态资源 */
   function sendWebAsset(reply: any, filePath: string) {
     const ext = path.extname(filePath);
     reply.header('Content-Type', contentTypeMap[ext] ?? 'application/octet-stream');
@@ -121,18 +132,19 @@ async function main(): Promise<void> {
   });
   app.get('/admin', async (_req, reply) => reply.redirect('/'));
 
-  // SPA asset and fallback routes
+  // SPA 静态资源路由
   app.get('/assets/*', async (request, reply) => {
     const wildcard = (request.params as { '*': string })['*'];
     if (!wildcard) return reply.callNotFound();
     const filePath = path.resolve(webDir, 'assets', wildcard);
+    // 安全限制：只能访问 web/assets/ 目录下的文件
     if (!filePath.startsWith(path.resolve(webDir, 'assets')) || !fs.existsSync(filePath)) {
       return reply.callNotFound();
     }
     return sendWebAsset(reply, filePath);
   });
 
-  // SPA fallback — serve index.html for unknown paths if React is present
+  // SPA fallback — 非 API/WS 路径返回 index.html（前端路由）
   app.setNotFoundHandler(async (request, reply) => {
     const url = (request as unknown as { raw: { url?: string } }).raw?.url ?? '/';
     if (hasWeb && !url.startsWith('/api') && !url.startsWith('/ws')) {
@@ -141,31 +153,31 @@ async function main(): Promise<void> {
     return reply.code(404).send({ error: 'Not found' });
   });
 
-  // Health check
+  // ==================== 健康检查 ====================
   app.get('/api/health', async () => ({ status: 'ok', timestamp: Date.now() }));
 
-  // Periodic DB save
+  // 定期保存数据库（每 30 秒）
   setInterval(() => {
     saveDb();
   }, 30_000);
 
-  // Graceful shutdown
+  // ==================== 优雅关闭 ====================
   const shutdown = async () => {
-    console.log('Shutting down...');
+    console.log('正在关闭服务...');
     transferCleanupService.stop();
     stopFrps();
-    saveDb();
+    saveDb();                     // 关闭前保存数据库
     await app.close();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  // Start
+  // ==================== 启动服务 ====================
   try {
     await app.listen({ port: env.SERVER_PORT, host: env.SERVER_HOST });
-    console.log(`Server running at http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
-    console.log(`WebSocket endpoint: ws://${env.SERVER_HOST}:${env.SERVER_PORT}/ws/client`);
+    console.log(`服务端运行于 http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
+    console.log(`WebSocket 端点: ws://${env.SERVER_HOST}:${env.SERVER_PORT}/ws/client`);
   } catch (err) {
     app.log.error(err);
     process.exit(1);
