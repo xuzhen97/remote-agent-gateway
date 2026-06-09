@@ -185,6 +185,11 @@ node ./run.cjs frp delete --client <clientId> --mapping <mappingId>
 # success means the proxy has also been cleared from the FRPS dashboard/API
 node ./run.cjs tasks list --client <clientId>
 node ./run.cjs tasks get --record <recordId>
+node ./run.cjs updates releases list
+node ./run.cjs updates campaigns start --version <version> --all-clients
+node ./run.cjs updates campaigns get --campaign <campaignId>
+node ./run.cjs updates campaigns retry --campaign <campaignId> --failed
+node ./run.cjs updates campaigns retry --campaign <campaignId> --offline-skipped
 ```
 
 ## Command Options Reference

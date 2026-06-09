@@ -73,6 +73,11 @@ node ./run.cjs clients list
   - `node ./run.cjs frp delete ...`
   - `node ./run.cjs jobs cancel ...`
 - FRP delete semantics: once `node ./run.cjs frp delete ...` returns success, the system has already waited for the deleted mapping to be cleared from the FRPS dashboard/API, not merely removed from local config.
+- **One-click update guidance:** use server-side update commands for release campaigns rather than ad-hoc remote upgrade scripts. Preferred pattern:
+  - `node ./run.cjs updates releases list`
+  - `node ./run.cjs updates campaigns start --version v1.4.0 --all-clients`
+  - `node ./run.cjs updates campaigns get --campaign <id>`
+  - `node ./run.cjs updates campaigns retry --campaign <id> --failed`
 
 ## Common Commands
 
