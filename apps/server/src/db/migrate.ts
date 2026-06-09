@@ -162,6 +162,60 @@ export function migrate(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_transfer_events_transfer_id ON transfer_events(transfer_id, created_at ASC);
   `);
 
+  // One-click update tables
+  db.run(`
+    CREATE TABLE IF NOT EXISTS update_releases (
+      version TEXT PRIMARY KEY,
+      manifest_json TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS update_campaigns (
+      id TEXT PRIMARY KEY,
+      target_version TEXT NOT NULL,
+      scope_json TEXT NOT NULL,
+      include_server INTEGER NOT NULL,
+      batch_size INTEGER NOT NULL,
+      max_concurrency INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS update_targets (
+      id TEXT PRIMARY KEY,
+      campaign_id TEXT NOT NULL,
+      target_type TEXT NOT NULL,
+      client_id TEXT,
+      platform TEXT,
+      current_version TEXT,
+      target_version TEXT NOT NULL,
+      phase TEXT NOT NULL,
+      attempt_count INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      last_error_message TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      finished_at INTEGER
+    );
+
+    CREATE TABLE IF NOT EXISTS update_attempts (
+      id TEXT PRIMARY KEY,
+      target_id TEXT NOT NULL,
+      attempt_no INTEGER NOT NULL,
+      phase_timeline_json TEXT NOT NULL,
+      result TEXT NOT NULL,
+      error_code TEXT,
+      error_message TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      finished_at INTEGER
+    );
+  `);
+
   // Idempotent column additions for client HTTP control plane
   addColumnIfMissing(db, 'clients', 'http_local_host', 'TEXT');
   addColumnIfMissing(db, 'clients', 'http_local_port', 'INTEGER');
