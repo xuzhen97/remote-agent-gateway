@@ -23,4 +23,4 @@ frp/frps.*.log
 TODO.md
 client.config.yaml
 server.config.yaml
-.reasonix/
+.reasonix/*.png

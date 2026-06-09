@@ -4,6 +4,7 @@ import {
   DashboardOutlined,
   CloudServerOutlined,
   CloudUploadOutlined,
+  SyncOutlined,
   LinkOutlined,
   OrderedListOutlined,
   LogoutOutlined,
@@ -23,6 +24,7 @@ const menuItems = [
   { key: 'clients', icon: <CloudServerOutlined />, label: '客户端' },
   { key: 'tasks', icon: <OrderedListOutlined />, label: '任务' },
   { key: 'mappings', icon: <LinkOutlined />, label: '端口映射' },
+  { key: 'updates', icon: <SyncOutlined />, label: '更新管理' },
   { key: 'aliyundrive', icon: <CloudUploadOutlined />, label: '阿里云盘' },
 ];
 
