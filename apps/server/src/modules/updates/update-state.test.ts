@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ClientUpdateCommandPayload, ClientUpdateStatusPayload, ReleaseManifest } from '@rag/shared';
+import { summarizeTargets, transitionCampaignStatus } from './update-state.js';
 
 describe('shared update protocol types compile into server tests', () => {
   it('accepts release and updater payload shapes', () => {
@@ -48,5 +49,32 @@ describe('shared update protocol types compile into server tests', () => {
 
     expect(command.artifact.fileName).toBe('client-windows-x64.zip');
     expect(status.phase).toBe('downloading');
+  });
+});
+
+describe('update state', () => {
+  it('marks campaigns with errors when failed or offline targets exist', () => {
+    const summary = summarizeTargets([
+      { phase: 'succeeded' },
+      { phase: 'failed' },
+      { phase: 'offline_skipped' },
+    ] as any);
+
+    expect(summary.succeeded).toBe(1);
+    expect(summary.failed).toBe(1);
+    expect(summary.offlineSkipped).toBe(1);
+    expect(summary.total).toBe(3);
+    expect(transitionCampaignStatus(summary)).toBe('completed_with_errors');
+  });
+
+  it('marks campaigns as completed when all targets succeed', () => {
+    const summary = summarizeTargets([
+      { phase: 'succeeded' },
+      { phase: 'succeeded' },
+    ] as any);
+
+    expect(summary.succeeded).toBe(2);
+    expect(summary.failed).toBe(0);
+    expect(transitionCampaignStatus(summary)).toBe('completed');
   });
 });
