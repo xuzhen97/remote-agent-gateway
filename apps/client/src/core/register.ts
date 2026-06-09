@@ -47,6 +47,7 @@ export async function sendRegister(
         sse: true,
         files: true,
         frpMappings: true,
+        updates: true,
       },
     },
   });

@@ -15,6 +15,8 @@ import { startFrpcDaemon, stopFrpcDaemon, setFrpsInfo } from './runtime/frpc-dae
 import { startControlHttpServer, stopControlHttpServer, getJobManager } from './runtime/control-http/server.js';
 import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler.js';
 import { forwardServerJobRun } from './server-job-runner.js';
+import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
+import { createClientUpdater } from './runtime/updates/client-updater.js';
 import type { ServerAckPayload } from '@rag/shared';
 
 async function main(): Promise<void> {
@@ -69,6 +71,24 @@ async function main(): Promise<void> {
     try {
       message = JSON.parse(rawData);
     } catch {
+      return;
+    }
+
+    // 先检查是否是更新消息
+    if (await handleUpdateWsMessage({
+      message,
+      updater: createClientUpdater({
+        download: async () => { throw new Error('downloader not initialized'); },
+        verify: async () => {},
+        extract: async () => '',
+        stopCurrent: async () => {},
+        switchCurrent: async () => {},
+        startNew: async () => {},
+        rollback: async () => {},
+      }),
+      send: (out) => conn.send(out),
+      currentVersion: '0.1.0',
+    })) {
       return;
     }
 
