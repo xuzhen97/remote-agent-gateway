@@ -22,6 +22,7 @@ import { aliyunDriveRoutes } from './modules/aliyundrive/aliyundrive.routes.js';
 import { transferRoutes } from './modules/transfers/transfer.routes.js';
 import { jobsProxyRoutes } from './modules/jobs/jobs-proxy.routes.js';
 import { releaseRoutes } from './modules/updates/release.routes.js';
+import { campaignRoutes } from './modules/updates/campaign.routes.js';
 import { createCampaignRunner } from './modules/updates/campaign-runner.js';
 import { createUpdateRepository } from './modules/updates/update-repository.js';
 import { registerWsRoutes } from './ws/ws-server.js';
@@ -112,6 +113,9 @@ async function main(): Promise<void> {
   await app.register(releaseRoutes, {
     service: { listReleases: () => [], getRelease: () => { throw new Error('not implemented'); }, getArtifactDownload: () => { throw new Error('not implemented'); } },
   }); // 更新发布路由
+  await app.register(campaignRoutes, {
+    service: { createCampaign: () => { throw new Error('not implemented'); }, retryTargets: () => [], getCampaign: () => undefined, listTargets: () => [] },
+  }); // 更新编排路由
   transferCleanupService.start();             // 传输清理定时任务
 
   // ==================== 注册 WebSocket 路由 ====================

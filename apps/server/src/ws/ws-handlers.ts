@@ -183,6 +183,12 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
       break;
     }
 
+    // ==================== 客户端更新状态上报 ====================
+    case 'client.update.status': {
+      console.log('[update] client status:', JSON.stringify(message.payload));
+      break;
+    }
+
     // ==================== 客户端任务事件 ====================
     case 'client.job.event': {
       const eventPayload = message.payload as { jobId?: string; event?: string; data?: Record<string, unknown> };
