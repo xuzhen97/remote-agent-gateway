@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Typography, Tabs, Card, Button, Modal, Input, Table,
+  Typography, Tabs, Card, Button, Modal, Input, Table, Select,
   Space, Tag, Popconfirm, message, Empty, Descriptions, InputNumber,
   Upload, Progress, Alert,
 } from 'antd';
@@ -455,18 +455,20 @@ function CampaignsTab({ api }: { api: Api }) {
         onCancel={() => setCreateOpen(false)}
         onOk={handleCreate}
         okText="创建"
+        okButtonProps={{ disabled: !targetVersion }}
       >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>目标版本</Text>
-          <Input
-            placeholder="v1.4.0"
-            value={targetVersion}
-            onChange={(e) => setTargetVersion(e.target.value)}
-            list="release-versions"
-          />
-          <datalist id="release-versions">
-            {releasesForSelect.map((r) => <option key={r.version} value={r.version} />)}
-          </datalist>
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Text strong>目标版本</Text>
+            <Select
+              style={{ width: '100%', marginTop: 4 }}
+              placeholder="选择已发布的版本"
+              value={targetVersion || undefined}
+              onChange={(v) => setTargetVersion(v)}
+              options={releasesForSelect.map((r) => ({ label: r.version, value: r.version }))}
+              notFoundContent={<Empty description="暂无已发布版本，请先在「版本发布」Tab 中发布" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+            />
+          </div>
           <Space>
             <Button
               type={includeServer ? 'primary' : 'default'}
