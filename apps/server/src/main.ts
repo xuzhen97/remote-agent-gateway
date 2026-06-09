@@ -27,6 +27,7 @@ import { createCampaignRunner } from './modules/updates/campaign-runner.js';
 import { createUpdateRepository } from './modules/updates/update-repository.js';
 import { createReleaseService } from './modules/updates/release.service.js';
 import { createCampaignService } from './modules/updates/campaign.service.js';
+import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
@@ -52,6 +53,11 @@ async function main(): Promise<void> {
     repo: updateRepo,
     now: () => Date.now(),
     id: () => crypto.randomUUID(),
+  });
+  const campaignExecutor = createCampaignExecutor({
+    repo: updateRepo,
+    releaseService,
+    baseUrl: `http://${env.SERVER_HOST}:${env.SERVER_PORT}`,
   });
   const campaignRunner = createCampaignRunner({
     repo: updateRepo,
@@ -135,6 +141,7 @@ async function main(): Promise<void> {
   }); // 更新发布路由
   await app.register(campaignRoutes, {
     service: campaignService,
+    executor: campaignExecutor,
   }); // 更新编排路由
   transferCleanupService.start();             // 传输清理定时任务
 

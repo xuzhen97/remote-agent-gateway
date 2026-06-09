@@ -109,3 +109,8 @@ export async function retryCampaign(api: Api, campaignId: string, mode: 'failed'
   const res = await api.post(`/admin/updates/campaigns/${campaignId}/retry`, { mode });
   return res.data;
 }
+
+export async function startCampaign(api: Api, campaignId: string): Promise<{ phase: string }> {
+  const res = await api.post(`/admin/updates/campaigns/${campaignId}/start`);
+  return res.data;
+}

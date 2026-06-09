@@ -15,6 +15,7 @@ import {
   type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact,
 } from '../api/updates';
 import { StatusTag } from '../components/StatusTag';
+import { startCampaign } from '../api/updates';
 
 const { Title, Text } = Typography;
 const { Dragger } = Upload;
@@ -378,6 +379,17 @@ function CampaignsTab({ api }: { api: Api }) {
     }
   };
 
+  const handleStart = async (campaignId: string) => {
+    try {
+      const res = await startCampaign(api, campaignId);
+      message.success(`编排已启动，状态: ${res.phase}`);
+      setSelectedCampaign(await getCampaign(api, campaignId));
+      setTargets(await listTargets(api, campaignId));
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '启动失败');
+    }
+  };
+
   const phaseColor = (phase: string) => {
     if (phase === 'succeeded' || phase === 'verifying') return 'green';
     if (phase === 'failed' || phase === 'rolled_back') return 'red';
@@ -418,6 +430,11 @@ function CampaignsTab({ api }: { api: Api }) {
                 <Descriptions.Item label="创建时间">{new Date(selectedCampaign.createdAt).toLocaleString()}</Descriptions.Item>
               </Descriptions>
               <Space style={{ marginTop: 12 }}>
+                {selectedCampaign.status === 'draft' && (
+                  <Popconfirm title="确定启动此编排? 将先更新 Server 再向在线客户端推送更新命令" onConfirm={() => handleStart(selectedCampaign.id)}>
+                    <Button type="primary" size="small" icon={<RocketOutlined />}>启动编排</Button>
+                  </Popconfirm>
+                )}
                 <Popconfirm title="确定重试所有失败项?" onConfirm={() => handleRetry(selectedCampaign.id, 'failed')}>
                   <Button size="small" icon={<ReloadOutlined />}>重试失败</Button>
                 </Popconfirm>

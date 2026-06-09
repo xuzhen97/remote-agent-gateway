@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { CampaignService } from './campaign.service.js';
 
-export async function campaignRoutes(app: FastifyInstance, opts: { service: CampaignService }): Promise<void> {
+export async function campaignRoutes(
+  app: FastifyInstance,
+  opts: {
+    service: CampaignService;
+    executor?: { start(campaignId: string): Promise<{ phase: string }> };
+  },
+): Promise<void> {
   const { service } = opts;
 
   app.post<{ Body: Record<string, unknown> }>('/admin/updates/campaigns', async (request, reply) => {
@@ -40,6 +46,25 @@ export async function campaignRoutes(app: FastifyInstance, opts: { service: Camp
         return reply.code(400).send({
           ok: false,
           error: { code: 'RETRY_ERROR', message: err instanceof Error ? err.message : String(err) },
+        });
+      }
+    },
+  );
+
+  // ==================== 启动编排 ====================
+  app.post<{ Params: { id: string } }>(
+    '/admin/updates/campaigns/:id/start',
+    async (request, reply) => {
+      if (!opts.executor) {
+        return reply.code(501).send({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'Executor not available' } });
+      }
+      try {
+        const result = await opts.executor.start(request.params.id);
+        return { ok: true, data: result };
+      } catch (err) {
+        return reply.code(400).send({
+          ok: false,
+          error: { code: 'START_ERROR', message: err instanceof Error ? err.message : String(err) },
         });
       }
     },
