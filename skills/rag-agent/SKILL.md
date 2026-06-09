@@ -59,6 +59,9 @@ node ./run.cjs clients list
 - Parse CLI output as JSON: check `ok`; then read `data` or `error`.
 - Use `jobs` for live command/script execution.
 - Use `tasks` for server-side audit history.
+- **Node-first rule for remote commands:** when the target machine has Node.js and the task can be expressed as `node <script>` or `node -e <code>`, prefer Node over PowerShell or `cmd`. Only use PowerShell/`cmd` when Node cannot express the operation.
+- **Working-directory rule:** prefer structured `--cwd <remotePath>` (when available on the command) instead of embedding `cd`, `Set-Location`, or chained shell commands inside the command string.
+- When a script file lives on the remote machine and is a Node script, prefer `node C:\path\to\script.js ...` over `powershell -Command "cd ...; node script.js ..."`.
 - **Mandatory result-following rule:** after `jobs run` or `jobs script`, do not stop at `jobId` unless the user explicitly only asked to enqueue a task. If the user wants the result, output, or process, you must either:
   - run with `--wait --logs` to execute and return final output in one step, or
   - run with `--events` to stream live progress, or
@@ -78,6 +81,7 @@ node ./run.cjs clients list
 node ./run.cjs clients get --client <clientId>
 node ./run.cjs jobs run --client <clientId> -- node -v
 node ./run.cjs jobs run --client <clientId> --wait --logs -- node -v
+node ./run.cjs jobs run --client <clientId> --wait --logs --cwd C:\app -- node manager.js status
 node ./run.cjs jobs run --client <clientId> --events -- node -v
 node ./run.cjs files roots --client <clientId>
 node ./run.cjs files read --client <clientId> --root root-0 --path README.md

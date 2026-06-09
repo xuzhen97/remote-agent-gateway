@@ -183,8 +183,9 @@ export class JobManager {
     const child = spawn(payload.command, payload.args ?? [], {
       cwd: payload.cwd ?? this.options.workspaceDir,
       env: { ...process.env, ...payload.env },
-      shell: process.platform === 'win32',  // Windows 需要 shell
+      shell: false,
       timeout: timeoutMs,
+      windowsHide: true,
     });
 
     ji.process = child;

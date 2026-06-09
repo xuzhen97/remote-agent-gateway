@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { TransferJobView, TransferMode, TransferStatus } from '@rag/shared';
 import { getDb, saveDb } from '../../db/index.js';
 import { connectionManager } from '../connections/connections.manager.js';
+import { clientHttpAdminService } from '../client-http/client-http-admin.service.js';
 import { aliyunDriveAuthService } from '../aliyundrive/aliyundrive-auth.service.js';
 import { AliyunDriveOpenApiClient } from '../aliyundrive/aliyundrive-openapi.client.js';
 import { buildPartInfoList, resolveAliyunPartSize, resolvePartSize } from '../aliyundrive/aliyundrive-upload-planner.js';
@@ -157,7 +158,24 @@ export class TransferService {
     if (!job) throw new Error('Transfer not found');
     this.setStatus(transferId, 'aliyun_uploaded');
     this.setStatus(transferId, 'waiting_client_download');
-    connectionManager.sendToClient(job.clientId, { type: 'transfer.download.start', requestId: `transfer_${transferId}`, payload: { transferId, clientId: job.clientId } });
+
+    const message = { type: 'transfer.download.start', requestId: `transfer_${transferId}`, payload: { transferId, clientId: job.clientId } };
+    const sent = connectionManager.sendToClient(job.clientId, message);
+    if (!sent) {
+      const fallback = await clientHttpAdminService.request(job.clientId, {
+        method: 'POST',
+        path: '/files/aliyundrive-download',
+        body: { transferId },
+      });
+      if (fallback.status < 200 || fallback.status >= 300) {
+        const fallbackBody = fallback.body as any;
+        const errorMessage = fallbackBody?.error?.message ?? fallbackBody?.message ?? 'Failed to dispatch client download';
+        this.failTransfer(transferId, { errorCode: 'CLIENT_DISPATCH_FAILED', errorMessage });
+        throw new Error(errorMessage);
+      }
+      this.addEvent(transferId, 'server', 'dispatch_fallback', 'Client download dispatched through client HTTP fallback', { transferId, clientId: job.clientId });
+    }
+
     saveDb();
     return this.getTransfer(transferId);
   }

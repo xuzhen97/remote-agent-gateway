@@ -42,6 +42,16 @@ class ConnectionManager {
     this.connections.delete(clientId);
   }
 
+  /**
+   * 仅当当前连接与传入 socket 匹配时才移除，避免旧连接 close 误删新连接。
+   */
+  removeIfMatches(clientId: string, ws: WebSocket): boolean {
+    const current = this.connections.get(clientId);
+    if (!current || current.ws !== ws) return false;
+    this.connections.delete(clientId);
+    return true;
+  }
+
   /** 获取客户端的连接信息 */
   get(clientId: string): ClientConnection | undefined {
     return this.connections.get(clientId);

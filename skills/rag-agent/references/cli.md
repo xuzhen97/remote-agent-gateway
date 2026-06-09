@@ -153,8 +153,10 @@ node ./run.cjs doctor --client <clientId>
 node ./run.cjs clients list
 node ./run.cjs clients get --client <clientId>
 node ./run.cjs jobs run --client <clientId> -- <command> [args...]
+node ./run.cjs jobs run --client <clientId> --cwd <remotePath> -- <command> [args...]
 node ./run.cjs jobs run --client <clientId> --wait -- <command> [args...]
 node ./run.cjs jobs run --client <clientId> --wait --logs -- <command> [args...]
+node ./run.cjs jobs run --client <clientId> --wait --logs --cwd C:\\app -- node manager.js status
 node ./run.cjs jobs run --client <clientId> --events -- <command> [args...]
 node ./run.cjs jobs script --client <clientId> --file ./script.js
 node ./run.cjs jobs script --client <clientId> --inline "console.log(1)"
@@ -194,14 +196,21 @@ node ./run.cjs tasks get --record <recordId>
 --wait                 Wait for the job to finish and return final status
 --logs                 After waiting, also fetch logs (requires --wait)
 --events               Stream live job events after creation
+--cwd <cwd>            Remote working directory
+--timeout-ms <ms>      Timeout in milliseconds
 --                     Separator before the command and its arguments
 ```
 
+Guidance:
+- Prefer **Node-first** commands when possible, for example `node script.js` or `node -e "..."`.
+- Prefer `--cwd <remotePath>` over embedding `cd`, `Set-Location`, or shell-chained directory changes in the command string.
+- Use PowerShell or `cmd` only when Node or the target executable cannot directly express the operation.
+
 Examples:
-- `node ./run.cjs jobs run --client win-dev -- bash -c 'ls -la'`
-- `node ./run.cjs jobs run --client win-dev --wait -- bash -c 'ls -la'`
-- `node ./run.cjs jobs run --client win-dev --wait --logs -- bash -c 'ls -la'`
-- `node ./run.cjs jobs run --client win-dev --events -- bash -c 'ls -la'`
+- `node ./run.cjs jobs run --client win-dev -- node -v`
+- `node ./run.cjs jobs run --client win-dev --cwd C:\\app -- node manager.js status`
+- `node ./run.cjs jobs run --client win-dev --wait --logs --cwd C:\\app -- node manager.js start`
+- `node ./run.cjs jobs run --client win-dev --events -- node -e "console.log('ok')"`
 
 ### jobs script
 

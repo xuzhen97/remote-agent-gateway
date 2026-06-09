@@ -120,9 +120,9 @@ describe('client direct command groups', () => {
     program.exitOverride();
     registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob: vi.fn(), write: (value) => outputs.push(value) });
 
-    await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--', 'node', '-v'], { from: 'user' });
+    await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--cwd', 'C:\\work', '--', 'node', '-v'], { from: 'user' });
 
-    expect(clientHttp.createCommandJob).toHaveBeenCalledWith({ command: 'node', args: ['-v'] });
+    expect(clientHttp.createCommandJob).toHaveBeenCalledWith({ command: 'node', args: ['-v'], cwd: 'C:\\work', timeoutMs: undefined });
     expect(outputs[0]).toEqual({ ok: true, data: { jobId: 'job_1', status: 'queued' } });
   });
 
@@ -140,7 +140,7 @@ describe('client direct command groups', () => {
 
     await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--wait', '--', 'node', '-v'], { from: 'user' });
 
-    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined });
+    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined, cwd: undefined });
     expect(clientHttp.createCommandJob).not.toHaveBeenCalled();
     expect(clientHttp.getJob).not.toHaveBeenCalled();
     expect(clientHttp.getJobLogs).not.toHaveBeenCalled();
@@ -159,9 +159,9 @@ describe('client direct command groups', () => {
     program.exitOverride();
     registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob, write: (value) => outputs.push(value) });
 
-    await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--wait', '--logs', '--', 'node', '-v'], { from: 'user' });
+    await program.parseAsync(['jobs', 'run', '--client', 'client-1', '--wait', '--logs', '--cwd', 'C:\\work', '--', 'node', '-v'], { from: 'user' });
 
-    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined });
+    expect(proxyJob).toHaveBeenCalledWith('client-1', { command: 'node', args: ['-v'], timeoutMs: undefined, cwd: 'C:\\work' });
     expect(clientHttp.createCommandJob).not.toHaveBeenCalled();
     expect(clientHttp.getJob).not.toHaveBeenCalled();
     expect(clientHttp.getJobLogs).not.toHaveBeenCalled();
@@ -179,9 +179,9 @@ describe('client direct command groups', () => {
     program.exitOverride();
     registerJobsCommands(program, { discoverClientHttp: async () => clientHttp as any, proxyJob: vi.fn(), write: (value) => outputs.push(value) });
 
-    await program.parseAsync(['jobs', 'script', '--client', 'client-1', '--inline', 'console.log(1)', '--wait', '--logs'], { from: 'user' });
+    await program.parseAsync(['jobs', 'script', '--client', 'client-1', '--inline', 'console.log(1)', '--cwd', 'C:\\work', '--wait', '--logs'], { from: 'user' });
 
-    expect(clientHttp.createScriptJob).toHaveBeenCalledWith({ runtime: 'node', script: 'console.log(1)', cwd: undefined, timeoutMs: undefined });
+    expect(clientHttp.createScriptJob).toHaveBeenCalledWith({ runtime: 'node', script: 'console.log(1)', cwd: 'C:\\work', timeoutMs: undefined });
     expect(outputs[0]).toEqual({ ok: true, data: { job: { jobId: 'job_2', status: 'success', exitCode: 0 }, logs: { jobId: 'job_2', logs: [], nextSeq: 0 } } });
   });
 

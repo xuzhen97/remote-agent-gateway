@@ -110,11 +110,12 @@ export function registerJobsCommands(program: Command, deps: JobsDeps): void {
     .option('--wait', '等待任务完成')
     .option('--logs', '等待完成后获取日志（需要 --wait）')
     .option('--events', '创建后流式获取事件（不能与 --wait 同时使用）')
+    .option('--cwd <cwd>', '远程工作目录')
     .option('--timeout-ms <timeoutMs>', '超时时间（毫秒，同时作用于客户端进程和 CLI 等待）')
     .allowUnknownOption(true)
     .allowExcessArguments(true)
     .argument('[cmd...]', '-- 之后的命令')
-    .action(async (cmd: string[], options: { client?: string; wait?: boolean; logs?: boolean; events?: boolean; timeoutMs?: string }) => {
+    .action(async (cmd: string[], options: { client?: string; wait?: boolean; logs?: boolean; events?: boolean; cwd?: string; timeoutMs?: string }) => {
       if (!cmd.length) throw new CliError('ARGUMENT_ERROR', '请在 -- 后指定要执行的命令');
       if (options.logs && !options.wait) throw new CliError('ARGUMENT_ERROR', '--logs 需要 --wait');
       if (options.wait && options.events) throw new CliError('ARGUMENT_ERROR', '--wait 不能与 --events 同时使用');
@@ -123,14 +124,14 @@ export function registerJobsCommands(program: Command, deps: JobsDeps): void {
 
       // --wait 模式通过服务端 WebSocket 代理执行
       if (options.wait) {
-        const result = await deps.proxyJob(clientId, { command: cmd[0], args: cmd.slice(1), timeoutMs });
+        const result = await deps.proxyJob(clientId, { command: cmd[0], args: cmd.slice(1), timeoutMs, cwd: options.cwd });
         deps.write(result);
         return;
       }
 
       // 非等待模式：通过 client HTTP 直接创建（fire-and-forget）
       const client = await deps.discoverClientHttp(clientId);
-      const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), timeoutMs });
+      const created = await client.createCommandJob({ command: cmd[0], args: cmd.slice(1), cwd: options.cwd, timeoutMs });
       await maybeFollowJob(options, client, created, deps.write, timeoutMs);
     });
 

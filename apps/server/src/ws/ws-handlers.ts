@@ -203,8 +203,10 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
  * 处理 WebSocket 连接关闭
  * @param clientId - 断开的客户端 ID
  */
-export function handleWsClose(clientId: string): void {
-  connectionManager.remove(clientId);          // 移除连接记录
+export function handleWsClose(clientId: string, ws?: WebSocket): void {
+  const removed = ws ? connectionManager.removeIfMatches(clientId, ws) : (connectionManager.remove(clientId), true);
+  if (!removed) return;
+
   clientsService.setOffline(clientId);          // 标记为离线
 
   // 记录断线审计日志

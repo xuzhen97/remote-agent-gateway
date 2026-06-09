@@ -109,4 +109,23 @@ describe('JobManager lifecycle finalization', () => {
 
     expect((manager as unknown as { jobs: Map<string, unknown> }).jobs.size).toBe(1);
   });
+
+  it('spawns Windows commands without shell wrapping by default', () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValueOnce(child);
+    const manager = createManager(workspaceDir);
+    const originalPlatform = Object.getOwnPropertyDescriptor(process, 'platform');
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+
+    try {
+      manager.createCommand({ command: 'node', args: ['script.js'], cwd: 'C:\\work' });
+    } finally {
+      if (originalPlatform) Object.defineProperty(process, 'platform', originalPlatform);
+    }
+
+    expect(spawnMock).toHaveBeenCalledWith('node', ['script.js'], expect.objectContaining({
+      cwd: 'C:\\work',
+      shell: false,
+    }));
+  });
 });

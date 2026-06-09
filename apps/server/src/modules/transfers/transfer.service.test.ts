@@ -1,7 +1,19 @@
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const {
+  sendToClientMock,
+  requestClientHttpMock,
+} = vi.hoisted(() => ({
+  sendToClientMock: vi.fn(() => true),
+  requestClientHttpMock: vi.fn(),
+}));
 
 vi.mock('../connections/connections.manager.js', () => ({
-  connectionManager: { sendToClient: vi.fn(() => true), isOnline: vi.fn(() => true) },
+  connectionManager: { sendToClient: sendToClientMock, isOnline: vi.fn(() => true) },
+}));
+
+vi.mock('../client-http/client-http-admin.service.js', () => ({
+  clientHttpAdminService: { request: requestClientHttpMock },
 }));
 
 vi.mock('../aliyundrive/aliyundrive-auth.service.js', () => ({
@@ -23,11 +35,19 @@ vi.mock('../aliyundrive/aliyundrive-openapi.client.js', () => ({
   })),
 }));
 
-import { initDb } from '../../db/index.js';
+import { getDb, initDb } from '../../db/index.js';
 import { TransferService } from './transfer.service.js';
 
 describe('TransferService', () => {
   beforeAll(async () => { await initDb(); });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getDb().run('DELETE FROM transfer_events');
+    getDb().run('DELETE FROM transfer_jobs');
+    sendToClientMock.mockReturnValue(true);
+    requestClientHttpMock.mockResolvedValue({ status: 200, body: { ok: true, data: { queued: true } } });
+  });
 
   it('returns frps_chunked when aliyundrive is not available in auto mode', async () => {
     const service = new TransferService({
@@ -57,5 +77,32 @@ describe('TransferService', () => {
     await service.createUpload({ clientId: 'client-1', rootId: 'workspace', path: '.', filename: 'a.zip', size: 10, transfer: 'auto' });
     expect(ensureFolderPath).toHaveBeenCalledWith({ driveId: 'drive-1', folderPath: 'RemoteAgentGatewayTransfers' });
     expect(createFileUpload).toHaveBeenCalledWith(expect.objectContaining({ parentFileId: 'folder-1' }));
+  });
+
+  it('falls back to client HTTP dispatch when websocket dispatch fails', async () => {
+    sendToClientMock.mockReturnValue(false);
+    const service = new TransferService({ now: () => 1000, id: () => 'tr_ws_fallback', authStatus: () => ({ configured: true, authorized: true }) } as any);
+    await service.createUpload({ clientId: 'client-1', rootId: 'workspace', path: '.', filename: 'a.zip', size: 10, transfer: 'auto' });
+    service.recordCliProgress('tr_ws_fallback', { uploadedBytes: 10, totalBytes: 10, currentPart: 1 });
+
+    const job = await service.completeCliUpload('tr_ws_fallback');
+
+    expect(requestClientHttpMock).toHaveBeenCalledWith('client-1', expect.objectContaining({
+      method: 'POST',
+      path: '/files/aliyundrive-download',
+      body: { transferId: 'tr_ws_fallback' },
+    }));
+    expect(job?.status).toBe('waiting_client_download');
+  });
+
+  it('fails the transfer when websocket and client HTTP dispatch both fail', async () => {
+    sendToClientMock.mockReturnValue(false);
+    requestClientHttpMock.mockResolvedValue({ status: 502, body: { ok: false, error: { message: 'client http unreachable' } } });
+    const service = new TransferService({ now: () => 1000, id: () => 'tr_dispatch_fail', authStatus: () => ({ configured: true, authorized: true }) } as any);
+    await service.createUpload({ clientId: 'client-1', rootId: 'workspace', path: '.', filename: 'a.zip', size: 10, transfer: 'auto' });
+    service.recordCliProgress('tr_dispatch_fail', { uploadedBytes: 10, totalBytes: 10, currentPart: 1 });
+
+    await expect(service.completeCliUpload('tr_dispatch_fail')).rejects.toThrow('client http unreachable');
+    expect(service.getTransfer('tr_dispatch_fail')?.status).toBe('failed');
   });
 });

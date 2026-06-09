@@ -31,7 +31,7 @@ export async function registerWsRoutes(app: FastifyInstance): Promise<void> {
     // 处理连接关闭
     socket.on('close', () => {
       const cid = wsClientMap.get(socket) || 'unknown';
-      handleWsClose(cid);
+      handleWsClose(cid, socket as any);
       wsClientMap.delete(socket);
     });
 

@@ -11,7 +11,10 @@ export async function downloadAliyunTransfer(options: {
   workspaceDir: string;
   allowedRoots: string[];
   fetchImpl?: typeof fetch;
-  sendWs: (message: unknown) => boolean;
+  sendWs?: (message: unknown) => boolean;
+  reportProgress?: (payload: { transferId: string; clientId: string; phase: 'client_downloading'; downloadedBytes: number; writtenBytes: number; totalBytes: number }) => Promise<void> | void;
+  reportComplete?: (payload: { transferId: string; clientId: string; rootId: string; path: string; size: number }) => Promise<void> | void;
+  reportFailed?: (payload: { transferId: string; clientId: string; errorCode: string; errorMessage: string }) => Promise<void> | void;
 }): Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch;
   try {
@@ -36,14 +39,21 @@ export async function downloadAliyunTransfer(options: {
       if (!writable.write(chunk)) await new Promise((resolve) => writable.once('drain', resolve));
       if (Date.now() - lastReport > 1000) {
         lastReport = Date.now();
-        options.sendWs({ type: 'client.transfer.progress', payload: { transferId: options.transferId, clientId: options.clientId, phase: 'client_downloading', downloadedBytes, writtenBytes: downloadedBytes, totalBytes: detail.size } });
+        const progressPayload = { transferId: options.transferId, clientId: options.clientId, phase: 'client_downloading' as const, downloadedBytes, writtenBytes: downloadedBytes, totalBytes: detail.size };
+        options.sendWs?.({ type: 'client.transfer.progress', payload: progressPayload });
+        await options.reportProgress?.(progressPayload);
       }
     }
     await new Promise<void>((resolve, reject) => writable.end((error: Error | null | undefined) => error ? reject(error) : resolve()));
+    if (fs.existsSync(finalPath)) await fsp.rm(finalPath, { force: true });
     await fsp.rename(tempPath, finalPath);
-    options.sendWs({ type: 'client.transfer.complete', payload: { transferId: options.transferId, clientId: options.clientId, rootId: detail.rootId, path: path.posix.join(detail.targetDir === '.' ? '' : detail.targetDir.replace(/\\/g, '/'), detail.filename), size: detail.size } });
+    const completePayload = { transferId: options.transferId, clientId: options.clientId, rootId: detail.rootId, path: path.posix.join(detail.targetDir === '.' ? '' : detail.targetDir.replace(/\\/g, '/'), detail.filename), size: detail.size };
+    options.sendWs?.({ type: 'client.transfer.complete', payload: completePayload });
+    await options.reportComplete?.(completePayload);
   } catch (error) {
-    options.sendWs({ type: 'client.transfer.failed', payload: { transferId: options.transferId, clientId: options.clientId, errorCode: 'DOWNLOAD_FAILED', errorMessage: error instanceof Error ? error.message : String(error) } });
+    const failedPayload = { transferId: options.transferId, clientId: options.clientId, errorCode: 'DOWNLOAD_FAILED', errorMessage: error instanceof Error ? error.message : String(error) };
+    options.sendWs?.({ type: 'client.transfer.failed', payload: failedPayload });
+    await options.reportFailed?.(failedPayload);
     throw error;
   }
 }

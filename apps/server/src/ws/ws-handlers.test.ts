@@ -7,6 +7,7 @@ const {
   wsSendMock,
   setOfflineMock,
   removeConnectionMock,
+  removeIfMatchesMock,
   markHttpReadyMock,
   markHttpFailedMock,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   wsSendMock: vi.fn(),
   setOfflineMock: vi.fn(),
   removeConnectionMock: vi.fn(),
+  removeIfMatchesMock: vi.fn(() => true),
   markHttpReadyMock: vi.fn(),
   markHttpFailedMock: vi.fn(),
 }));
@@ -29,7 +31,7 @@ vi.mock('../modules/clients/clients.service.js', () => ({
   },
 }));
 vi.mock('../modules/connections/connections.manager.js', () => ({
-  connectionManager: { register: registerConnectionMock, remove: removeConnectionMock },
+  connectionManager: { register: registerConnectionMock, remove: removeConnectionMock, removeIfMatches: removeIfMatchesMock },
 }));
 vi.mock('../modules/audit/audit.service.js', () => ({ auditService: { log: vi.fn() } }));
 vi.mock('../modules/frp/frp.service.js', () => ({ getFrpsConnectionInfo: vi.fn(() => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' })) }));
@@ -64,10 +66,22 @@ describe('ws handlers registration lifecycle', () => {
   });
 
   it('marks client offline on websocket close without auto-mapping cleanup', async () => {
-    handleWsClose('client-1');
+    const ws = { id: 'ws-1' } as never;
+    handleWsClose('client-1', ws);
     await Promise.resolve();
-    expect(removeConnectionMock).toHaveBeenCalledWith('client-1');
+    expect(removeIfMatchesMock).toHaveBeenCalledWith('client-1', ws);
     expect(setOfflineMock).toHaveBeenCalledWith('client-1');
+  });
+
+  it('ignores stale websocket close events for replaced connections', async () => {
+    removeIfMatchesMock.mockReturnValueOnce(false);
+    const staleWs = { id: 'stale' } as never;
+
+    handleWsClose('client-1', staleWs);
+    await Promise.resolve();
+
+    expect(removeIfMatchesMock).toHaveBeenCalledWith('client-1', staleWs);
+    expect(setOfflineMock).not.toHaveBeenCalled();
   });
 
 });

@@ -5,6 +5,7 @@ const {
   mockFetch,
   mockMkdir,
   mockRename,
+  mockRm,
   mockExistsSync,
 } = vi.hoisted(() => {
   const mockSend = vi.fn();
@@ -29,6 +30,7 @@ const {
       if (dir === 'D:\\') throw Object.assign(new Error("EPERM: operation not permitted, mkdir 'D:\\'"), { code: 'EPERM' });
     }),
     mockRename: vi.fn(async () => undefined),
+    mockRm: vi.fn(async () => undefined),
     mockExistsSync: vi.fn((dir: string) => dir === 'D:\\'),
   };
 });
@@ -49,7 +51,7 @@ vi.mock('node:fs/promises', () => ({
   mkdir: mockMkdir,
   rename: mockRename,
   readFile: vi.fn(async (p: string) => mockFs[p]),
-  rm: vi.fn(async () => undefined),
+  rm: mockRm,
 }));
 
 import { downloadAliyunTransfer } from './aliyundrive-download-executor.js';
@@ -88,5 +90,26 @@ describe('downloadAliyunTransfer', () => {
 
     expect(mockMkdir).not.toHaveBeenCalledWith('D:\\', expect.anything());
     expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ type: 'client.transfer.complete' }));
+  });
+
+  it('removes an existing target file before renaming the downloaded temp file', async () => {
+    mockExistsSync.mockImplementation((target: string) => target === '\\tmp' || /demo\.txt$/i.test(target));
+
+    await downloadAliyunTransfer({
+      transferId: 'tr_1',
+      clientId: 'client-1',
+      apiBaseUrl: 'http://server',
+      serverToken: 'server-token',
+      workspaceDir: '/tmp',
+      allowedRoots: ['/tmp'],
+      fetchImpl: mockFetch as any,
+      sendWs: mockSend,
+    });
+
+    expect(mockRm).toHaveBeenCalledWith(expect.stringMatching(/demo\.txt$/i), { force: true });
+    expect(mockRename).toHaveBeenCalledWith(
+      expect.stringMatching(/\.rag-transfer-tr_1\.part$/i),
+      expect.stringMatching(/demo\.txt$/i),
+    );
   });
 });
