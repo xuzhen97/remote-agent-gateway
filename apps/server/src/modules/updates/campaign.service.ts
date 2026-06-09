@@ -133,7 +133,7 @@ export function createCampaignService(deps: {
       const allTargets = deps.repo.listTargets(campaignId);
       const match = mode === 'all'
         ? (t: UpdateTargetRecord) => t.phase === 'failed' || t.phase === 'offline_skipped' || t.phase === 'rolled_back'
-        : (t: UpdateTargetRecord) => t.phase === (mode === 'failed' ? 'failed' || t.phase === 'rolled_back' : 'offline_skipped');
+        : (t: UpdateTargetRecord) => t.phase === (mode === 'failed' ? ('failed' as const) : ('offline_skipped' as const)) || t.phase === 'rolled_back';
       const toRetry = allTargets.filter(match);
       for (const t of toRetry) {
         deps.repo.saveTarget({
