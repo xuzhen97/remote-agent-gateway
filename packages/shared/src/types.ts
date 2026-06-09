@@ -646,3 +646,71 @@ export interface TransferJobView {
   /** 清理触发时间 */
   cleanupAfterAt?: number | null;
 }
+
+// ==================== 更新协议类型 ====================
+
+export type UpdateTargetType = 'server' | 'client';
+export type UpdatePlatform = 'linux' | 'windows';
+export type UpdateChannel = 'stable' | 'beta';
+export type UpdateInstallerType = 'archive' | 'binary';
+
+export type ClientUpdatePhase =
+  | 'queued'
+  | 'dispatched'
+  | 'downloading'
+  | 'downloaded'
+  | 'installing'
+  | 'installed'
+  | 'restarting'
+  | 'verifying'
+  | 'succeeded'
+  | 'failed'
+  | 'rolled_back'
+  | 'offline_skipped'
+  | 'cancelled';
+
+export interface ReleaseArtifact {
+  targetType: UpdateTargetType;
+  platform: UpdatePlatform;
+  arch: string;
+  fileName: string;
+  downloadPath: string;
+  sha256: string;
+  size: number;
+  entrypoint: string;
+  installerType: UpdateInstallerType;
+  mandatory?: boolean;
+  enabled: boolean;
+}
+
+export interface ReleaseManifest {
+  version: string;
+  releaseTime: string;
+  notes: string;
+  minUpdaterVersion: string;
+  channel: UpdateChannel;
+  compatibleFrom: string[];
+  artifacts: ReleaseArtifact[];
+}
+
+export interface ClientUpdateCommandPayload {
+  campaignId: string;
+  targetId: string;
+  attemptId: string;
+  version: string;
+  artifact: ReleaseArtifact;
+  downloadUrl: string;
+  expectedSha256: string;
+  expectedSize: number;
+}
+
+export interface ClientUpdateStatusPayload {
+  campaignId: string;
+  targetId: string;
+  attemptId: string;
+  phase: ClientUpdatePhase;
+  currentVersion: string;
+  targetVersion: string;
+  errorCode?: string;
+  errorMessage?: string;
+}
