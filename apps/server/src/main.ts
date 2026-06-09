@@ -106,12 +106,12 @@ async function main(): Promise<void> {
     loggerConfig = { level: 'info' };
   }
 
-  const app = Fastify({ logger: loggerConfig });
+  const app = Fastify({ logger: loggerConfig, bodyLimit: 500 * 1024 * 1024 });
 
   // ==================== 注册插件 ====================
   await app.register(cors);
   await app.register(websocket);
-  await app.register(multipart);
+  await app.register(multipart, { limits: { fileSize: 500 * 1024 * 1024 } });
 
   // ==================== 注册 HTTP 路由 ====================
   await app.register(clientRoutes);           // 客户端发现 API
