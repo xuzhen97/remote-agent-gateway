@@ -21,6 +21,7 @@ import { taskRoutes } from './modules/tasks/tasks.routes.js';
 import { aliyunDriveRoutes } from './modules/aliyundrive/aliyundrive.routes.js';
 import { transferRoutes } from './modules/transfers/transfer.routes.js';
 import { jobsProxyRoutes } from './modules/jobs/jobs-proxy.routes.js';
+import { releaseRoutes } from './modules/updates/release.routes.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -97,6 +98,9 @@ async function main(): Promise<void> {
   await app.register(aliyunDriveRoutes);      // 阿里云盘管理 API
   await app.register(transferRoutes);         // 文件传输 API
   await app.register(jobsProxyRoutes);        // 任务代理路由
+  await app.register(releaseRoutes, {
+    service: { listReleases: () => [], getRelease: () => { throw new Error('not implemented'); }, getArtifactDownload: () => { throw new Error('not implemented'); } },
+  }); // 更新发布路由
   transferCleanupService.start();             // 传输清理定时任务
 
   // ==================== 注册 WebSocket 路由 ====================
