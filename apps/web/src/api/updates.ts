@@ -43,6 +43,16 @@ export interface TargetRecord {
   attemptCount: number;
 }
 
+export interface UploadedArtifact {
+  fileName: string;
+  targetType: 'server' | 'client';
+  platform: 'windows' | 'linux';
+  arch: string;
+  sha256: string;
+  size: number;
+  enabled: boolean;
+}
+
 export async function listReleases(api: Api): Promise<ReleaseSummary[]> {
   const res = await api.get('/admin/updates/releases');
   return res.data ?? [];
@@ -51,6 +61,21 @@ export async function listReleases(api: Api): Promise<ReleaseSummary[]> {
 export async function registerRelease(api: Api, manifest: string): Promise<{ version: string }> {
   const res = await api.post('/admin/updates/releases', { manifest });
   return res.data;
+}
+
+export async function uploadArtifact(api: Api, version: string, file: File): Promise<UploadedArtifact> {
+  const form = new FormData();
+  form.append('file', file);
+  const baseUrl = window.location.origin;
+  const token = (api as unknown as { _token?: string })._token ?? localStorage.getItem('rag_token') ?? '';
+  const res = await fetch(`${baseUrl}/admin/updates/releases/${version}/artifacts`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message ?? `HTTP ${res.status}`);
+  return data.data;
 }
 
 export async function getRelease(api: Api, version: string): Promise<ReleaseDetail> {

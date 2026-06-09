@@ -130,6 +130,7 @@ async function main(): Promise<void> {
       getArtifactDownload: (version: string, artifactName: string) => ({
         path: releaseStorage.artifactPath(version, artifactName),
       }),
+      getArtifactDir: (version: string) => releaseStorage.artifactDir(version),
     },
   }); // 更新发布路由
   await app.register(campaignRoutes, {

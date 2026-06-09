@@ -1,20 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Tabs, Card, Button, Modal, Input, Table,
   Space, Tag, Popconfirm, message, Empty, Descriptions, InputNumber,
+  Upload, Progress, Alert,
 } from 'antd';
 import {
   CloudUploadOutlined, RocketOutlined, ReloadOutlined, PlusOutlined,
+  InboxOutlined, CheckCircleOutlined, CloseCircleOutlined,
 } from '@ant-design/icons';
 import type { Api } from '../api/http';
 import {
-  listReleases, registerRelease, getRelease, createCampaign, getCampaign,
+  listReleases, registerRelease, getRelease, uploadArtifact, createCampaign, getCampaign,
   listTargets, retryCampaign,
-  type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord,
+  type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact,
 } from '../api/updates';
 import { StatusTag } from '../components/StatusTag';
 
 const { Title, Text } = Typography;
+const { Dragger } = Upload;
 
 interface UpdatesPageProps { api: Api; }
 
@@ -38,29 +41,16 @@ export function UpdatesPage({ api }: UpdatesPageProps) {
 function ReleasesTab({ api }: { api: Api }) {
   const [releases, setReleases] = useState<ReleaseSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [regOpen, setRegOpen] = useState(false);
-  const [manifestText, setManifestText] = useState('');
+  const [publishOpen, setPublishOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ReleaseDetail | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try { setReleases(await listReleases(api)); } catch { /* ignore */ }
     setLoading(false);
-  };
-  useEffect(() => { load(); }, [api]);
-
-  const handleRegister = async () => {
-    try {
-      await registerRelease(api, manifestText);
-      message.success('版本注册成功');
-      setRegOpen(false);
-      setManifestText('');
-      load();
-    } catch (e: unknown) {
-      message.error(e instanceof Error ? e.message : '注册失败');
-    }
-  };
+  }, [api]);
+  useEffect(() => { load(); }, [load]);
 
   const handleViewDetail = async (version: string) => {
     try {
@@ -74,7 +64,7 @@ function ReleasesTab({ api }: { api: Api }) {
   return (
     <Card
       title="已发布版本"
-      extra={<Button icon={<PlusOutlined />} onClick={() => setRegOpen(true)}>注册新版本</Button>}
+      extra={<Button icon={<PlusOutlined />} type="primary" onClick={() => setPublishOpen(true)}>发布新版本</Button>}
       styles={{ header: { color: 'rgba(255,255,255,0.85)' } }}
     >
       <Table
@@ -96,34 +86,18 @@ function ReleasesTab({ api }: { api: Api }) {
             ),
           },
         ]}
-        locale={{ emptyText: <Empty description="暂无版本发布，点击右上角注册" /> }}
+        locale={{ emptyText: <Empty description="暂无版本发布，点击右上角发布新版本" /> }}
       />
 
-      <Modal
-        title="注册新版本"
-        open={regOpen}
-        onCancel={() => setRegOpen(false)}
-        onOk={handleRegister}
-        okText="注册"
-        width={640}
-      >
-        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-          粘贴 Release Manifest JSON（version + artifacts 数组）
-        </Text>
-        <Input.TextArea
-          rows={12}
-          value={manifestText}
-          onChange={(e) => setManifestText(e.target.value)}
-          placeholder={`{
-  "version": "v1.4.0",
-  "artifacts": [
-    { "fileName": "server.tar.gz", "targetType": "server", "platform": "linux", "arch": "x64", "sha256": "...", "size": 1024, "enabled": true }
-  ]
-}`}
-          style={{ fontFamily: 'monospace', fontSize: 12 }}
-        />
-      </Modal>
+      {/* ====== Publish Wizard ====== */}
+      <PublishWizard
+        open={publishOpen}
+        api={api}
+        onClose={() => setPublishOpen(false)}
+        onPublished={() => { setPublishOpen(false); load(); }}
+      />
 
+      {/* ====== Detail Modal ====== */}
       <Modal
         title={detail ? `版本详情: ${detail.version}` : '加载中...'}
         open={detailOpen}
@@ -140,14 +114,205 @@ function ReleasesTab({ api }: { api: Api }) {
             columns={[
               { title: '文件名', dataIndex: 'fileName', key: 'fileName', render: (v: string) => <Text code>{v}</Text> },
               { title: '目标', key: 'target', render: (_: unknown, r: ReleaseDetail['artifacts'][0]) => `${r.targetType}/${r.platform}/${r.arch}` },
-              { title: 'SHA256', dataIndex: 'sha256', key: 'sha256', render: (v: string) => <Text code style={{ fontSize: 10 }}>{v}</Text> },
-              { title: '大小', dataIndex: 'size', key: 'size', render: (v: number) => `${(v / 1024).toFixed(1)} KB` },
+              { title: 'SHA256', dataIndex: 'sha256', key: 'sha256', render: (v: string) => <Text code style={{ fontSize: 10 }}>{v.slice(0, 16)}...</Text> },
+              { title: '大小', dataIndex: 'size', key: 'size', render: (v: number) => formatSize(v) },
               { title: '启用', dataIndex: 'enabled', key: 'enabled', width: 80, render: (v: boolean) => v ? <Tag color="green">是</Tag> : <Tag color="default">否</Tag> },
             ]}
           />
         )}
       </Modal>
     </Card>
+  );
+}
+
+// ==================== Publish Wizard ====================
+
+type WizardStep = 'upload' | 'review' | 'publishing';
+
+function PublishWizard({ open, api, onClose, onPublished }: { open: boolean; api: Api; onClose: () => void; onPublished: () => void }) {
+  const [step, setStep] = useState<WizardStep>('upload');
+  const [version, setVersion] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploaded, setUploaded] = useState<UploadedArtifact[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [publishError, setPublishError] = useState<string | null>(null);
+
+  const resetState = () => {
+    setStep('upload');
+    setVersion('');
+    setFiles([]);
+    setUploaded([]);
+    setUploading(false);
+    setUploadProgress({ current: 0, total: 0 });
+    setPublishError(null);
+  };
+
+  const handleClose = () => { resetState(); onClose(); };
+
+  const handleUpload = async () => {
+    if (!version.trim() || files.length === 0) {
+      message.warning('请填写版本号并选择要上传的安装包');
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+    const results: UploadedArtifact[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      try {
+        results.push(await uploadArtifact(api, version.trim(), files[i]));
+        setUploadProgress({ current: i + 1, total: files.length });
+      } catch (e: unknown) {
+        setPublishError(`${files[i].name}: ${e instanceof Error ? e.message : '上传失败'}`);
+        setUploading(false);
+        return;
+      }
+    }
+
+    setUploaded(results);
+    setUploading(false);
+    setStep('review');
+  };
+
+  const handlePublish = async () => {
+    setPublishError(null);
+    const manifest = JSON.stringify({
+      version: version.trim(),
+      artifacts: uploaded.map((a) => ({
+        fileName: a.fileName,
+        targetType: a.targetType,
+        platform: a.platform,
+        arch: a.arch,
+        sha256: a.sha256,
+        size: a.size,
+        enabled: true,
+      })),
+    });
+
+    try {
+      await registerRelease(api, manifest);
+      message.success(`v${version.trim()} 发布成功！`);
+      resetState();
+      onPublished();
+    } catch (e: unknown) {
+      setPublishError(e instanceof Error ? e.message : '发布失败');
+    }
+  };
+
+  const footer = () => {
+    if (step === 'upload') {
+      return (
+        <Space>
+          <Button onClick={handleClose}>取消</Button>
+          <Button type="primary" onClick={handleUpload} loading={uploading} disabled={!version.trim() || files.length === 0}>
+            上传并继续
+          </Button>
+        </Space>
+      );
+    }
+    if (step === 'review') {
+      return (
+        <Space>
+          <Button onClick={() => { setStep('upload'); setPublishError(null); }}>返回修改</Button>
+          <Button type="primary" icon={<RocketOutlined />} onClick={handlePublish}>
+            确认发布
+          </Button>
+        </Space>
+      );
+    }
+    return null;
+  };
+
+  // Generate manifest preview from uploaded artifacts
+  const manifestPreview = uploaded.length > 0 ? JSON.stringify({
+    version: version.trim(),
+    artifacts: uploaded.map((a) => ({
+      fileName: a.fileName,
+      targetType: a.targetType,
+      platform: a.platform,
+      arch: a.arch,
+      sha256: a.sha256,
+      size: a.size,
+      enabled: true,
+    })),
+  }, null, 2) : '';
+
+  return (
+    <Modal
+      title="发布新版本"
+      open={open}
+      onCancel={handleClose}
+      footer={footer()}
+      width={680}
+    >
+      {publishError && (
+        <Alert type="error" message={publishError} closable onClose={() => setPublishError(null)} style={{ marginBottom: 16 }} />
+      )}
+
+      {step === 'upload' && (
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <div>
+            <Text strong>版本号</Text>
+            <Input
+              placeholder="例如: v1.4.0"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              style={{ marginTop: 4 }}
+              size="large"
+            />
+          </div>
+          <div>
+            <Text strong>上传安装包</Text>
+            <Text type="secondary" style={{ marginLeft: 8 }}>
+              文件名需包含 server/client 和 win/linux 标识（如 server-linux-x64.tar.gz）
+            </Text>
+            <Dragger
+              multiple
+              fileList={files.map((f) => ({ uid: f.name, name: f.name, status: 'done' } as any))}
+              beforeUpload={(file) => { setFiles((prev) => [...prev, file]); return false; }}
+              onRemove={(f) => { setFiles((prev) => prev.filter((x) => x.name !== f.name)); }}
+              style={{ marginTop: 8 }}
+            >
+              <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+              <p className="ant-upload-text">点击或拖拽安装包到此区域</p>
+              <p className="ant-upload-hint">支持 .tar.gz、.zip 等格式</p>
+            </Dragger>
+          </div>
+          {uploading && (
+            <Progress percent={Math.round((uploadProgress.current / uploadProgress.total) * 100)} />
+          )}
+        </Space>
+      )}
+
+      {step === 'review' && (
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Alert
+            type="success"
+            message={`${uploaded.length} 个文件上传成功`}
+            description="SHA256 和文件大小已自动计算，请确认以下信息后点击发布"
+          />
+          <Table
+            dataSource={uploaded}
+            rowKey="fileName"
+            size="small"
+            pagination={false}
+            columns={[
+              { title: '文件名', dataIndex: 'fileName', key: 'fileName', render: (v: string) => <Text code>{v}</Text> },
+              { title: '目标', key: 'target', render: (_: unknown, r: UploadedArtifact) => <Tag>{r.targetType}/{r.platform}/{r.arch}</Tag> },
+              { title: 'SHA256', dataIndex: 'sha256', key: 'sha256', render: (v: string) => <Text code style={{ fontSize: 10 }}>{v.slice(0, 16)}...</Text> },
+              { title: '大小', dataIndex: 'size', key: 'size', render: (v: number) => formatSize(v) },
+            ]}
+          />
+          <Card size="small" title="将自动生成的 Manifest">
+            <pre style={{ fontSize: 11, maxHeight: 200, overflow: 'auto', color: '#8b949e', margin: 0 }}>
+              {manifestPreview}
+            </pre>
+          </Card>
+        </Space>
+      )}
+    </Modal>
   );
 }
 
@@ -165,10 +330,9 @@ function CampaignsTab({ api }: { api: Api }) {
   const [targets, setTargets] = useState<TargetRecord[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
 
-  const loadReleases = async () => {
-    try { setReleasesForSelect(await listReleases(api)); } catch { /* ignore */ }
-  };
-  useEffect(() => { loadReleases(); }, [api]);
+  useEffect(() => {
+    listReleases(api).then(setReleasesForSelect).catch(() => {});
+  }, [api]);
 
   const handleCreate = async () => {
     try {
@@ -184,8 +348,7 @@ function CampaignsTab({ api }: { api: Api }) {
       setCreateOpen(false);
       setCampaignLoading(true);
       try {
-        const c = await getCampaign(api, result.campaignId);
-        setSelectedCampaign(c);
+        setSelectedCampaign(await getCampaign(api, result.campaignId));
         setTargets(await listTargets(api, result.campaignId));
       } catch { /* ignore */ }
       setCampaignLoading(false);
@@ -304,14 +467,12 @@ function CampaignsTab({ api }: { api: Api }) {
           <datalist id="release-versions">
             {releasesForSelect.map((r) => <option key={r.version} value={r.version} />)}
           </datalist>
-
           <Space>
             <Button
               type={includeServer ? 'primary' : 'default'}
               onClick={() => setIncludeServer(!includeServer)}
             >{includeServer ? '✓ 更新 Server' : '更新 Server'}</Button>
           </Space>
-
           <Space>
             <Text>批次大小</Text>
             <InputNumber min={1} max={100} value={batchSize} onChange={(v) => setBatchSize(v ?? 10)} />
@@ -322,4 +483,12 @@ function CampaignsTab({ api }: { api: Api }) {
       </Modal>
     </Card>
   );
+}
+
+// ==================== Helpers ====================
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
