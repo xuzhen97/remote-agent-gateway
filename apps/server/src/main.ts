@@ -25,6 +25,9 @@ import { releaseRoutes } from './modules/updates/release.routes.js';
 import { campaignRoutes } from './modules/updates/campaign.routes.js';
 import { createCampaignRunner } from './modules/updates/campaign-runner.js';
 import { createUpdateRepository } from './modules/updates/update-repository.js';
+import { createReleaseService } from './modules/updates/release.service.js';
+import { createCampaignService } from './modules/updates/campaign.service.js';
+import { createReleaseStorage } from './modules/updates/release-storage.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -41,6 +44,15 @@ async function main(): Promise<void> {
 
   // ==================== 恢复未完成的更新 Campaign ====================
   const updateRepo = createUpdateRepository(getDb());
+  const releaseStorage = createReleaseStorage(path.join(env.STORAGE_DIR, 'updates'));
+  const releaseService = createReleaseService({ repo: updateRepo });
+  const campaignService = createCampaignService({
+    releaseService,
+    clientsService,
+    repo: updateRepo,
+    now: () => Date.now(),
+    id: () => crypto.randomUUID(),
+  });
   const campaignRunner = createCampaignRunner({
     repo: updateRepo,
     runServerUpdate: async () => {},
@@ -111,10 +123,17 @@ async function main(): Promise<void> {
   await app.register(transferRoutes);         // 文件传输 API
   await app.register(jobsProxyRoutes);        // 任务代理路由
   await app.register(releaseRoutes, {
-    service: { listReleases: () => [], getRelease: () => { throw new Error('not implemented'); }, getArtifactDownload: () => { throw new Error('not implemented'); } },
+    service: {
+      listReleases: () => releaseService.listReleases(),
+      getRelease: (v: string) => releaseService.getRelease(v),
+      registerRelease: (m: string) => releaseService.registerRelease(m),
+      getArtifactDownload: (version: string, artifactName: string) => ({
+        path: releaseStorage.artifactPath(version, artifactName),
+      }),
+    },
   }); // 更新发布路由
   await app.register(campaignRoutes, {
-    service: { createCampaign: () => { throw new Error('not implemented'); }, retryTargets: () => [], getCampaign: () => undefined, listTargets: () => [] },
+    service: campaignService,
   }); // 更新编排路由
   transferCleanupService.start();             // 传输清理定时任务
 

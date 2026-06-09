@@ -5,6 +5,7 @@ import { requiredString } from '../util/args.js';
 interface UpdatesDeps {
   serverApi: {
     listUpdateReleases(): Promise<unknown>;
+    registerUpdateRelease(manifest: string): Promise<unknown>;
     createUpdateCampaign(input: Record<string, unknown>): Promise<unknown>;
     getUpdateCampaign(id: string): Promise<unknown>;
     retryUpdateCampaign(id: string, input: Record<string, unknown>): Promise<unknown>;
@@ -20,6 +21,13 @@ export function registerUpdatesCommands(program: Command, deps: UpdatesDeps): vo
     .description('列出所有可用版本')
     .action(async () => {
       const data = await deps.serverApi.listUpdateReleases();
+      deps.write(successEnvelope(data));
+    });
+  releases.command('register')
+    .description('注册新版本发布')
+    .requiredOption('--manifest <json>', 'Release manifest JSON 字符串')
+    .action(async (options: { manifest: string }) => {
+      const data = await deps.serverApi.registerUpdateRelease(requiredString(options.manifest, '--manifest'));
       deps.write(successEnvelope(data));
     });
 

@@ -2,13 +2,26 @@ import type { FastifyInstance } from 'fastify';
 import { createReadStream, existsSync } from 'node:fs';
 
 export interface ReleaseServiceForRoutes {
-  listReleases(): Array<{ version: string }>;
+  listReleases(): Array<{ version: string; enabled?: boolean }>;
   getRelease(version: string): unknown;
+  registerRelease(manifestJson: string): { version: string };
   getArtifactDownload(version: string, artifactName: string): { path: string };
 }
 
 export async function releaseRoutes(app: FastifyInstance, opts: { service: ReleaseServiceForRoutes }): Promise<void> {
   const { service } = opts;
+
+  app.post<{ Body: { manifest: string } }>('/admin/updates/releases', async (request, reply) => {
+    try {
+      const result = service.registerRelease(request.body.manifest);
+      return { ok: true, data: result };
+    } catch (err) {
+      return reply.code(400).send({
+        ok: false,
+        error: { code: 'RELEASE_ERROR', message: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  });
 
   app.get('/admin/updates/releases', async () => ({
     ok: true,

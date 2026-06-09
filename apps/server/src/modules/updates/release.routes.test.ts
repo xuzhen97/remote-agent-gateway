@@ -9,6 +9,7 @@ describe('release routes', () => {
       service: {
         listReleases: () => [{ version: 'v1.4.0' }],
         getRelease: vi.fn().mockReturnValue({ version: 'v1.4.0' }),
+        registerRelease: vi.fn().mockReturnValue({ version: 'v1.4.0' }),
         getArtifactDownload: vi.fn().mockReturnValue({ path: '/tmp/client.zip' }),
       },
     } as any);

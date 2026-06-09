@@ -104,6 +104,7 @@ export function buildProgram(input: { argv?: string[]; env?: Record<string, stri
   registerUpdatesCommands(program, {
     serverApi: {
       listUpdateReleases: () => requireServerApi().listUpdateReleases(),
+      registerUpdateRelease: (manifest) => requireServerApi().registerUpdateRelease(manifest),
       createUpdateCampaign: (input) => requireServerApi().createUpdateCampaign(input),
       getUpdateCampaign: (id) => requireServerApi().getUpdateCampaign(id),
       retryUpdateCampaign: (id, input) => requireServerApi().retryUpdateCampaign(id, input),

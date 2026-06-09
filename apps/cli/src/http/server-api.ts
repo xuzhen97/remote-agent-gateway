@@ -100,6 +100,11 @@ export class ServerApi {
     return this.request('GET', '/admin/updates/releases');
   }
 
+  /** 注册新版本发布 */
+  async registerUpdateRelease(manifest: string): Promise<unknown> {
+    return this.request('POST', '/admin/updates/releases', { manifest });
+  }
+
   /** 创建更新编排 */
   async createUpdateCampaign(input: Record<string, unknown>): Promise<unknown> {
     return this.request('POST', '/admin/updates/campaigns', input);
