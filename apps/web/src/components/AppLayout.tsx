@@ -17,6 +17,7 @@ interface AppLayoutProps {
   onNavigate: (key: string) => void;
   onLogout: () => void;
   children: ReactNode;
+  serverVersion?: string;
 }
 
 const menuItems = [
@@ -28,7 +29,7 @@ const menuItems = [
   { key: 'aliyundrive', icon: <CloudUploadOutlined />, label: '阿里云盘' },
 ];
 
-export function AppLayout({ current, onNavigate, onLogout, children }: AppLayoutProps) {
+export function AppLayout({ current, onNavigate, onLogout, children, serverVersion }: AppLayoutProps) {
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider width={220} theme="dark" style={{ height: '100vh', overflow: 'hidden' }}>
@@ -44,6 +45,11 @@ export function AppLayout({ current, onNavigate, onLogout, children }: AppLayout
           style={{ borderRight: 0 }}
         />
         <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16 }}>
+          {serverVersion && (
+            <div style={{ color: '#6e7681', fontSize: 12, marginBottom: 8, textAlign: 'center' }}>
+              Server v{serverVersion}
+            </div>
+          )}
           <Button type="text" icon={<LogoutOutlined />} onClick={onLogout} block danger>
             退出登录
           </Button>

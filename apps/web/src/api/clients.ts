@@ -3,6 +3,7 @@ import type { Api } from './http';
 export interface ClientSummary {
   id: string;
   name: string;
+  version?: string;
   online: boolean;
   status: string;
   httpReady: boolean;

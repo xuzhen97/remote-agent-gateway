@@ -5,6 +5,7 @@ import {
   CheckCircleOutlined,
   ExclamationCircleOutlined,
   ApiOutlined,
+  TagOutlined,
 } from '@ant-design/icons';
 import type { Api } from '../api/http';
 import { type ClientSummary, listClients } from '../api/clients';
@@ -18,12 +19,19 @@ interface DashboardPageProps {
 
 export function DashboardPage({ api }: DashboardPageProps) {
   const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [serverVersion, setServerVersion] = useState<string>('-');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    listClients(api).then((list) => {
-      if (!cancelled) { setClients(list); setLoading(false); }
+    Promise.all([
+      listClients(api),
+      api.get('/api/health').catch(() => null),
+    ]).then(([list, health]) => {
+      if (cancelled) return;
+      setClients(list);
+      if (health?.serverVersion) setServerVersion(health.serverVersion);
+      setLoading(false);
     }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [api]);
@@ -38,6 +46,14 @@ export function DashboardPage({ api }: DashboardPageProps) {
     <div>
       <Title level={3} style={{ color: 'rgba(255,255,255,0.85)' }}>仪表盘</Title>
       <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card>
+            <Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase' }}>Server 版本</Text>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#58a6ff' }}>
+              <TagOutlined /> v{serverVersion}
+            </div>
+          </Card>
+        </Col>
         <Col span={6}>
           <Card>
             <Text type="secondary" style={{ fontSize: 12, textTransform: 'uppercase' }}>在线客户端</Text>
@@ -81,6 +97,7 @@ export function DashboardPage({ api }: DashboardPageProps) {
         columns={[
           { title: 'ID', dataIndex: 'id', key: 'id', width: 160, render: (v: string) => <Text code>{v.slice(0, 12)}</Text> },
           { title: '名称', dataIndex: 'name', key: 'name' },
+          { title: '版本', dataIndex: 'version', key: 'version', width: 80, render: (v?: string) => v ? <Text code>v{v}</Text> : <Text type="secondary">-</Text> },
           { title: '在线', dataIndex: 'online', key: 'online', width: 100, render: (v: boolean) => <StatusTag status={v ? 'online' : 'offline'} /> },
           { title: 'HTTP 就绪', dataIndex: 'httpReady', key: 'httpReady', width: 120, render: (v: boolean) => <StatusTag status={v ? 'active' : 'inactive'} /> },
         ]}

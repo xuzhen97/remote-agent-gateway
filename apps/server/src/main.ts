@@ -12,6 +12,16 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
 import { env, envSource } from './config/env.js';
+import { readFileSync } from 'node:fs';
+
+function readServerVersion(): string {
+  try {
+    return JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8')).version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 import { initDb, saveDb, getDb } from './db/index.js';
 import { clientRoutes } from './modules/clients/clients.routes.js';
 import { fileRoutes } from './modules/files/files.routes.js';
@@ -200,7 +210,7 @@ async function main(): Promise<void> {
   });
 
   // ==================== 健康检查 ====================
-  app.get('/api/health', async () => ({ status: 'ok', timestamp: Date.now() }));
+  app.get('/api/health', async () => ({ status: 'ok', serverVersion: readServerVersion(), timestamp: Date.now() }));
 
   // 定期保存数据库（每 30 秒）
   setInterval(() => {

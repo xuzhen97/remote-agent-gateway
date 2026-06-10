@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { ConfigProvider, theme, App as AntApp } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import { TokenLogin } from './components/TokenLogin';
@@ -27,7 +27,15 @@ type Route =
 export function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('rag_token'));
   const [route, setRoute] = useState<Route>({ page: 'dashboard' });
+  const [serverVersion, setServerVersion] = useState<string>('');
   const apiRef = useRef<Api | null>(null);
+
+  useEffect(() => {
+    if (!apiRef.current) return;
+    apiRef.current.get('/api/health')
+      .then((h: Record<string, unknown>) => { if (h?.serverVersion) setServerVersion(h.serverVersion as string); })
+      .catch(() => {});
+  }, [token]);
 
   const handleLogin = useCallback((t: string) => {
     localStorage.setItem('rag_token', t);
@@ -146,6 +154,7 @@ export function App() {
           else if (key === 'updates') setRoute({ page: 'updates' });
         }}
         onLogout={handleLogout}
+        serverVersion={serverVersion}
       >
         {content}
       </AppLayout>
