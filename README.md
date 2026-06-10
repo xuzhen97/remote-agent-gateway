@@ -634,6 +634,68 @@ await app.register(myRoutes);
 
 ---
 
+## 版本管理
+
+项目采用**根驱动统一版本**策略：根 `package.json` 是唯一版本真相源，所有 5 个子包自动同步。
+
+```text
+root/package.json  version: "0.2.0"  ← 唯一真相源
+  ├─ apps/server    version: =root   (自动同步)
+  ├─ apps/client    version: =root   (自动同步)
+  ├─ apps/web       version: =root   (自动同步)
+  ├─ apps/cli       version: =root   (自动同步)
+  └─ packages/shared version: =root  (自动同步)
+```
+
+### 版本号规则
+
+| 类型 | 命令 | 示例 | 何时使用 |
+|------|------|------|----------|
+| **patch** | `pnpm version:patch` | 0.1.0 → 0.1.1 | Bug fix，不改变 API |
+| **minor** | `pnpm version:minor` | 0.1.0 → 0.2.0 | 新增功能，向后兼容 |
+| **major** | `pnpm version:major` | 0.1.0 → 1.0.0 | 破坏性变更 |
+| **sync** | `pnpm version:sync` | 仅同步 | 子包版本偏离时对齐 |
+
+### 工作流
+
+```bash
+# 1) 开发功能 → 功能完成，准备发布
+pnpm version:minor   # 自动 bump 根版本 + 同步所有子包 + git commit + tag
+
+# 2) 检查结果
+git log --oneline -1
+# chore: bump version to 0.2.0
+git tag
+# v0.2.0
+
+# 3) 子包版本自动反映
+# - Client 重连 → register 上报 0.2.0
+# - Server /api/health → serverVersion: "0.2.0"
+# - Web UI 侧边栏 + 仪表盘 → 自动显示新版本
+
+# 4) 如果手动改了根版本后子包没跟上：
+pnpm version:sync
+```
+
+### 版本展示位置
+
+| 位置 | 数据来源 | 展示方式 |
+|------|----------|----------|
+| Server API | `apps/server/package.json` → `/api/health` | `serverVersion` 字段 |
+| Client 注册 | `apps/client/package.json` → WS `client.register` | 客户端列表 `version` 字段 |
+| Web 侧边栏 | `/api/health` 查询 | 退出按钮上方灰色文字 |
+| Web 仪表盘 | `/api/health` + `/api/clients` | Server 版本卡片 + 客户端版本列 |
+| CLI 分发包 | `package.json` → `scripts/package.ts` | `rag-v0.2.0-win.zip` |
+
+### 实现细节
+
+- 脚本：`scripts/sync-version.ts`
+- Client 版本读取：`apps/client/src/core/register.ts` 在运行时读 `../../package.json`
+- Server 版本读取：`apps/server/src/main.ts` 在启动时读 `../package.json`
+- 两者都不硬编码版本号，改版本只需 `pnpm version:xxx`
+
+---
+
 ## 开发命令
 
 ```bash
