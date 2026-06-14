@@ -26,7 +26,9 @@ const DIST_DIR = fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'server.bundle.cjs'))
   ? FLAT_BUNDLE_DIR
   : DIST_FALLBACK_DIR;
 const SERVER_SCRIPT = path.join(DIST_DIR, 'server.bundle.cjs');
-const CLIENT_SCRIPT = path.join(DIST_DIR, 'client.bundle.cjs');
+const CLIENT_LAUNCHER = path.join(DIST_DIR, 'client-launcher.cjs');
+const CLIENT_BUNDLE = path.join(DIST_DIR, 'client.bundle.cjs');
+const CLIENT_SCRIPT = fs.existsSync(CLIENT_LAUNCHER) ? CLIENT_LAUNCHER : CLIENT_BUNDLE;
 
 // 日志目录
 const LOG_DIR = process.env.PM2_LOG_DIR || path.resolve(__dirname, 'logs');
@@ -48,6 +50,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         RAG_SERVER_CONFIG: path.join(DIST_DIR, 'server.config.yaml'),
+        RAG_DEPLOY_ROOT: DIST_DIR,
       },
 
       // 日志
@@ -76,6 +79,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         RAG_CLIENT_CONFIG: path.join(DIST_DIR, 'client.config.yaml'),
+        RAG_DEPLOY_ROOT: DIST_DIR,
       },
 
       // 日志

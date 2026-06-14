@@ -15,4 +15,24 @@ assert.ok(
   'ecosystem.config.cjs should retain dist/ fallback for source-repo usage'
 );
 
+assert.ok(
+  source.includes('client-launcher.cjs'),
+  'ecosystem.config.cjs should know about client launcher'
+);
+
+assert.ok(
+  source.includes('CLIENT_LAUNCHER'),
+  'ecosystem.config.cjs should define CLIENT_LAUNCHER'
+);
+
+assert.ok(
+  source.includes('fs.existsSync(CLIENT_LAUNCHER)'),
+  'ecosystem.config.cjs should prefer launcher when present'
+);
+
+assert.ok(
+  source.includes('RAG_DEPLOY_ROOT'),
+  'ecosystem.config.cjs should expose deployment root to launcher/updater'
+);
+
 console.log('ecosystem config layout policy is correct');
