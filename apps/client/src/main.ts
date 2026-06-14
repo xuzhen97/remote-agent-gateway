@@ -31,6 +31,8 @@ function writeClientReadyMarker(): void {
   writeFileSync(join(stateDir, 'client-ready.json'), `${JSON.stringify({ version: CLIENT_VERSION, readyAt: Date.now() }, null, 2)}\n`);
 }
 
+const CLIENT_EXIT_UPDATE_RESTART = 20;
+
 async function main(): Promise<void> {
   console.log(`Remote Agent Gateway - 客户端 Agent v${CLIENT_VERSION}`);
 
@@ -89,7 +91,13 @@ async function main(): Promise<void> {
     // 先检查是否是更新消息
     if (await handleUpdateWsMessage({
       message,
-      updater: createClientUpdater(createUpdateDeps(config)),
+      createUpdater: (onPhase) => createClientUpdater({
+        ...createUpdateDeps(config),
+        onPhase,
+        startNew: async () => {
+          setTimeout(() => process.exit(CLIENT_EXIT_UPDATE_RESTART), 100);
+        },
+      }),
       send: (out) => conn.send(out),
       currentVersion: CLIENT_VERSION,
     })) {
