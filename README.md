@@ -681,8 +681,8 @@ pnpm version:sync
 
 | 位置 | 数据来源 | 展示方式 |
 |------|----------|----------|
-| Server API | `apps/server/package.json` → `/api/health` | `serverVersion` 字段 |
-| Client 注册 | `apps/client/package.json` → WS `client.register` | 客户端列表 `version` 字段 |
+| Server API | 根 `package.json` → 构建时注入 → `/api/health` | `serverVersion` 字段 |
+| Client 注册 | 根 `package.json` → 构建时注入 → WS `client.register` | 客户端列表 `version` 字段 |
 | Web 侧边栏 | `/api/health` 查询 | 退出按钮上方灰色文字 |
 | Web 仪表盘 | `/api/health` + `/api/clients` | Server 版本卡片 + 客户端版本列 |
 | CLI 分发包 | `package.json` → `scripts/package.ts` | `rag-v0.2.0-win.zip` |
@@ -690,9 +690,10 @@ pnpm version:sync
 ### 实现细节
 
 - 脚本：`scripts/sync-version.ts`
-- Client 版本读取：`apps/client/src/core/register.ts` 在运行时读 `../../package.json`
-- Server 版本读取：`apps/server/src/main.ts` 在启动时读 `../package.json`
-- 两者都不硬编码版本号，改版本只需 `pnpm version:xxx`
+- 版本同步脚本：`scripts/sync-version.ts`
+- Client 版本来源：根 `package.json` → 构建脚本注入 `process.env.RAG_BUILD_VERSION` → `apps/client/src/version.ts`
+- Server 版本来源：根 `package.json` → 构建脚本注入 `process.env.RAG_BUILD_VERSION` → `apps/server/src/version.ts`
+- 运行时 bundle 不读取 `package.json`，改版本只需 `pnpm version:xxx` 后重新构建
 
 ---
 
