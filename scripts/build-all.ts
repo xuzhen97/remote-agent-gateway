@@ -8,7 +8,8 @@ import * as path from 'node:path';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 const ROOT_PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8')) as { version?: string };
-const BUILD_VERSION = JSON.stringify(ROOT_PACKAGE.version ?? '0.0.0');
+const DISPLAY_VERSION = ROOT_PACKAGE.version ?? '0.0.0';
+const BUILD_VERSION = JSON.stringify(DISPLAY_VERSION);
 
 fs.mkdirSync(DIST, { recursive: true });
 
@@ -402,6 +403,32 @@ if (fs.existsSync(ecosystemSrc)) {
   console.log('  Copied ecosystem.config.cjs');
 }
 
+// ── Deploy instructions ─────────────────────────────────────────────
+fs.writeFileSync(path.join(DIST, 'DEPLOY.txt'), [
+  'Remote Agent Gateway — Deployment Guide',
+  '==========================================',
+  '',
+  'Requirements: Node.js 22+',
+  '',
+  '── Quick Start (PM2 recommended) ──',
+  '1. npm install -g pm2',
+  '2. ./download-frp.sh   (auto-detect platform, see --mirror for China networks)',
+  '3. Copy server.config.example.yaml / client.config.example.yaml and rename them before starting',
+  '4. pm2 start ecosystem.config.cjs',
+  '5. pm2 logs',
+  '',
+  '── Or without PM2 ──',
+  'Server: node server.bundle.cjs  (or ./start-server.sh)',
+  'Client: node client-launcher.cjs  (or ./start-client.sh; falls back to client.bundle.cjs)',
+  '',
+  '── FRP download in China ──',
+  './download-frp.sh --mirror',
+  'FRP_MIRROR=https://ghfast.top/ ./download-frp.sh',
+  '',
+  `Version: ${DISPLAY_VERSION}`,
+  `Build date: ${new Date().toISOString().slice(0, 10)}`,
+].join('\r\n'));
+
 // ── Summary ─────────────────────────────────────────────────────────
 const files = fs.readdirSync(DIST).filter((f) => !f.endsWith('.map'));
 console.log('\n=== Build complete ===');
@@ -418,4 +445,4 @@ console.log('  Quick start:');
 console.log('    pm2 start ecosystem.config.cjs');
 console.log('  Or without pm2:');
 console.log('    Server:  node server.bundle.cjs  (from dist/)');
-console.log('    Client:  node client.bundle.cjs  (from dist/)');
+console.log('    Client:  node client-launcher.cjs  (from dist/, falls back to client.bundle.cjs)');
