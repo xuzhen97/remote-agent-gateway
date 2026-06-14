@@ -11,8 +11,8 @@ import {
 import type { Api } from '../api/http';
 import {
   listReleases, registerRelease, getRelease, uploadArtifact, createCampaign, getCampaign,
-  listTargets, retryCampaign,
-  type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact,
+  listCampaigns, listTargets, listTargetAttempts, retryCampaign,
+  type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact, type AttemptRecord,
 } from '../api/updates';
 import { StatusTag } from '../components/StatusTag';
 import { startCampaign } from '../api/updates';
@@ -327,13 +327,32 @@ function CampaignsTab({ api }: { api: Api }) {
   const [concurrency, setConcurrency] = useState(5);
   const [campaignLoading, setCampaignLoading] = useState(false);
   const [releasesForSelect, setReleasesForSelect] = useState<ReleaseSummary[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignRecord | null>(null);
   const [targets, setTargets] = useState<TargetRecord[]>([]);
+  const [attempts, setAttempts] = useState<AttemptRecord[]>([]);
   const [targetsLoading, setTargetsLoading] = useState(false);
+
+  const loadCampaigns = useCallback(async () => {
+    try { setCampaigns(await listCampaigns(api)); } catch { /* ignore */ }
+  }, [api]);
 
   useEffect(() => {
     listReleases(api).then(setReleasesForSelect).catch(() => {});
-  }, [api]);
+    loadCampaigns();
+  }, [api, loadCampaigns]);
+
+  useEffect(() => {
+    if (!selectedCampaign || !['server_updating', 'client_updating'].includes(selectedCampaign.status)) return;
+    const timer = window.setInterval(async () => {
+      try {
+        setSelectedCampaign(await getCampaign(api, selectedCampaign.id));
+        setTargets(await listTargets(api, selectedCampaign.id));
+        loadCampaigns();
+      } catch { /* ignore */ }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [api, loadCampaigns, selectedCampaign]);
 
   const handleCreate = async () => {
     try {
@@ -347,6 +366,7 @@ function CampaignsTab({ api }: { api: Api }) {
       });
       message.success(`编排创建成功: ${result.campaignId.slice(0, 8)}... (${result.targets.length} 个对象)`);
       setCreateOpen(false);
+      loadCampaigns();
       setCampaignLoading(true);
       try {
         setSelectedCampaign(await getCampaign(api, result.campaignId));
@@ -363,6 +383,7 @@ function CampaignsTab({ api }: { api: Api }) {
     try {
       setSelectedCampaign(await getCampaign(api, id));
       setTargets(await listTargets(api, id));
+      setAttempts([]);
     } catch (e: unknown) {
       message.error(e instanceof Error ? e.message : '查询失败');
     }
@@ -374,6 +395,7 @@ function CampaignsTab({ api }: { api: Api }) {
       const res = await retryCampaign(api, campaignId, mode);
       message.success(`已重试 ${res.retried} 个对象`);
       setTargets(await listTargets(api, campaignId));
+      loadCampaigns();
     } catch (e: unknown) {
       message.error(e instanceof Error ? e.message : '重试失败');
     }
@@ -385,8 +407,17 @@ function CampaignsTab({ api }: { api: Api }) {
       message.success(`编排已启动，状态: ${res.phase}`);
       setSelectedCampaign(await getCampaign(api, campaignId));
       setTargets(await listTargets(api, campaignId));
+      loadCampaigns();
     } catch (e: unknown) {
       message.error(e instanceof Error ? e.message : '启动失败');
+    }
+  };
+
+  const handleViewAttempts = async (targetId: string) => {
+    try {
+      setAttempts(await listTargetAttempts(api, targetId));
+    } catch (e: unknown) {
+      message.error(e instanceof Error ? e.message : '获取尝试记录失败');
     }
   };
 
@@ -405,6 +436,24 @@ function CampaignsTab({ api }: { api: Api }) {
       styles={{ header: { color: 'rgba(255,255,255,0.85)' } }}
     >
       <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Card size="small" title="最近编排">
+          <Table
+            dataSource={campaigns}
+            rowKey="id"
+            size="small"
+            pagination={{ pageSize: 5 }}
+            columns={[
+              { title: 'ID', dataIndex: 'id', key: 'id', render: (v: string) => <Text code>{v.slice(0, 12)}</Text> },
+              { title: '目标版本', dataIndex: 'targetVersion', key: 'targetVersion', render: (v: string) => <Text code>{v}</Text> },
+              { title: '状态', dataIndex: 'status', key: 'status', render: (v: string) => <Tag>{v}</Tag> },
+              { title: '对象', key: 'server', render: (_: unknown, r: CampaignRecord) => r.includeServer ? 'Server + Client' : 'Client' },
+              { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', render: (v: number) => new Date(v).toLocaleString() },
+              { title: '操作', key: 'actions', render: (_: unknown, r: CampaignRecord) => <Button type="link" size="small" onClick={() => handleSelectCampaign(r.id)}>查看</Button> },
+            ]}
+            locale={{ emptyText: <Empty description="暂无编排" /> }}
+          />
+        </Card>
+
         <Card size="small" title="查询已有编排">
           <Space>
             <Input.Search
@@ -456,12 +505,35 @@ function CampaignsTab({ api }: { api: Api }) {
                   { title: '类型', dataIndex: 'targetType', key: 'targetType', width: 80, render: (v: string) => v === 'server' ? <Tag color="purple">Server</Tag> : <Tag color="cyan">Client</Tag> },
                   { title: '客户端', dataIndex: 'clientId', key: 'clientId', render: (v: string | null) => v ? <Text code>{v.slice(0, 12)}</Text> : '-' },
                   { title: '平台', dataIndex: 'platform', key: 'platform', width: 80 },
+                  { title: '当前版本', dataIndex: 'currentVersion', key: 'currentVersion', render: (v: string | null) => v ? <Text code>{v}</Text> : '-' },
+                  { title: '目标版本', dataIndex: 'targetVersion', key: 'targetVersion', render: (v: string) => <Text code>{v}</Text> },
                   { title: '阶段', dataIndex: 'phase', key: 'phase', width: 120, render: (v: string) => <Tag color={phaseColor(v)}>{v}</Tag> },
                   { title: '尝试', dataIndex: 'attemptCount', key: 'attemptCount', width: 60 },
+                  { title: '错误', key: 'error', render: (_: unknown, r: TargetRecord) => r.lastErrorCode ? <Text type="danger">{r.lastErrorCode}: {r.lastErrorMessage}</Text> : '-' },
+                  { title: '完成时间', dataIndex: 'finishedAt', key: 'finishedAt', render: (v: number | null) => v ? new Date(v).toLocaleString() : '-' },
+                  { title: '操作', key: 'actions', render: (_: unknown, r: TargetRecord) => <Button type="link" size="small" onClick={() => handleViewAttempts(r.id)}>尝试记录</Button> },
                 ]}
                 locale={{ emptyText: <Empty description="暂无更新对象" /> }}
               />
             </Card>
+
+            {attempts.length > 0 && (
+              <Card size="small" title={`尝试记录 (${attempts.length})`}>
+                <Table
+                  dataSource={attempts}
+                  rowKey="id"
+                  size="small"
+                  pagination={false}
+                  columns={[
+                    { title: 'ID', dataIndex: 'id', key: 'id', render: (v: string) => <Text code>{v.slice(0, 16)}</Text> },
+                    { title: '序号', dataIndex: 'attemptNo', key: 'attemptNo', width: 80 },
+                    { title: '结果', dataIndex: 'result', key: 'result', render: (v: string) => <Tag>{v}</Tag> },
+                    { title: '错误', key: 'error', render: (_: unknown, r: AttemptRecord) => r.errorCode ? <Text type="danger">{r.errorCode}: {r.errorMessage}</Text> : '-' },
+                    { title: '更新时间', dataIndex: 'updatedAt', key: 'updatedAt', render: (v: number) => new Date(v).toLocaleString() },
+                  ]}
+                />
+              </Card>
+            )}
           </>
         )}
       </Space>

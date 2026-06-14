@@ -41,6 +41,22 @@ export interface TargetRecord {
   targetVersion: string;
   phase: string;
   attemptCount: number;
+  lastErrorCode?: string | null;
+  lastErrorMessage?: string | null;
+  finishedAt?: number | null;
+}
+
+export interface AttemptRecord {
+  id: string;
+  targetId: string;
+  attemptNo: number;
+  phaseTimelineJson: string;
+  result: string;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  finishedAt?: number | null;
 }
 
 export interface UploadedArtifact {
@@ -95,6 +111,11 @@ export async function createCampaign(api: Api, input: {
   return res.data;
 }
 
+export async function listCampaigns(api: Api): Promise<CampaignRecord[]> {
+  const res = await api.get('/admin/updates/campaigns');
+  return res.data ?? [];
+}
+
 export async function getCampaign(api: Api, id: string): Promise<CampaignRecord> {
   const res = await api.get(`/admin/updates/campaigns/${id}`);
   return res.data;
@@ -102,6 +123,11 @@ export async function getCampaign(api: Api, id: string): Promise<CampaignRecord>
 
 export async function listTargets(api: Api, campaignId: string): Promise<TargetRecord[]> {
   const res = await api.get(`/admin/updates/campaigns/${campaignId}/targets`);
+  return res.data ?? [];
+}
+
+export async function listTargetAttempts(api: Api, targetId: string): Promise<AttemptRecord[]> {
+  const res = await api.get(`/admin/updates/targets/${targetId}/attempts`);
   return res.data ?? [];
 }
 
