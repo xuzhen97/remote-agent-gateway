@@ -143,6 +143,25 @@ fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, '
 
 console.log('  client.bundle.js ready');
 
+console.log('[2/2] Building client launcher...');
+
+await esbuild.build({
+  entryPoints: [path.join(ROOT, 'apps/client/src/launcher.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: path.join(DIST, 'client-launcher.cjs'),
+  minify: false,
+  sourcemap: true,
+  external: [],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
+});
+
+console.log('  client-launcher.cjs ready');
+
 // ── Launcher scripts ────────────────────────────────────────────────
 console.log('Generating launchers...');
 

@@ -14,7 +14,7 @@ fs.mkdirSync(DIST, { recursive: true });
 
 // Clean old client builds
 for (const f of fs.readdirSync(DIST)) {
-  if (f.startsWith('client.') && (f.endsWith('.js') || f.endsWith('.cjs') || f.endsWith('.map'))) {
+  if ((f.startsWith('client.') || f.startsWith('client-launcher.')) && (f.endsWith('.js') || f.endsWith('.cjs') || f.endsWith('.map'))) {
     fs.unlinkSync(path.join(DIST, f));
   }
 }
@@ -34,4 +34,20 @@ await esbuild.build({
   },
 });
 
+await esbuild.build({
+  entryPoints: [path.join(ROOT, 'apps/client/src/launcher.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: path.join(DIST, 'client-launcher.cjs'),
+  minify: false,
+  sourcemap: true,
+  external: [],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
+});
+
 console.log('Client bundle: dist/client.bundle.cjs');
+console.log('Client launcher: dist/client-launcher.cjs');
