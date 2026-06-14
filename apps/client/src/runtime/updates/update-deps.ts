@@ -1,10 +1,11 @@
-import { mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { ClientConfig } from '../../config/client.config.js';
 import type { UpdaterDeps } from './client-updater.js';
 import { downloadArtifact } from './download.js';
 import { extractArtifact } from './extract.js';
 import { verifyArtifact } from './verify.js';
+import { writePendingVersion } from './current-version.js';
 
 export function resolveDeployRoot(config: ClientConfig): string {
   if (process.env.RAG_DEPLOY_ROOT) return resolve(process.env.RAG_DEPLOY_ROOT);
@@ -12,19 +13,10 @@ export function resolveDeployRoot(config: ClientConfig): string {
   return process.cwd();
 }
 
-function writeJson(filePath: string, value: unknown): void {
-  mkdirSync(dirname(filePath), { recursive: true });
-  const tmp = `${filePath}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`);
-  rmSync(filePath, { force: true });
-  renameSync(tmp, filePath);
-}
-
 export function createUpdateDeps(config: ClientConfig): UpdaterDeps {
   const deployRoot = resolveDeployRoot(config);
   const downloadsDir = join(deployRoot, 'downloads');
   const versionsDir = join(deployRoot, 'versions', 'client');
-  const stateDir = join(deployRoot, 'state');
 
   return {
     async download(input) {
@@ -45,10 +37,9 @@ export function createUpdateDeps(config: ClientConfig): UpdaterDeps {
       // The current process remains active until launcher restart support is enabled.
     },
     async switchCurrent(version) {
-      writeJson(join(stateDir, 'client-pending-version.json'), {
+      writePendingVersion(deployRoot, {
         version,
         entrypoint: join('versions', 'client', version, 'client.bundle.cjs'),
-        updatedAt: Date.now(),
       });
     },
     async startNew() {

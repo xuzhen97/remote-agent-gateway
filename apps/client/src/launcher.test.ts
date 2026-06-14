@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
-import { readCurrentVersionState, resolveClientEntrypoint } from './launcher.js';
+import { decideNextLaunch, readCurrentVersionState, resolveClientEntrypoint } from './launcher.js';
 
 const tempRoots: string[] = [];
 
@@ -68,5 +68,20 @@ describe('client launcher entrypoint resolution', () => {
       version: '1.0.1',
       entrypoint: 'versions/client/1.0.1/client.bundle.cjs',
     });
+  });
+});
+
+describe('client launcher restart decisions', () => {
+  it('promotes pending on update restart exit code', () => {
+    expect(decideNextLaunch({ exitCode: 20, hasPending: true, verificationFailed: false })).toBe('promote-pending');
+  });
+
+  it('rolls back when requested or when pending verification failed', () => {
+    expect(decideNextLaunch({ exitCode: 21, hasPending: false, verificationFailed: false })).toBe('rollback');
+    expect(decideNextLaunch({ exitCode: 1, hasPending: false, verificationFailed: true })).toBe('rollback');
+  });
+
+  it('exits on normal process exit', () => {
+    expect(decideNextLaunch({ exitCode: 0, hasPending: false, verificationFailed: false })).toBe('exit');
   });
 });

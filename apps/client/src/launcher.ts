@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { isAbsolute, join, relative, resolve } from 'node:path';
+import { promotePendingVersion, readClientVersionState, rollbackToPreviousVersion } from './runtime/updates/current-version.js';
 
 export interface CurrentVersionState {
   version: string;
@@ -16,6 +17,18 @@ export interface EntrypointResolutionInput {
 export interface EntrypointResolution {
   version: string;
   entrypoint: string;
+}
+
+export const CLIENT_EXIT_UPDATE_RESTART = 20;
+export const CLIENT_EXIT_ROLLBACK = 21;
+
+export type LauncherDecision = 'exit' | 'promote-pending' | 'rollback' | 'restart-current';
+
+export function decideNextLaunch(input: { exitCode: number | null; hasPending: boolean; verificationFailed: boolean }): LauncherDecision {
+  if (input.exitCode === CLIENT_EXIT_UPDATE_RESTART && input.hasPending) return 'promote-pending';
+  if (input.exitCode === CLIENT_EXIT_ROLLBACK || input.verificationFailed) return 'rollback';
+  if (input.exitCode === 0) return 'exit';
+  return 'exit';
 }
 
 function hasText(value: unknown): value is string {
@@ -61,15 +74,7 @@ export function resolveClientEntrypoint(input: EntrypointResolutionInput): Entry
   throw new Error(`No client bundle found under ${deployRoot}`);
 }
 
-export async function runLauncher(): Promise<void> {
-  const deployRoot = resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
-  const currentVersion = readCurrentVersionState(deployRoot);
-  const resolved = resolveClientEntrypoint({
-    deployRoot,
-    currentVersion,
-    bundleExists: existsSync,
-  });
-
+async function launchClient(deployRoot: string, resolved: EntrypointResolution): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   console.log(`[launcher] starting client ${resolved.version}: ${resolved.entrypoint}`);
   const child = spawn(process.execPath, [resolved.entrypoint], {
     cwd: deployRoot,
@@ -80,13 +85,50 @@ export async function runLauncher(): Promise<void> {
     },
   });
 
-  child.on('exit', (code, signal) => {
+  return new Promise((resolveExit) => {
+    child.on('exit', (code, signal) => resolveExit({ code, signal }));
+  });
+}
+
+export async function runLauncher(): Promise<void> {
+  const deployRoot = resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
+  let verifyingPending = false;
+
+  for (;;) {
+    const currentVersion = readCurrentVersionState(deployRoot);
+    const resolved = resolveClientEntrypoint({
+      deployRoot,
+      currentVersion,
+      bundleExists: existsSync,
+    });
+
+    const { code, signal } = await launchClient(deployRoot, resolved);
     if (signal) {
       process.kill(process.pid, signal);
       return;
     }
+
+    const state = readClientVersionState(deployRoot);
+    const decision = decideNextLaunch({
+      exitCode: code,
+      hasPending: Boolean(state.pending),
+      verificationFailed: verifyingPending && code !== 0,
+    });
+
+    if (decision === 'promote-pending') {
+      promotePendingVersion(deployRoot);
+      verifyingPending = true;
+      continue;
+    }
+
+    if (decision === 'rollback') {
+      rollbackToPreviousVersion(deployRoot);
+      verifyingPending = false;
+      continue;
+    }
+
     process.exit(code ?? 0);
-  });
+  }
 }
 
 if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {

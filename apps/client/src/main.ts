@@ -19,7 +19,17 @@ import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
 import { createUpdateDeps } from './runtime/updates/update-deps.js';
 import { CLIENT_VERSION } from './version.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import type { ServerAckPayload } from '@rag/shared';
+
+function writeClientReadyMarker(): void {
+  const deployRoot = process.env.RAG_DEPLOY_ROOT;
+  if (!deployRoot) return;
+  const stateDir = join(resolve(deployRoot), 'state');
+  mkdirSync(stateDir, { recursive: true });
+  writeFileSync(join(stateDir, 'client-ready.json'), `${JSON.stringify({ version: CLIENT_VERSION, readyAt: Date.now() }, null, 2)}\n`);
+}
 
 async function main(): Promise<void> {
   console.log(`Remote Agent Gateway - 客户端 Agent v${CLIENT_VERSION}`);
@@ -231,6 +241,7 @@ async function main(): Promise<void> {
       console.log('已重连，正在重新注册...');
       try {
         await sendRegister(conn, config);
+        writeClientReadyMarker();
         // 重新启动心跳（避免重复定时器）
         startHeartbeat(conn, config);
         console.log('重新注册完成');
@@ -255,6 +266,7 @@ async function main(): Promise<void> {
 
   console.log('已连接，正在注册...');
   await sendRegister(conn, config);
+  writeClientReadyMarker();
 
   // 启动心跳
   startHeartbeat(conn, config);
