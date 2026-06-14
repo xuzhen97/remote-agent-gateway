@@ -20,7 +20,7 @@ describe('release service', () => {
                 targetType: 'client', platform: 'windows', arch: 'x64',
                 fileName: 'client-win.zip',
                 downloadPath: '/updates/artifacts/v1.4.0/client-win.zip',
-                sha256: 'abc', size: 10,
+                sha256: 'a'.repeat(64), size: 10,
                 entrypoint: 'client.exe', installerType: 'archive',
                 enabled: true,
               },
@@ -51,6 +51,19 @@ describe('release service', () => {
       .toThrow('disabled');
   });
 
+  it('rejects manifests missing required release metadata', () => {
+    const service = createReleaseService({
+      repo: {
+        saveRelease: () => undefined,
+        getRelease: () => undefined,
+        listReleases: () => [],
+      },
+      now: () => 1,
+    } as any);
+
+    expect(() => service.registerRelease(JSON.stringify({ version: '1.0.1', artifacts: [] }))).toThrow('Invalid release manifest');
+  });
+
   it('rejects missing platform artifacts', () => {
     const service = createReleaseService({
       repo: {
@@ -69,7 +82,7 @@ describe('release service', () => {
                 targetType: 'client', platform: 'linux', arch: 'x64',
                 fileName: 'client-linux.tar.gz',
                 downloadPath: '/updates/artifacts/v1.4.0/client-linux.tar.gz',
-                sha256: 'abc', size: 10,
+                sha256: 'a'.repeat(64), size: 10,
                 entrypoint: 'client.sh', installerType: 'archive',
                 enabled: true,
               },

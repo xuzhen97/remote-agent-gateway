@@ -1,11 +1,11 @@
-import type { ReleaseManifest, ReleaseArtifact } from '@rag/shared';
+import { ReleaseManifestSchema, type ReleaseManifest, type ReleaseArtifact } from '@rag/shared';
 
 export function parseReleaseManifest(input: string): ReleaseManifest {
-  const parsed = JSON.parse(input) as ReleaseManifest;
-  if (!parsed.version || !Array.isArray(parsed.artifacts) || !parsed.artifacts.length) {
-    throw new Error('Invalid release manifest');
+  const parsed = ReleaseManifestSchema.safeParse(JSON.parse(input));
+  if (!parsed.success) {
+    throw new Error(`Invalid release manifest: ${parsed.error.message}`);
   }
-  return parsed;
+  return parsed.data;
 }
 
 export function selectArtifact(
