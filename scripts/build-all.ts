@@ -179,9 +179,13 @@ fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
   'title Remote Agent Gateway - Client',
   'echo Starting client agent...',
   'if not exist client.config.yaml echo Missing client.config.yaml. Create it before starting. && pause && exit /b 1',
-  'node client.bundle.cjs',
+  'if exist client-launcher.cjs (',
+  '  node client-launcher.cjs',
+  ') else (',
+  '  node client.bundle.cjs',
+  ')',
   'pause',
-].join('\r\n'));
+].join('\r\n')); 
 
 const shServer = [
   '#!/bin/bash',
@@ -196,7 +200,11 @@ const shClient = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Client..."',
   '[ ! -f client.config.yaml ] && echo "Missing client.config.yaml. Create it before starting." && exit 1',
-  'node client.bundle.cjs',
+  'if [ -f client-launcher.cjs ]; then',
+  '  node client-launcher.cjs',
+  'else',
+  '  node client.bundle.cjs',
+  'fi',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-client.sh'), shClient);
 fs.chmodSync(path.join(DIST, 'start-client.sh'), 0o755);
