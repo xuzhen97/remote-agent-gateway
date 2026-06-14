@@ -17,10 +17,11 @@ import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler
 import { forwardServerJobRun } from './server-job-runner.js';
 import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
+import { CLIENT_VERSION } from './version.js';
 import type { ServerAckPayload } from '@rag/shared';
 
 async function main(): Promise<void> {
-  console.log('Remote Agent Gateway - 客户端 Agent v0.1.0');
+  console.log(`Remote Agent Gateway - 客户端 Agent v${CLIENT_VERSION}`);
 
   // ==================== 加载配置 ====================
   let config;
@@ -87,7 +88,7 @@ async function main(): Promise<void> {
         rollback: async () => {},
       }),
       send: (out) => conn.send(out),
-      currentVersion: '0.1.0',
+      currentVersion: CLIENT_VERSION,
     })) {
       return;
     }
