@@ -17,6 +17,7 @@ import { handleTransferWsMessage } from './runtime/transfers/transfer-ws-handler
 import { forwardServerJobRun } from './server-job-runner.js';
 import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
+import { createUpdateDeps } from './runtime/updates/update-deps.js';
 import { CLIENT_VERSION } from './version.js';
 import type { ServerAckPayload } from '@rag/shared';
 
@@ -78,15 +79,7 @@ async function main(): Promise<void> {
     // 先检查是否是更新消息
     if (await handleUpdateWsMessage({
       message,
-      updater: createClientUpdater({
-        download: async () => { throw new Error('downloader not initialized'); },
-        verify: async () => {},
-        extract: async () => '',
-        stopCurrent: async () => {},
-        switchCurrent: async () => {},
-        startNew: async () => {},
-        rollback: async () => {},
-      }),
+      updater: createClientUpdater(createUpdateDeps(config)),
       send: (out) => conn.send(out),
       currentVersion: CLIENT_VERSION,
     })) {
