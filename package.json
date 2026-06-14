@@ -1,6 +1,6 @@
 {
   "name": "remote-agent-gateway",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,11 @@
     "build": "tsx scripts/build-all.ts",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "package": "tsx scripts/package.ts"
+    "package": "tsx scripts/package.ts",
+    "version:sync": "tsx scripts/sync-version.ts",
+    "version:patch": "tsx scripts/sync-version.ts --bump patch",
+    "version:minor": "tsx scripts/sync-version.ts --bump minor",
+    "version:major": "tsx scripts/sync-version.ts --bump major"
   },
   "engines": {
     "node": ">=22"
