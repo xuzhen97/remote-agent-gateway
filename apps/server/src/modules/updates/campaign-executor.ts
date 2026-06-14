@@ -7,6 +7,10 @@ export interface CampaignExecutorDeps {
     updateCampaignStatus(id: string, status: string): void;
     updateTargetPhase(id: string, phase: string): void;
   };
+  connectionManager?: {
+    getOnlineClientIds(): string[];
+    sendToClient(clientId: string, message: unknown): boolean;
+  };
   releaseService: {
     resolveArtifact(version: string, match: { targetType: 'server' | 'client'; platform: string; arch: string }): { fileName: string; sha256: string; size: number };
   };
@@ -37,7 +41,8 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
       // Step 3: Dispatch to all online client targets
       const targets = deps.repo.listTargets(campaignId);
       const clientTargets = targets.filter((t) => t.targetType === 'client');
-      const onlineClientIds = connectionManager.getOnlineClientIds();
+      const connections = deps.connectionManager ?? connectionManager;
+      const onlineClientIds = connections.getOnlineClientIds();
 
       let dispatchedCount = 0;
       for (const target of clientTargets) {
@@ -55,7 +60,7 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
           const attemptId = `${target.id}_1`;
 
           // Send update command to client via WebSocket
-          connectionManager.sendToClient(target.clientId, {
+          const sent = connections.sendToClient(target.clientId, {
             type: 'server.update.run',
             requestId: `update_${target.id}`,
             payload: {
@@ -69,20 +74,23 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
             },
           });
 
-          deps.repo.updateTargetPhase(target.id, 'dispatched');
-          dispatchedCount += 1;
-          console.log(`[campaign] dispatched update to client ${target.clientId} → ${campaign.targetVersion}`);
+          if (sent) {
+            deps.repo.updateTargetPhase(target.id, 'dispatched');
+            dispatchedCount += 1;
+            console.log(`[campaign] dispatched update to client ${target.clientId} → ${campaign.targetVersion}`);
+          } else {
+            deps.repo.updateTargetPhase(target.id, 'offline_skipped');
+          }
         } else {
           // Client is offline
           deps.repo.updateTargetPhase(target.id, 'offline_skipped');
         }
       }
 
-      // If all client targets succeeded or were skipped, mark campaign as completed
+      // If all client targets reached terminal states, mark campaign as completed.
       const updatedTargets = deps.repo.listTargets(campaignId);
-      const allDone = updatedTargets.every(
-        (t) => t.phase === 'succeeded' || t.phase === 'offline_skipped' || t.phase === 'dispatched',
-      );
+      const terminalPhases = new Set(['succeeded', 'failed', 'rolled_back', 'offline_skipped', 'cancelled']);
+      const allDone = updatedTargets.length > 0 && updatedTargets.every((t) => terminalPhases.has(t.phase));
       if (allDone) {
         deps.repo.updateCampaignStatus(campaignId, 'completed');
       }
