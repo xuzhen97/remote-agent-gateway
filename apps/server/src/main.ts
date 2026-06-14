@@ -60,11 +60,12 @@ async function main(): Promise<void> {
     repo: updateRepo,
     releaseService,
     baseUrl: `http://${env.SERVER_HOST}:${env.SERVER_PORT}`,
+    allowServerSelfUpdate: false,
   });
   const campaignRunner = createCampaignRunner({
     repo: updateRepo,
     runServerUpdate: async () => {},
-    verifyServerVersion: () => '0.1.0',
+    verifyServerVersion: () => SERVER_VERSION,
   });
   await campaignRunner.recoverPendingCampaigns();
 

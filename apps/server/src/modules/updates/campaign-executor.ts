@@ -11,6 +11,7 @@ export interface CampaignExecutorDeps {
     resolveArtifact(version: string, match: { targetType: 'server' | 'client'; platform: string; arch: string }): { fileName: string; sha256: string; size: number };
   };
   baseUrl: string;
+  allowServerSelfUpdate?: boolean;
 }
 
 export function createCampaignExecutor(deps: CampaignExecutorDeps) {
@@ -23,19 +24,11 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
 
       // Step 1: Update server first
       if (campaign.includeServer) {
-        deps.repo.updateCampaignStatus(campaignId, 'server_updating');
-
-        // In production, this would run the real server updater
-        // For now, assume server is already on the target version (self-hosted update)
-        // or skip if server-updater is not implemented
-        console.log(`[campaign] server update to ${campaign.targetVersion} (placeholder)`);
-
-        // Mark server target as succeeded
-        const targets = deps.repo.listTargets(campaignId);
-        const serverTarget = targets.find((t) => t.targetType === 'server');
-        if (serverTarget) {
-          deps.repo.updateTargetPhase(serverTarget.id, 'succeeded');
+        if (!deps.allowServerSelfUpdate) {
+          throw new Error('Server self-update is not implemented yet. Start a client-only campaign or deploy the server manually.');
         }
+
+        deps.repo.updateCampaignStatus(campaignId, 'server_updating');
       }
 
       // Step 2: Transition to client_updating
