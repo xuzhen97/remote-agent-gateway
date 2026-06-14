@@ -20,7 +20,9 @@ export interface CampaignService {
   createCampaign(input: CreateCampaignInput): { campaignId: string; targets: UpdateTargetRecord[] };
   retryTargets(campaignId: string, mode: 'failed' | 'offline_skipped' | 'all'): UpdateTargetRecord[];
   getCampaign(campaignId: string): UpdateCampaignRecord | undefined;
+  listCampaigns(): UpdateCampaignRecord[];
   listTargets(campaignId: string): UpdateTargetRecord[];
+  listAttempts(targetId: string): UpdateAttemptRecord[];
 }
 
 export function createCampaignService(deps: {
@@ -35,7 +37,9 @@ export function createCampaignService(deps: {
     saveTarget(record: UpdateTargetRecord): void;
     saveAttempt(record: UpdateAttemptRecord): void;
     getCampaign(id: string): UpdateCampaignRecord | undefined;
+    listCampaigns(): UpdateCampaignRecord[];
     listTargets(campaignId: string): UpdateTargetRecord[];
+    listAttempts(targetId: string): UpdateAttemptRecord[];
     getTarget(id: string): UpdateTargetRecord | undefined;
   };
   now: () => number;
@@ -150,8 +154,16 @@ export function createCampaignService(deps: {
       return deps.repo.getCampaign(campaignId);
     },
 
+    listCampaigns() {
+      return deps.repo.listCampaigns();
+    },
+
     listTargets(campaignId: string) {
       return deps.repo.listTargets(campaignId);
+    },
+
+    listAttempts(targetId: string) {
+      return deps.repo.listAttempts(targetId);
     },
   };
 }

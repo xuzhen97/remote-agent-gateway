@@ -10,6 +10,11 @@ export async function campaignRoutes(
 ): Promise<void> {
   const { service } = opts;
 
+  app.get('/admin/updates/campaigns', async () => ({
+    ok: true,
+    data: service.listCampaigns(),
+  }));
+
   app.post<{ Body: Record<string, unknown> }>('/admin/updates/campaigns', async (request, reply) => {
     try {
       const result = service.createCampaign(request.body as any);
@@ -33,6 +38,11 @@ export async function campaignRoutes(
   app.get<{ Params: { id: string } }>('/admin/updates/campaigns/:id/targets', async (request) => ({
     ok: true,
     data: service.listTargets(request.params.id),
+  }));
+
+  app.get<{ Params: { targetId: string } }>('/admin/updates/targets/:targetId/attempts', async (request) => ({
+    ok: true,
+    data: service.listAttempts(request.params.targetId),
   }));
 
   app.post<{ Params: { id: string }; Body: { mode?: string } }>(
