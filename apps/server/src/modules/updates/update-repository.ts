@@ -119,6 +119,9 @@ export function createUpdateRepository(db: Database) {
     listRecoverableCampaigns(): UpdateCampaignRecord[] {
       return queryAll(db, "SELECT * FROM update_campaigns WHERE status IN ('server_updating', 'client_updating')", []).map(rowToCampaign);
     },
+    listCampaigns(): UpdateCampaignRecord[] {
+      return queryAll(db, 'SELECT * FROM update_campaigns ORDER BY created_at DESC', []).map(rowToCampaign);
+    },
 
     // ---------- Targets ----------
     saveTarget(record: UpdateTargetRecord): void {
@@ -140,6 +143,9 @@ export function createUpdateRepository(db: Database) {
         [phase, errorCode ?? null, errorMessage ?? null, Date.now(), phase, Date.now(), id],
       );
     },
+    incrementTargetAttempt(id: string): void {
+      db.run('UPDATE update_targets SET attempt_count = attempt_count + 1, updated_at = ? WHERE id = ?', [Date.now(), id]);
+    },
     getTargetsForCampaign(campaignId: string): UpdateTargetRecord[] {
       return this.listTargets(campaignId);
     },
@@ -153,6 +159,55 @@ export function createUpdateRepository(db: Database) {
     },
     listAttempts(targetId: string): UpdateAttemptRecord[] {
       return queryAll(db, 'SELECT * FROM update_attempts WHERE target_id = ? ORDER BY attempt_no ASC', [targetId]).map(rowToAttempt);
+    },
+    upsertAttemptPhase(input: {
+      attemptId: string;
+      targetId: string;
+      phase: string;
+      payload: unknown;
+      terminal: boolean;
+      errorCode?: string | null;
+      errorMessage?: string | null;
+    }): void {
+      const now = Date.now();
+      const existing = queryOne(db, 'SELECT * FROM update_attempts WHERE id = ?', [input.attemptId]);
+      const timeline = existing
+        ? JSON.parse((existing.phase_timeline_json as string) || '[]') as unknown[]
+        : [];
+      timeline.push({ phase: input.phase, at: now, payload: input.payload });
+
+      if (existing) {
+        db.run(
+          'UPDATE update_attempts SET phase_timeline_json = ?, result = ?, error_code = ?, error_message = ?, updated_at = ?, finished_at = ? WHERE id = ?',
+          [
+            JSON.stringify(timeline),
+            input.terminal ? input.phase : 'running',
+            input.errorCode ?? null,
+            input.errorMessage ?? null,
+            now,
+            input.terminal ? now : null,
+            input.attemptId,
+          ],
+        );
+        return;
+      }
+
+      const attemptsForTarget = this.listAttempts(input.targetId);
+      db.run(
+        `INSERT INTO update_attempts (id, target_id, attempt_no, phase_timeline_json, result, error_code, error_message, created_at, updated_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          input.attemptId,
+          input.targetId,
+          attemptsForTarget.length + 1,
+          JSON.stringify(timeline),
+          input.terminal ? input.phase : 'running',
+          input.errorCode ?? null,
+          input.errorMessage ?? null,
+          now,
+          now,
+          input.terminal ? now : null,
+        ],
+      );
     },
   };
 }
