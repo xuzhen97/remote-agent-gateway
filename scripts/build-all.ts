@@ -7,6 +7,8 @@ import * as path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
+const ROOT_PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8')) as { version?: string };
+const BUILD_VERSION = JSON.stringify(ROOT_PACKAGE.version ?? '0.0.0');
 
 fs.mkdirSync(DIST, { recursive: true });
 
@@ -61,6 +63,9 @@ await esbuild.build({
   minify: false,
   sourcemap: true,
   external: [],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
   // Suppress harmless warning: import.meta.dirname is a dead fallback in CJS
   // (the typeof __dirname check always takes the CJS branch when bundled)
   logOverride: {
@@ -129,6 +134,9 @@ await esbuild.build({
   minify: false,
   sourcemap: true,
   external: ['systeminformation'],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
 });
 
 fs.copyFileSync(path.join(ROOT, 'client.config.example.yaml'), path.join(DIST, 'client.config.example.yaml'));

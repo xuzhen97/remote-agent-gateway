@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../../config/env.js';
 import { cleanupDeletedProxyFromDashboard } from './frps-cleanup.js';
 
 const originalEnv = { ...process.env };
@@ -31,21 +32,23 @@ describe('cleanupDeletedProxyFromDashboard', () => {
       intervalMs: 0,
     });
 
+    const dashboardBase = `${env.FRPS_DASHBOARD_SCHEME}://${env.FRPS_DASHBOARD_HOST}:${env.FRPS_DASHBOARD_PORT}`;
+
     expect(result).toBe(true);
     expect(fetch).toHaveBeenNthCalledWith(1,
-      'http://your-server-ip:7500/api/proxy/tcp/proxy-a',
+      `${dashboardBase}/api/proxy/tcp/proxy-a`,
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: expect.stringMatching(/^Basic\s+/) }) }),
     );
     expect(fetch).toHaveBeenNthCalledWith(2,
-      'http://your-server-ip:7500/api/proxy/tcp/proxy-a',
+      `${dashboardBase}/api/proxy/tcp/proxy-a`,
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: expect.stringMatching(/^Basic\s+/) }) }),
     );
     expect(fetch).toHaveBeenNthCalledWith(3,
-      'http://your-server-ip:7500/api/proxies?status=offline',
+      `${dashboardBase}/api/proxies?status=offline`,
       expect.objectContaining({ method: 'DELETE' }),
     );
     expect(fetch).toHaveBeenNthCalledWith(4,
-      'http://your-server-ip:7500/api/proxy/tcp/proxy-a',
+      `${dashboardBase}/api/proxy/tcp/proxy-a`,
       expect.objectContaining({ headers: expect.objectContaining({ Authorization: expect.stringMatching(/^Basic\s+/) }) }),
     );
   });

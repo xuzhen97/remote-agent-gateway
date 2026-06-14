@@ -8,6 +8,8 @@ import * as path from 'node:path';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const DIST = path.join(ROOT, 'dist');
+const ROOT_PACKAGE = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8')) as { version?: string };
+const BUILD_VERSION = JSON.stringify(ROOT_PACKAGE.version ?? '0.0.0');
 fs.mkdirSync(DIST, { recursive: true });
 
 // Clean old client builds
@@ -27,6 +29,9 @@ await esbuild.build({
   minify: false,
   sourcemap: true,
   external: ['systeminformation'],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
 });
 
 console.log('Client bundle: dist/client.bundle.cjs');

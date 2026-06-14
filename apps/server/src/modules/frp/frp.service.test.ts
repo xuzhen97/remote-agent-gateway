@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initDb } from '../../db/index.js';
+import { buildFrpPublicUrl } from '../../config/env.js';
 import { FrpService } from './frp.service.js';
 
 const { allocateMock } = vi.hoisted(() => ({
@@ -33,7 +34,7 @@ describe('FrpService', () => {
 
     expect(allocateMock).toHaveBeenCalledWith('client-1', undefined);
     expect(mapping.remote_port).toBe(23010);
-    expect(mapping.public_url).toBe('http://your-server-ip:23010');
+    expect(mapping.public_url).toBe(buildFrpPublicUrl(23010, { proxyType: 'http' }));
   });
 
   it('delegates preferred remote port validation to the allocator', async () => {
@@ -51,7 +52,7 @@ describe('FrpService', () => {
 
     expect(allocateMock).toHaveBeenCalledWith('client-1', { preferredPort: 23011 });
     expect(mapping.remote_port).toBe(23011);
-    expect(mapping.public_url).toBe('your-server-ip:23011');
+    expect(mapping.public_url).toBe(buildFrpPublicUrl(23011, { proxyType: 'tcp' }));
   });
 
   it('builds protocol-aware public urls with custom domains', async () => {

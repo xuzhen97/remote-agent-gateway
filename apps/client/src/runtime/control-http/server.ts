@@ -22,6 +22,7 @@ import { registerTransferRoutes } from './transfer-routes.js';
 import { createTaskAuditStore } from './task-audit-store.js';
 import { createTaskAuditReporter } from './task-audit-reporter.js';
 import { createTaskAuditExecutor } from './task-audit.js';
+import { CLIENT_VERSION } from '../../version.js';
 
 /** 启动选项 */
 interface StartOptions {
@@ -73,7 +74,7 @@ export async function startControlHttpServer(options: StartOptions): Promise<Con
   router.add('GET', /^\/ping$/, (_req, res) => sendJson(res, 200, { ok: true }));
   router.add('GET', /^\/health$/, (req, res) => {
     if (!requireBearerToken(req, res, options.token)) return;
-    sendOk(res, { clientId: options.clientId, status: 'ready', version: '0.1.0', httpReady: true, frpcRunning: false });
+    sendOk(res, { clientId: options.clientId, status: 'ready', version: CLIENT_VERSION, httpReady: true, frpcRunning: false });
   });
 
   // 初始化任务审计系统

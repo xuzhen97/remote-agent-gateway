@@ -1,15 +1,6 @@
 import type { ConnectionManager } from './connection.js';
 import type { ClientConfig } from '../config/client.config.js';
-import { readFileSync } from 'node:fs';
-
-function readClientVersion(): string {
-  try {
-    const pkgJson = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8'));
-    return pkgJson.version || '0.0.0';
-  } catch {
-    return '0.0.0';
-  }
-}
+import { CLIENT_VERSION } from '../version.js';
 
 export async function sendRegister(
   conn: ConnectionManager,
@@ -44,7 +35,7 @@ export async function sendRegister(
       hostname,
       os,
       arch,
-      version: readClientVersion(),
+      version: CLIENT_VERSION,
       tags: config.tags,
       http: {
         localHost: config.httpHost,
