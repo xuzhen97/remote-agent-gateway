@@ -41,6 +41,7 @@ export function ClientsPage({ api, onViewDetail, onOpenFiles, onOpenMappings, on
         columns={[
           { title: 'ID', dataIndex: 'id', key: 'id', width: 150, render: (v: string) => <Text code>{v}</Text> },
           { title: '名称', dataIndex: 'name', key: 'name' },
+          { title: '版本', dataIndex: 'version', key: 'version', width: 100, render: (v?: string) => v ? <Text code>v{v}</Text> : '-' },
           { title: '在线', dataIndex: 'online', key: 'online', width: 90, render: (v: boolean) => <StatusTag status={v ? 'online' : 'offline'} /> },
           { title: 'HTTP 就绪', dataIndex: 'httpReady', key: 'httpReady', width: 110, render: (v: boolean) => <StatusTag status={v ? 'active' : 'inactive'} /> },
           {
