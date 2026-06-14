@@ -12,7 +12,9 @@ import { getFrpsConnectionInfo } from '../modules/frp/frp.service.js';
 import { clientHttpCoordinatorService } from '../modules/client-http/client-http-coordinator.service.js';
 import { transferService } from '../modules/transfers/transfer.service.js';
 import { resolveJobEvent } from '../modules/jobs/jobs-proxy.routes.js';
-import { saveDb } from '../db/index.js';
+import { getDb, saveDb } from '../db/index.js';
+import { createUpdateRepository } from '../modules/updates/update-repository.js';
+import { createUpdateStatusHandler } from '../modules/updates/update-status-handler.js';
 
 /**
  * 处理 WebSocket 收到的消息
@@ -185,7 +187,16 @@ export async function handleWsMessage(ws: WebSocket, rawData: string): Promise<v
 
     // ==================== 客户端更新状态上报 ====================
     case 'client.update.status': {
-      console.log('[update] client status:', JSON.stringify(message.payload));
+      try {
+        createUpdateStatusHandler({ repo: createUpdateRepository(getDb()), saveDb }).handle(message.payload);
+        ws.send(JSON.stringify({ type: 'server.ack', requestId: message.requestId, payload: { message: '更新状态已记录' } }));
+      } catch (err) {
+        ws.send(JSON.stringify({
+          type: 'server.error',
+          requestId: message.requestId,
+          payload: { code: 'UPDATE_STATUS_ERROR', message: err instanceof Error ? err.message : String(err) },
+        }));
+      }
       break;
     }
 

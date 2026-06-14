@@ -35,7 +35,7 @@ vi.mock('../modules/connections/connections.manager.js', () => ({
 }));
 vi.mock('../modules/audit/audit.service.js', () => ({ auditService: { log: vi.fn() } }));
 vi.mock('../modules/frp/frp.service.js', () => ({ getFrpsConnectionInfo: vi.fn(() => ({ serverAddr: 'frps.example.com', serverPort: 7000, authToken: 'frp-token' })) }));
-vi.mock('../db/index.js', () => ({ saveDb: vi.fn() }));
+vi.mock('../db/index.js', () => ({ saveDb: vi.fn(), getDb: vi.fn() }));
 
 describe('ws handlers registration lifecycle', () => {
   beforeEach(() => {
