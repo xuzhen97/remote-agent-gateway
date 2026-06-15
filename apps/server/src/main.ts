@@ -32,7 +32,7 @@ import { createCampaignService } from './modules/updates/campaign.service.js';
 import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
 import { createServerUpdater } from './modules/updates/server-updater.js';
-import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
+import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readCurrentServerVersion, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
 
 function normalizeVersion(version: string): string {
   return version.trim().replace(/^v/i, '');
@@ -247,7 +247,8 @@ async function main(): Promise<void> {
     if (process.env.RAG_DEPLOY_ROOT) {
       const stateDir = path.join(deployRoot, 'state');
       fs.mkdirSync(stateDir, { recursive: true });
-      fs.writeFileSync(path.join(stateDir, 'server-ready.json'), `${JSON.stringify({ version: SERVER_VERSION, readyAt: Date.now() }, null, 2)}\n`);
+      const readyVersion = readCurrentServerVersion(deployRoot)?.version ?? SERVER_VERSION;
+      fs.writeFileSync(path.join(stateDir, 'server-ready.json'), `${JSON.stringify({ version: readyVersion, readyAt: Date.now() }, null, 2)}\n`);
 
       const rollback = readRollbackServerUpdateContext(deployRoot);
       if (rollback) {

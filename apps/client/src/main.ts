@@ -18,7 +18,7 @@ import { forwardServerJobRun } from './server-job-runner.js';
 import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
 import { createUpdateDeps } from './runtime/updates/update-deps.js';
-import { clearPendingUpdateContext, clearRollbackUpdateContext, readPendingUpdateContext, readRollbackUpdateContext } from './runtime/updates/current-version.js';
+import { clearPendingUpdateContext, clearRollbackUpdateContext, readClientVersionState, readPendingUpdateContext, readRollbackUpdateContext } from './runtime/updates/current-version.js';
 
 function normalizeVersion(version: string): string {
   return version.trim().replace(/^v/i, '');
@@ -37,7 +37,8 @@ function writeClientReadyMarker(): void {
   if (!deployRoot) return;
   const stateDir = join(deployRoot, 'state');
   mkdirSync(stateDir, { recursive: true });
-  writeFileSync(join(stateDir, 'client-ready.json'), `${JSON.stringify({ version: CLIENT_VERSION, readyAt: Date.now() }, null, 2)}\n`);
+  const readyVersion = readClientVersionState(deployRoot).current?.version ?? CLIENT_VERSION;
+  writeFileSync(join(stateDir, 'client-ready.json'), `${JSON.stringify({ version: readyVersion, readyAt: Date.now() }, null, 2)}\n`);
 }
 
 function sendPendingUpdateCompletion(conn: ConnectionManager): void {
