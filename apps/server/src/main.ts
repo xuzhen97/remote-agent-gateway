@@ -11,6 +11,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
 import { env, envSource } from './config/env.js';
 import { SERVER_VERSION } from './version.js';
 
@@ -54,7 +55,9 @@ async function main(): Promise<void> {
 
   // ==================== 恢复未完成的更新 Campaign ====================
   const updateRepo = createUpdateRepository(getDb());
-  const releaseStorage = createReleaseStorage(path.join(env.STORAGE_DIR, 'updates'));
+  const deployRoot = path.resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
+  // 使用 public/updates 作为 release storage，而不是 storage/files/updates
+  const releaseStorage = createReleaseStorage(path.join(deployRoot, 'public', 'updates'));
   const releaseService = createReleaseService({ repo: updateRepo });
   const campaignService = createCampaignService({
     releaseService,
@@ -63,7 +66,6 @@ async function main(): Promise<void> {
     now: () => Date.now(),
     id: () => crypto.randomUUID(),
   });
-  const deployRoot = path.resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
   const updateBaseUrl = env.UPDATE_PUBLIC_BASE_URL || `http://${env.SERVER_HOST}:${env.SERVER_PORT}`;
   const campaignExecutor = createCampaignExecutor({
     repo: updateRepo,
@@ -140,6 +142,24 @@ async function main(): Promise<void> {
   await app.register(cors);
   await app.register(websocket);
   await app.register(multipart, { limits: { fileSize: 500 * 1024 * 1024 } });
+
+  // 静态文件服务 - 用于提供更新 artifacts
+  // public/ 总是在实际部署根目录，不在版本化子目录
+  let publicDir = path.resolve(deployRoot, 'public');
+  if (!fs.existsSync(publicDir)) {
+    // 如果在版本化目录运行，向上查找真实的部署根
+    const realDeployRoot = path.resolve(deployRoot, '../../../');
+    publicDir = path.resolve(realDeployRoot, 'public');
+  }
+  if (fs.existsSync(publicDir)) {
+    await app.register(fastifyStatic, {
+      root: publicDir,
+      prefix: '/',
+    });
+    console.log(`📁 Static files enabled: ${publicDir}`);
+  } else {
+    console.log(`⚠️  Public directory not found: ${publicDir}`);
+  }
 
   // ==================== 注册 HTTP 路由 ====================
   await app.register(clientRoutes);           // 客户端发现 API
