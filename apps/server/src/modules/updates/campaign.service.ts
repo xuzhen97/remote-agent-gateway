@@ -1,4 +1,5 @@
 import type { UpdateCampaignRecord, UpdateTargetRecord, UpdateAttemptRecord } from './update-types.js';
+import { summarizeTargets, transitionCampaignStatus } from './update-state.js';
 
 function normalizePlatform(os: string | null | undefined): 'windows' | 'linux' {
   if (!os) return 'linux';
@@ -155,6 +156,19 @@ export function createCampaignService(deps: {
           updatedAt: deps.now(),
         });
       }
+
+      // Also transition campaign status back to non-terminal so the frontend shows actionable state
+      if (toRetry.length > 0) {
+        const campaign = deps.repo.getCampaign(campaignId);
+        if (campaign && (campaign.status === 'completed' || campaign.status === 'completed_with_errors')) {
+          deps.repo.saveCampaign({
+            ...campaign,
+            status: 'client_updating',
+            updatedAt: deps.now(),
+          });
+        }
+      }
+
       return toRetry;
     },
 

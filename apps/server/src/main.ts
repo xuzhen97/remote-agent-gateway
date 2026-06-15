@@ -298,7 +298,8 @@ async function main(): Promise<void> {
           terminal: true,
         });
         clearPendingServerUpdateContext(deployRoot);
-        await campaignExecutor.dispatchClients(pending.campaignId);
+        // 等待客户端重连，避免 Server 重启后立即分发导致所有 target 被跳过
+        await campaignExecutor.dispatchClients(pending.campaignId, { waitForOnline: true });
         reconcileCampaignStatus(pending.campaignId);
         saveDb();
       }

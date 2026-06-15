@@ -24,3 +24,25 @@ TODO.md
 client.config.yaml
 server.config.yaml
 .reasonix/*.png
+
+# 部署/诊断脚本（包含私密凭据）
+diagnose-*
+docs/hash-mismatch-debug-report.md
+docs/remote-deploy-usage.md
+docs/update-workflow-debug-report.md
+docs/v1.0.5-deployment-guide.md
+docs/v1.0.5-verification-steps.md
+scripts/check-*.js
+scripts/debug-*.js
+scripts/e2e-*.js
+scripts/final-check.js
+scripts/fix-*.js
+scripts/force-*.js
+scripts/publish-release.js
+scripts/redeploy-*.js
+scripts/remote-*.js
+scripts/restart-*.js
+scripts/show-*.js
+scripts/test-*.js
+scripts/upload-*.js
+scripts/verify-*.js

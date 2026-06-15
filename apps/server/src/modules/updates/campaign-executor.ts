@@ -33,7 +33,29 @@ function currentServerArch(): string {
 }
 
 export function createCampaignExecutor(deps: CampaignExecutorDeps) {
-  async function dispatchClients(campaignId: string): Promise<{ phase: string }> {
+  /**
+   * 等待至少一个预期中的客户端上线，避免 Server 自更新重启后
+   * dispatchClients 在客户端重连前执行，导致所有 target 被跳过。
+   */
+  async function waitForOnlineClients(expectedClientIds: string[], timeoutMs = 15_000): Promise<void> {
+    const connections = deps.connectionManager ?? connectionManager;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const online = connections.getOnlineClientIds();
+      const matched = expectedClientIds.filter((id) => online.includes(id));
+      if (matched.length > 0) {
+        console.log(`[campaign] ${matched.length}/${expectedClientIds.length} clients came online after ${Date.now() - (deadline - timeoutMs)}ms`);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    console.log(`[campaign] timeout waiting for clients (${timeoutMs}ms), proceeding with offline status`);
+  }
+
+  async function dispatchClients(
+    campaignId: string,
+    options?: { waitForOnline?: boolean; timeoutMs?: number },
+  ): Promise<{ phase: string; dispatched: number }> {
     const campaign = deps.repo.getCampaign(campaignId);
     if (!campaign) throw new Error('Campaign not found');
 
@@ -41,6 +63,15 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
     const targets = deps.repo.listTargets(campaignId);
     const clientTargets = targets.filter((t) => t.targetType === 'client');
     const connections = deps.connectionManager ?? connectionManager;
+
+    // 等待客户端重连（Server 自更新重启后需要等待）
+    if (options?.waitForOnline && clientTargets.length > 0) {
+      const expectedIds = clientTargets
+        .map((t) => t.clientId)
+        .filter((id): id is string => !!id);
+      await waitForOnlineClients(expectedIds, options.timeoutMs ?? 15_000);
+    }
+
     const onlineClientIds = connections.getOnlineClientIds();
 
     for (const target of clientTargets) {
@@ -82,7 +113,7 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
     const updatedTargets = deps.repo.listTargets(campaignId);
     const allDone = updatedTargets.length > 0 && updatedTargets.every((t) => terminalPhases.has(t.phase));
     if (allDone) deps.repo.updateCampaignStatus(campaignId, 'completed');
-    return { phase: allDone ? 'completed' : 'client_updating' };
+    return { phase: allDone ? 'completed' : 'client_updating', dispatched: clientTargets.length };
   }
 
   return {
