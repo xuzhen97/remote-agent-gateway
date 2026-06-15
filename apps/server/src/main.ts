@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   const campaignExecutor = createCampaignExecutor({
     repo: updateRepo,
     releaseService,
-    serverUpdater: createServerUpdater({ deployRoot, currentVersion: SERVER_VERSION }),
+    serverUpdater: createServerUpdater({ deployRoot, currentVersion: SERVER_VERSION, saveDb }),
     saveDb,
     baseUrl: updateBaseUrl,
     allowServerSelfUpdate: Boolean(process.env.RAG_DEPLOY_ROOT),

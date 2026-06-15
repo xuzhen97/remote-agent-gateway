@@ -26,6 +26,7 @@ export interface ServerUpdater {
 export interface ServerUpdaterDeps {
   deployRoot: string;
   currentVersion: string;
+  saveDb?: () => void;
   restart?: () => void;
   fetchImpl?: typeof fetch;
   extractArtifact?: (archivePath: string, versionsDir: string, version: string) => string;
@@ -137,6 +138,7 @@ export function createServerUpdater(deps: ServerUpdaterDeps): ServerUpdater {
         fromVersion: normalizeVersion(deps.currentVersion),
         targetVersion: normalizedVersion,
       });
+      deps.saveDb?.();
       (deps.restart ?? (() => setTimeout(() => process.exit(SERVER_EXIT_UPDATE_RESTART), 100)))();
     },
   };
