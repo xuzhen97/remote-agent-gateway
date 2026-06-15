@@ -20,7 +20,7 @@ assert.ok(startPolicy.includes('node client-launcher.cjs'), 'startup policy shou
 assert.ok(packageScript.includes('release-manifest.json'), 'package should emit release manifest');
 assert.ok(packageScript.includes('rag-client-v') && packageScript.includes('rag-server-v'), 'package should emit split update artifacts');
 assert.ok(!clientMain.includes('downloader not initialized'), 'client main must not use placeholder update deps');
-assert.ok(clientMain.includes('createUpdateDeps(config)'), 'client main should wire real update deps');
+assert.ok(clientMain.includes('createUpdateDeps(config, CLIENT_VERSION)'), 'client main should wire real update deps with current version context');
 assert.ok(campaignExecutor.includes('Server self-update is not implemented yet'), 'server self-update should be explicitly blocked');
 assert.ok(!campaignExecutor.includes('(placeholder)'), 'campaign executor must not fake placeholder success');
 assert.ok(wsHandlers.includes('createUpdateStatusHandler'), 'WS handler should persist client update status');
