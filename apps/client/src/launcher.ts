@@ -74,6 +74,10 @@ export function resolveClientEntrypoint(input: EntrypointResolutionInput): Entry
   throw new Error(`No client bundle found under ${deployRoot}`);
 }
 
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
+
 function readReadyVersion(deployRoot: string): string | null {
   const file = join(deployRoot, 'state', 'client-ready.json');
   if (!existsSync(file)) return null;
@@ -88,7 +92,7 @@ function readReadyVersion(deployRoot: string): string | null {
 async function waitForReadyVersion(deployRoot: string, version: string, timeoutMs: number): Promise<boolean> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    if (readReadyVersion(deployRoot) === version) return true;
+    if (normalizeVersion(readReadyVersion(deployRoot) ?? '') === normalizeVersion(version)) return true;
     await new Promise((resolveReady) => setTimeout(resolveReady, 250));
   }
   return false;

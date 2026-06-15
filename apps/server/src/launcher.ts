@@ -12,6 +12,10 @@ import { SERVER_EXIT_UPDATE_RESTART } from './modules/updates/server-updater.js'
 
 export const SERVER_EXIT_ROLLBACK = 21;
 
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
+
 export interface ServerEntrypointResolution {
   version: string;
   entrypoint: string;
@@ -36,7 +40,7 @@ function readReadyVersion(deployRoot: string): string | null {
 async function waitForReadyVersion(deployRoot: string, version: string, timeoutMs: number): Promise<boolean> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    if (readReadyVersion(deployRoot) === version) return true;
+    if (normalizeVersion(readReadyVersion(deployRoot) ?? '') === normalizeVersion(version)) return true;
     await new Promise((resolveReady) => setTimeout(resolveReady, 250));
   }
   return false;

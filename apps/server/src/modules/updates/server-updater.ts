@@ -33,6 +33,10 @@ export interface ServerUpdaterDeps {
 
 export const SERVER_EXIT_UPDATE_RESTART = 20;
 
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
+
 function safeFileName(input: string): string {
   const name = basename(input);
   if (!name || name === '.' || name === '..') throw new Error('Invalid artifact file name');
@@ -116,21 +120,22 @@ function extractServerArtifact(archivePath: string, versionsDir: string, version
 export function createServerUpdater(deps: ServerUpdaterDeps): ServerUpdater {
   return {
     async run(input: ServerUpdaterInput): Promise<void> {
+      const normalizedVersion = normalizeVersion(input.version);
       const downloadsDir = join(deps.deployRoot, 'downloads');
       const versionsDir = join(deps.deployRoot, 'versions', 'server');
       const artifactPath = await downloadArtifact({ url: input.downloadUrl, downloadsDir, fetchImpl: deps.fetchImpl });
       await verifyArtifact(artifactPath, input.expectedSha256, input.expectedSize);
-      (deps.extractArtifact ?? extractServerArtifact)(artifactPath, versionsDir, input.version);
+      (deps.extractArtifact ?? extractServerArtifact)(artifactPath, versionsDir, normalizedVersion);
       writePendingServerVersion(deps.deployRoot, {
-        version: input.version,
-        entrypoint: join('versions', 'server', input.version, 'server.bundle.cjs'),
+        version: normalizedVersion,
+        entrypoint: join('versions', 'server', normalizedVersion, 'server.bundle.cjs'),
       });
       writePendingServerUpdateContext(deps.deployRoot, {
         campaignId: input.campaignId,
         targetId: input.targetId,
         attemptId: input.attemptId,
-        fromVersion: deps.currentVersion,
-        targetVersion: input.version,
+        fromVersion: normalizeVersion(deps.currentVersion),
+        targetVersion: normalizedVersion,
       });
       (deps.restart ?? (() => setTimeout(() => process.exit(SERVER_EXIT_UPDATE_RESTART), 100)))();
     },
