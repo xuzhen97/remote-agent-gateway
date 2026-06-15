@@ -17,19 +17,28 @@ const fs = require('fs');
 const path = require('path');
 
 // 自动检测部署布局：
-// 1) 打平部署：ecosystem.config.cjs 与 *.bundle.cjs 同级
+// 1) 打平部署：ecosystem.config.cjs 与对应 role 的 *.bundle.cjs / *-launcher.cjs 同级
 // 2) 源码运行：bundle 位于 ./dist/
 const FLAT_BUNDLE_DIR = __dirname;
 const DIST_FALLBACK_DIR = path.resolve(__dirname, 'dist');
-const DIST_DIR = fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'server.bundle.cjs'))
-  && fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'client.bundle.cjs'))
-  ? FLAT_BUNDLE_DIR
-  : DIST_FALLBACK_DIR;
-const SERVER_LAUNCHER = path.join(DIST_DIR, 'server-launcher.cjs');
-const SERVER_BUNDLE = path.join(DIST_DIR, 'server.bundle.cjs');
+
+function resolveRoleRoot(role) {
+  const flatLauncher = path.join(FLAT_BUNDLE_DIR, `${role}-launcher.cjs`);
+  const flatBundle = path.join(FLAT_BUNDLE_DIR, `${role}.bundle.cjs`);
+  if (fs.existsSync(flatLauncher) || fs.existsSync(flatBundle)) {
+    return FLAT_BUNDLE_DIR;
+  }
+  return DIST_FALLBACK_DIR;
+}
+
+const SERVER_ROOT = resolveRoleRoot('server');
+const CLIENT_ROOT = resolveRoleRoot('client');
+
+const SERVER_LAUNCHER = path.join(SERVER_ROOT, 'server-launcher.cjs');
+const SERVER_BUNDLE = path.join(SERVER_ROOT, 'server.bundle.cjs');
 const SERVER_SCRIPT = fs.existsSync(SERVER_LAUNCHER) ? SERVER_LAUNCHER : SERVER_BUNDLE;
-const CLIENT_LAUNCHER = path.join(DIST_DIR, 'client-launcher.cjs');
-const CLIENT_BUNDLE = path.join(DIST_DIR, 'client.bundle.cjs');
+const CLIENT_LAUNCHER = path.join(CLIENT_ROOT, 'client-launcher.cjs');
+const CLIENT_BUNDLE = path.join(CLIENT_ROOT, 'client.bundle.cjs');
 const CLIENT_SCRIPT = fs.existsSync(CLIENT_LAUNCHER) ? CLIENT_LAUNCHER : CLIENT_BUNDLE;
 
 // 日志目录
@@ -51,8 +60,8 @@ module.exports = {
       // 环境变量
       env: {
         NODE_ENV: 'production',
-        RAG_SERVER_CONFIG: path.join(DIST_DIR, 'server.config.yaml'),
-        RAG_DEPLOY_ROOT: DIST_DIR,
+        RAG_SERVER_CONFIG: path.join(SERVER_ROOT, 'server.config.yaml'),
+        RAG_DEPLOY_ROOT: SERVER_ROOT,
       },
 
       // 日志
@@ -80,8 +89,8 @@ module.exports = {
       // 环境变量
       env: {
         NODE_ENV: 'production',
-        RAG_CLIENT_CONFIG: path.join(DIST_DIR, 'client.config.yaml'),
-        RAG_DEPLOY_ROOT: DIST_DIR,
+        RAG_CLIENT_CONFIG: path.join(CLIENT_ROOT, 'client.config.yaml'),
+        RAG_DEPLOY_ROOT: CLIENT_ROOT,
       },
 
       // 日志

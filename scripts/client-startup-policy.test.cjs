@@ -10,5 +10,7 @@ assert.ok(source.includes('node client-launcher.cjs'), 'start-client scripts sho
 assert.ok(source.includes('node client.bundle.cjs'), 'start-client scripts should keep legacy bundle fallback');
 assert.ok(source.includes('if exist client-launcher.cjs'), 'Windows start-client script should check launcher existence');
 assert.ok(source.includes('[ -f client-launcher.cjs ]'), 'POSIX start-client script should check launcher existence');
+assert.ok(source.includes('set RAG_DEPLOY_ROOT=%CD%'), 'Windows start-client script should expose deploy root to launcher');
+assert.ok(source.includes('export RAG_DEPLOY_ROOT="${RAG_DEPLOY_ROOT:-$(pwd)}"'), 'POSIX start-client script should expose deploy root to launcher');
 
 console.log('client startup script policy is correct');

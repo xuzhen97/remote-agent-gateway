@@ -190,14 +190,24 @@ function extensionForTarget(target: PackageTarget): 'zip' | 'tar.gz' {
 
 function stageClientArtifact(stage: string): void {
   copyIfExists(path.join(DIST, 'client.bundle.cjs'), path.join(stage, 'client.bundle.cjs'));
+  copyIfExists(path.join(DIST, 'client-launcher.cjs'), path.join(stage, 'client-launcher.cjs'));
   copyIfExists(path.join(DIST, 'client.config.example.yaml'), path.join(stage, 'client.config.example.yaml'));
+  copyIfExists(path.join(DIST, 'start-client.bat'), path.join(stage, 'start-client.bat'));
+  copyIfExists(path.join(DIST, 'start-client.sh'), path.join(stage, 'start-client.sh'));
   copyIfExists(path.join(DIST, 'download-frp.bat'), path.join(stage, 'download-frp.bat'));
   copyIfExists(path.join(DIST, 'download-frp.sh'), path.join(stage, 'download-frp.sh'));
+  copyIfExists(path.join(DIST, 'ecosystem.config.cjs'), path.join(stage, 'ecosystem.config.cjs'));
 }
 
 function stageServerArtifact(stage: string): void {
   copyIfExists(path.join(DIST, 'server.bundle.cjs'), path.join(stage, 'server.bundle.cjs'));
+  copyIfExists(path.join(DIST, 'server-launcher.cjs'), path.join(stage, 'server-launcher.cjs'));
   copyIfExists(path.join(DIST, 'server.config.example.yaml'), path.join(stage, 'server.config.example.yaml'));
+  copyIfExists(path.join(DIST, 'start-server.bat'), path.join(stage, 'start-server.bat'));
+  copyIfExists(path.join(DIST, 'start-server.sh'), path.join(stage, 'start-server.sh'));
+  copyIfExists(path.join(DIST, 'download-frp.bat'), path.join(stage, 'download-frp.bat'));
+  copyIfExists(path.join(DIST, 'download-frp.sh'), path.join(stage, 'download-frp.sh'));
+  copyIfExists(path.join(DIST, 'ecosystem.config.cjs'), path.join(stage, 'ecosystem.config.cjs'));
   copyIfExists(path.join(DIST, 'sql-wasm.wasm'), path.join(stage, 'sql-wasm.wasm'));
   copyIfExists(path.join(DIST, 'web'), path.join(stage, 'web'));
 }

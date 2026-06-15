@@ -11,6 +11,11 @@ assert.ok(
 );
 
 assert.ok(
+  source.includes('SERVER_ROOT =') && source.includes('CLIENT_ROOT ='),
+  'ecosystem.config.cjs should resolve server/client roots independently for role-only packages'
+);
+
+assert.ok(
   source.includes("path.resolve(__dirname, 'dist')"),
   'ecosystem.config.cjs should retain dist/ fallback for source-repo usage'
 );
@@ -31,13 +36,18 @@ assert.ok(
 );
 
 assert.ok(
-  source.includes('fs.existsSync(CLIENT_LAUNCHER)'),
+  source.includes('fs.existsSync(CLIENT_LAUNCHER)') && source.includes('fs.existsSync(SERVER_LAUNCHER)'),
   'ecosystem.config.cjs should prefer launcher when present'
 );
 
 assert.ok(
   source.includes('RAG_DEPLOY_ROOT'),
   'ecosystem.config.cjs should expose deployment root to launcher/updater'
+);
+
+assert.ok(
+  !source.includes("fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'server.bundle.cjs'))\n  && fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'client.bundle.cjs'))"),
+  'ecosystem.config.cjs should not require both server and client bundles to detect a valid role-only flat deployment'
 );
 
 console.log('ecosystem config layout policy is correct');
