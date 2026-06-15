@@ -1,5 +1,9 @@
 import type { ServerUpdater } from './server-updater.js';
 
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
+
 export function createCampaignRunner(deps: {
   repo: {
     listRecoverableCampaigns(): Array<{ id: string; status: string; targetVersion: string }>;
@@ -17,7 +21,7 @@ export function createCampaignRunner(deps: {
       for (const campaign of recoverable) {
         if (campaign.status === 'server_updating') {
           const currentVersion = deps.verifyServerVersion();
-          if (currentVersion === campaign.targetVersion) {
+          if (normalizeVersion(currentVersion) === normalizeVersion(campaign.targetVersion)) {
             deps.repo.updateCampaignStatus(campaign.id, 'client_updating');
           }
         }

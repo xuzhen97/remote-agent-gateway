@@ -162,6 +162,14 @@ export function migrate(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_transfer_events_transfer_id ON transfer_events(transfer_id, created_at ASC);
   `);
 
+  reconcileDuplicateRemotePorts(db);
+
+  db.run(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_port_mappings_remote_port_unique
+    ON port_mappings(remote_port)
+    WHERE remote_port IS NOT NULL;
+  `);
+
   // One-click update tables
   db.run(`
     CREATE TABLE IF NOT EXISTS update_releases (
@@ -239,4 +247,51 @@ function addColumnIfMissing(db: Database, table: string, column: string, definit
   }
   stmt.free();
   if (!columns.has(column)) db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+function reconcileDuplicateRemotePorts(db: Database): void {
+  const duplicatePortsStmt = db.prepare(`
+    SELECT remote_port
+    FROM port_mappings
+    WHERE remote_port IS NOT NULL
+    GROUP BY remote_port
+    HAVING COUNT(*) > 1
+  `);
+
+  const duplicatePorts: number[] = [];
+  while (duplicatePortsStmt.step()) {
+    const row = duplicatePortsStmt.getAsObject() as { remote_port: number };
+    if (typeof row.remote_port === 'number') duplicatePorts.push(row.remote_port);
+  }
+  duplicatePortsStmt.free();
+
+  const now = Date.now();
+  for (const remotePort of duplicatePorts) {
+    const duplicatesStmt = db.prepare(`
+      SELECT id
+      FROM port_mappings
+      WHERE remote_port = ?
+      ORDER BY updated_at ASC, created_at ASC, id ASC
+    `);
+    duplicatesStmt.bind([remotePort]);
+
+    const ids: string[] = [];
+    while (duplicatesStmt.step()) {
+      const row = duplicatesStmt.getAsObject() as { id: string };
+      if (typeof row.id === 'string') ids.push(row.id);
+    }
+    duplicatesStmt.free();
+
+    for (const duplicateId of ids.slice(1)) {
+      db.run(
+        `UPDATE port_mappings
+         SET remote_port = NULL,
+             public_url = NULL,
+             status = 'inactive',
+             updated_at = ?
+         WHERE id = ?`,
+        [now, duplicateId],
+      );
+    }
+  }
 }

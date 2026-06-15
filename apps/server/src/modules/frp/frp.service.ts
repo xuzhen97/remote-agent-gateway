@@ -43,22 +43,23 @@ export class FrpService {
     const id = `pm_${uuid().slice(0, 8)}`;
     const now = Date.now();
 
-    // 分配远程端口（优先使用请求中指定的端口）
-    const remotePort = await portAllocatorService.allocate(
+    const reserveMappingRow = (remotePort: number, clientId: string): void => {
+      const publicUrl = buildFrpPublicUrl(remotePort, {
+        proxyType: params.proxyType as 'tcp' | 'http' | 'https',
+        customDomain: params.customDomain,
+      });
+
+      db.run(
+        `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, custom_domain, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'inactive', ?, ?, ?)`,
+        [id, clientId, params.name, params.proxyType, params.localIp, params.localPort, remotePort, params.customDomain ?? null, publicUrl, now, now],
+      );
+    };
+
+    await portAllocatorService.allocate(
       params.clientId,
       typeof params.remotePort === 'number'
-        ? { preferredPort: params.remotePort }
-        : undefined,
-    );
-    // 生成公网访问 URL
-    const publicUrl = buildFrpPublicUrl(remotePort, {
-      proxyType: params.proxyType as 'tcp' | 'http' | 'https',
-      customDomain: params.customDomain,
-    });
-
-    db.run(
-      `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, custom_domain, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'inactive', ?, ?, ?)`,
-      [id, params.clientId, params.name, params.proxyType, params.localIp, params.localPort, remotePort, params.customDomain ?? null, publicUrl, now, now],
+        ? { preferredPort: params.remotePort, reserve: reserveMappingRow }
+        : { reserve: reserveMappingRow },
     );
 
     return this.getMapping(id)!;

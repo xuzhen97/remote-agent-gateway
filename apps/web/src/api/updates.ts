@@ -69,6 +69,44 @@ export interface UploadedArtifact {
   enabled: boolean;
 }
 
+export interface ReleaseManifestDraft {
+  version: string;
+  releaseTime: string;
+  notes: string;
+  minUpdaterVersion: string;
+  channel: 'stable' | 'beta';
+  compatibleFrom: string[];
+  artifacts: Array<UploadedArtifact & {
+    downloadPath: string;
+    entrypoint: string;
+    installerType: 'archive' | 'binary';
+  }>;
+}
+
+export function buildReleaseManifest(version: string, uploaded: UploadedArtifact[], releaseTime = new Date().toISOString()): ReleaseManifestDraft {
+  const normalizedVersion = version.trim();
+  return {
+    version: normalizedVersion,
+    releaseTime,
+    notes: `Remote Agent Gateway ${normalizedVersion}`,
+    minUpdaterVersion: normalizedVersion,
+    channel: 'stable',
+    compatibleFrom: [normalizedVersion],
+    artifacts: uploaded.map((artifact) => ({
+      fileName: artifact.fileName,
+      targetType: artifact.targetType,
+      platform: artifact.platform,
+      arch: artifact.arch,
+      downloadPath: `/updates/artifacts/${normalizedVersion}/${artifact.fileName}`,
+      sha256: artifact.sha256,
+      size: artifact.size,
+      entrypoint: artifact.targetType === 'client' ? 'client.bundle.cjs' : 'server.bundle.cjs',
+      installerType: 'archive',
+      enabled: artifact.enabled,
+    })),
+  };
+}
+
 export async function listReleases(api: Api): Promise<ReleaseSummary[]> {
   const res = await api.get('/admin/updates/releases');
   return res.data ?? [];

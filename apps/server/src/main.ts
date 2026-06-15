@@ -33,6 +33,10 @@ import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
 import { createServerUpdater } from './modules/updates/server-updater.js';
 import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
+
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
 import { summarizeTargets, transitionCampaignStatus } from './modules/updates/update-state.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
@@ -65,6 +69,7 @@ async function main(): Promise<void> {
     repo: updateRepo,
     releaseService,
     serverUpdater: createServerUpdater({ deployRoot, currentVersion: SERVER_VERSION }),
+    saveDb,
     baseUrl: updateBaseUrl,
     allowServerSelfUpdate: Boolean(process.env.RAG_DEPLOY_ROOT),
   });
@@ -262,7 +267,7 @@ async function main(): Promise<void> {
       }
 
       const pending = readPendingServerUpdateContext(deployRoot);
-      if (pending && pending.targetVersion === SERVER_VERSION) {
+      if (pending && normalizeVersion(pending.targetVersion) === normalizeVersion(SERVER_VERSION)) {
         updateRepo.updateTargetPhase(pending.targetId, 'succeeded');
         updateRepo.upsertAttemptPhase({
           attemptId: pending.attemptId,

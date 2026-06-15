@@ -7,6 +7,7 @@ export interface CampaignExecutorDeps {
     updateCampaignStatus(id: string, status: string): void;
     updateTargetPhase(id: string, phase: string): void;
   };
+  saveDb?: () => void;
   connectionManager?: {
     getOnlineClientIds(): string[];
     sendToClient(clientId: string, message: unknown): boolean;
@@ -100,6 +101,7 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
       }
 
       deps.repo.updateCampaignStatus(campaignId, 'server_updating');
+      deps.saveDb?.();
       const targets = deps.repo.listTargets(campaignId);
       const serverTarget = targets.find((t) => t.targetType === 'server');
       if (!serverTarget) throw new Error('Server update target not found');

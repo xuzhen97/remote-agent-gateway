@@ -76,6 +76,54 @@ describe('database schema', () => {
     expect(row.action).toBe('client_http.frp_mapping.create');
   });
 
+  it('enforces unique remote ports for business mappings', () => {
+    const now = Date.now();
+    run(db, `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['pm-test-dup-a', 'test-client-1', 'dup-a', 'tcp', '127.0.0.1', 3001, 23010, 'active', '127.0.0.1:23010', now, now]);
+
+    expect(() => run(db, `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['pm-test-dup-b', 'test-client-2', 'dup-b', 'tcp', '127.0.0.1', 3002, 23010, 'active', '127.0.0.1:23010', now, now])).toThrow();
+  });
+
+  it('reconciles duplicate remote ports before creating the unique index', async () => {
+    const SQL = await initSqlJs();
+    const legacyDb = new SQL.Database();
+
+    legacyDb.run(`
+      CREATE TABLE port_mappings (
+        id TEXT PRIMARY KEY,
+        client_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        proxy_type TEXT NOT NULL,
+        local_ip TEXT NOT NULL,
+        local_port INTEGER NOT NULL,
+        remote_port INTEGER,
+        custom_domain TEXT,
+        status TEXT NOT NULL DEFAULT 'inactive',
+        public_url TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        kind TEXT DEFAULT 'business',
+        protected INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'client_http'
+      );
+    `);
+
+    const now = Date.now();
+    legacyDb.run(`INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['pm-legacy-a', 'client-a', 'legacy-a', 'tcp', '127.0.0.1', 3001, 23020, 'active', '127.0.0.1:23020', now, now]);
+    legacyDb.run(`INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, status, public_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['pm-legacy-b', 'client-b', 'legacy-b', 'tcp', '127.0.0.1', 3002, 23020, 'active', '127.0.0.1:23020', now + 1, now + 1]);
+
+    migrate(legacyDb);
+
+    const rows = queryAll(legacyDb, 'SELECT id, remote_port, public_url, status FROM port_mappings ORDER BY id ASC') as Array<Record<string, unknown>>;
+    expect(rows).toEqual([
+      { id: 'pm-legacy-a', remote_port: 23020, public_url: '127.0.0.1:23020', status: 'active' },
+      { id: 'pm-legacy-b', remote_port: null, public_url: null, status: 'inactive' },
+    ]);
+  });
+
   it('updates and deletes a record', () => {
     run(db, 'UPDATE clients SET status = ? WHERE id = ?', ['offline', 'test-client-1']);
     const updated = queryOne(db, 'SELECT status FROM clients WHERE id = ?', ['test-client-1']) as Record<string, unknown>;

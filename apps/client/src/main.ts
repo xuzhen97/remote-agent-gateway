@@ -19,6 +19,10 @@ import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
 import { createUpdateDeps } from './runtime/updates/update-deps.js';
 import { clearPendingUpdateContext, clearRollbackUpdateContext, readPendingUpdateContext, readRollbackUpdateContext } from './runtime/updates/current-version.js';
+
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
 import { CLIENT_VERSION } from './version.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -61,7 +65,7 @@ function sendPendingUpdateCompletion(conn: ConnectionManager): void {
   }
 
   const pending = readPendingUpdateContext(deployRoot);
-  if (pending && pending.targetVersion === CLIENT_VERSION) {
+  if (pending && normalizeVersion(pending.targetVersion) === normalizeVersion(CLIENT_VERSION)) {
     conn.send({
       type: 'client.update.status',
       requestId: `update_${pending.attemptId}`,

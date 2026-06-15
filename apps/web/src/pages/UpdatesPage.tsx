@@ -11,7 +11,7 @@ import {
 import type { Api } from '../api/http';
 import {
   listReleases, registerRelease, getRelease, uploadArtifact, createCampaign, getCampaign,
-  listCampaigns, listTargets, listTargetAttempts, retryCampaign,
+  listCampaigns, listTargets, listTargetAttempts, retryCampaign, buildReleaseManifest,
   type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact, type AttemptRecord,
 } from '../api/updates';
 import { StatusTag } from '../components/StatusTag';
@@ -179,18 +179,7 @@ function PublishWizard({ open, api, onClose, onPublished }: { open: boolean; api
 
   const handlePublish = async () => {
     setPublishError(null);
-    const manifest = JSON.stringify({
-      version: version.trim(),
-      artifacts: uploaded.map((a) => ({
-        fileName: a.fileName,
-        targetType: a.targetType,
-        platform: a.platform,
-        arch: a.arch,
-        sha256: a.sha256,
-        size: a.size,
-        enabled: true,
-      })),
-    });
+    const manifest = JSON.stringify(buildReleaseManifest(version, uploaded));
 
     try {
       await registerRelease(api, manifest);
@@ -227,18 +216,9 @@ function PublishWizard({ open, api, onClose, onPublished }: { open: boolean; api
   };
 
   // Generate manifest preview from uploaded artifacts
-  const manifestPreview = uploaded.length > 0 ? JSON.stringify({
-    version: version.trim(),
-    artifacts: uploaded.map((a) => ({
-      fileName: a.fileName,
-      targetType: a.targetType,
-      platform: a.platform,
-      arch: a.arch,
-      sha256: a.sha256,
-      size: a.size,
-      enabled: true,
-    })),
-  }, null, 2) : '';
+  const manifestPreview = uploaded.length > 0
+    ? JSON.stringify(buildReleaseManifest(version, uploaded, '2026-01-01T00:00:00.000Z'), null, 2)
+    : '';
 
   return (
     <Modal

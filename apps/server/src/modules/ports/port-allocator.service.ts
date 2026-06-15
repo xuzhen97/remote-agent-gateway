@@ -69,16 +69,23 @@ export class PortAllocatorService {
     this.reservePortFn = deps.reservePort ?? (() => undefined);
   }
 
-  async allocate(clientId: string, options?: { preferredPort?: number }): Promise<number> {
+  async allocate(
+    clientId: string,
+    options?: {
+      preferredPort?: number;
+      reserve?: (port: number, clientId: string) => Promise<void> | void;
+    },
+  ): Promise<number> {
     return this.withLock(async () => {
       const usedDbPorts = this.loadUsedDbPorts();
       const dashboardState = await this.loadDashboardState();
       const preferredPort = options?.preferredPort;
+      const reservePort = options?.reserve ?? this.reservePortFn;
 
       if (typeof preferredPort === 'number') {
         this.assertInRange(preferredPort);
         this.assertPreferredPortAvailable(preferredPort, usedDbPorts, dashboardState.ports);
-        await this.reservePortFn(preferredPort, clientId);
+        await reservePort(preferredPort, clientId);
         return preferredPort;
       }
 
@@ -97,7 +104,7 @@ export class PortAllocatorService {
           continue;
         }
 
-        await this.reservePortFn(port, clientId);
+        await reservePort(port, clientId);
         return port;
       }
 

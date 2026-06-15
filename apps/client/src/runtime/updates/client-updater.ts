@@ -12,11 +12,17 @@ export interface UpdaterDeps {
   onPhase?: (phase: ClientUpdatePhase, extra?: Record<string, unknown>) => void | Promise<void>;
 }
 
+function normalizeVersion(version: string): string {
+  return version.trim().replace(/^v/i, '');
+}
+
 export function createClientUpdater(deps: UpdaterDeps) {
   return {
     deps,
 
     async run(input: ClientUpdateInput): Promise<ClientUpdateResult> {
+      const normalizedVersion = normalizeVersion(input.version);
+
       const emit = async (phase: ClientUpdatePhase, extra?: Record<string, unknown>) => {
         await deps.onPhase?.(phase, extra);
       };
@@ -47,14 +53,14 @@ export function createClientUpdater(deps: UpdaterDeps) {
 
         // Phase 3: Extract
         await emit('installing');
-        const versionDir = await deps.extract(downloaded.filePath, input.version);
+        const versionDir = await deps.extract(downloaded.filePath, normalizedVersion);
         await emit('installed', { versionDir });
 
         // Phase 4-6: Stop, switch, start
         await emit('restarting');
-        await deps.recordPendingUpdate?.(input);
+        await deps.recordPendingUpdate?.({ ...input, version: normalizedVersion });
         await deps.stopCurrent();
-        await deps.switchCurrent(input.version);
+        await deps.switchCurrent(normalizedVersion);
         await deps.startNew();
 
         await emit('verifying');

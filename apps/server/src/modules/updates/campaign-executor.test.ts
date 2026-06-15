@@ -20,6 +20,7 @@ describe('campaign executor', () => {
 
   it('starts server self-update and returns server_updating when enabled', async () => {
     const updateCampaignStatus = vi.fn();
+    const saveDb = vi.fn();
     const serverUpdater = { run: vi.fn().mockResolvedValue(undefined) };
     const executor = createCampaignExecutor({
       repo: {
@@ -30,6 +31,7 @@ describe('campaign executor', () => {
       },
       releaseService: { resolveArtifact: () => ({ fileName: `rag-server-v1.0.1-${process.platform === 'win32' ? 'windows' : 'linux'}-x64.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`, sha256: 'abc', size: 10 }) },
       serverUpdater,
+      saveDb,
       baseUrl: 'http://server:3000',
       allowServerSelfUpdate: true,
     } as any);
@@ -38,6 +40,7 @@ describe('campaign executor', () => {
 
     expect(result.phase).toBe('server_updating');
     expect(updateCampaignStatus).toHaveBeenCalledWith('camp_1', 'server_updating');
+    expect(saveDb).toHaveBeenCalled();
     expect(serverUpdater.run).toHaveBeenCalledWith(expect.objectContaining({
       campaignId: 'camp_1',
       targetId: 'camp_1_server',

@@ -18,6 +18,22 @@ describe('campaign runner', () => {
     expect(repo.updateCampaignStatus).toHaveBeenCalledWith('camp_1', 'client_updating');
   });
 
+  it('recovers when target version is prefixed with v but runtime version is not', async () => {
+    const repo = {
+      listRecoverableCampaigns: () => [{ id: 'camp_1', status: 'server_updating', targetVersion: 'v1.4.0' }],
+      listTargets: () => [],
+      updateCampaignStatus: vi.fn(),
+    };
+
+    const runner = createCampaignRunner({
+      repo,
+      runServerUpdate: vi.fn(),
+      verifyServerVersion: () => '1.4.0',
+    } as any);
+    await runner.recoverPendingCampaigns();
+    expect(repo.updateCampaignStatus).toHaveBeenCalledWith('camp_1', 'client_updating');
+  });
+
   it('skips recovery when server version does not match', async () => {
     const repo = {
       listRecoverableCampaigns: () => [{ id: 'camp_1', status: 'server_updating', targetVersion: 'v1.4.0' }],
