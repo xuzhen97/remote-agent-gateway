@@ -1,6 +1,6 @@
 {
   "name": "remote-agent-gateway",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,13 +14,16 @@
     "version:sync": "tsx scripts/sync-version.ts",
     "version:patch": "tsx scripts/sync-version.ts --bump patch",
     "version:minor": "tsx scripts/sync-version.ts --bump minor",
-    "version:major": "tsx scripts/sync-version.ts --bump major"
+    "version:major": "tsx scripts/sync-version.ts --bump major",
+    "remote:diagnose": "node scripts/remote-diagnose.js",
+    "remote:deploy": "node scripts/remote-deploy.js"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",
+    "node-ssh": "^13.2.1",
     "tsx": "^4.19.0"
   },
   "pnpm": {
