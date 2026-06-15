@@ -13,15 +13,17 @@ const clientMain = read('apps/client/src/main.ts');
 const campaignExecutor = read('apps/server/src/modules/updates/campaign-executor.ts');
 const wsHandlers = read('apps/server/src/ws/ws-handlers.ts');
 
+assert.ok(ecosystem.includes('server-launcher.cjs'), 'PM2 ecosystem should prefer server launcher');
 assert.ok(ecosystem.includes('client-launcher.cjs'), 'PM2 ecosystem should prefer client launcher');
 assert.ok(ecosystem.includes('RAG_DEPLOY_ROOT'), 'PM2 ecosystem should expose deploy root');
+assert.ok(buildAll.includes('apps/server/src/launcher.ts') && buildAll.includes('server-launcher.cjs'), 'build should emit server launcher');
 assert.ok(buildAll.includes('apps/client/src/launcher.ts') && buildAll.includes('client-launcher.cjs'), 'build should emit client launcher');
 assert.ok(startPolicy.includes('node client-launcher.cjs'), 'startup policy should enforce launcher scripts');
 assert.ok(packageScript.includes('release-manifest.json'), 'package should emit release manifest');
 assert.ok(packageScript.includes('rag-client-v') && packageScript.includes('rag-server-v'), 'package should emit split update artifacts');
 assert.ok(!clientMain.includes('downloader not initialized'), 'client main must not use placeholder update deps');
 assert.ok(clientMain.includes('createUpdateDeps(config, CLIENT_VERSION)'), 'client main should wire real update deps with current version context');
-assert.ok(campaignExecutor.includes('Server self-update is not implemented yet'), 'server self-update should be explicitly blocked');
+assert.ok(campaignExecutor.includes('serverUpdater'), 'campaign executor should invoke server updater when server self-update is enabled');
 assert.ok(!campaignExecutor.includes('(placeholder)'), 'campaign executor must not fake placeholder success');
 assert.ok(wsHandlers.includes('createUpdateStatusHandler'), 'WS handler should persist client update status');
 

@@ -31,6 +31,8 @@ import { createReleaseService } from './modules/updates/release.service.js';
 import { createCampaignService } from './modules/updates/campaign.service.js';
 import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
+import { createServerUpdater } from './modules/updates/server-updater.js';
+import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -56,11 +58,13 @@ async function main(): Promise<void> {
     now: () => Date.now(),
     id: () => crypto.randomUUID(),
   });
+  const deployRoot = path.resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
   const campaignExecutor = createCampaignExecutor({
     repo: updateRepo,
     releaseService,
+    serverUpdater: createServerUpdater({ deployRoot, currentVersion: SERVER_VERSION }),
     baseUrl: `http://${env.SERVER_HOST}:${env.SERVER_PORT}`,
-    allowServerSelfUpdate: false,
+    allowServerSelfUpdate: Boolean(process.env.RAG_DEPLOY_ROOT),
   });
   const campaignRunner = createCampaignRunner({
     repo: updateRepo,
@@ -225,6 +229,42 @@ async function main(): Promise<void> {
   // ==================== 启动服务 ====================
   try {
     await app.listen({ port: env.SERVER_PORT, host: env.SERVER_HOST });
+    if (process.env.RAG_DEPLOY_ROOT) {
+      const stateDir = path.join(deployRoot, 'state');
+      fs.mkdirSync(stateDir, { recursive: true });
+      fs.writeFileSync(path.join(stateDir, 'server-ready.json'), `${JSON.stringify({ version: SERVER_VERSION, readyAt: Date.now() }, null, 2)}\n`);
+
+      const rollback = readRollbackServerUpdateContext(deployRoot);
+      if (rollback) {
+        updateRepo.updateTargetPhase(rollback.targetId, 'rolled_back', rollback.errorCode, rollback.errorMessage);
+        updateRepo.upsertAttemptPhase({
+          attemptId: rollback.attemptId,
+          targetId: rollback.targetId,
+          phase: 'rolled_back',
+          payload: rollback,
+          terminal: true,
+          errorCode: rollback.errorCode,
+          errorMessage: rollback.errorMessage,
+        });
+        clearRollbackServerUpdateContext(deployRoot);
+        saveDb();
+      }
+
+      const pending = readPendingServerUpdateContext(deployRoot);
+      if (pending && pending.targetVersion === SERVER_VERSION) {
+        updateRepo.updateTargetPhase(pending.targetId, 'succeeded');
+        updateRepo.upsertAttemptPhase({
+          attemptId: pending.attemptId,
+          targetId: pending.targetId,
+          phase: 'succeeded',
+          payload: pending,
+          terminal: true,
+        });
+        clearPendingServerUpdateContext(deployRoot);
+        await campaignExecutor.dispatchClients(pending.campaignId);
+        saveDb();
+      }
+    }
     console.log(`服务端运行于 http://${env.SERVER_HOST}:${env.SERVER_PORT}`);
     console.log(`WebSocket 端点: ws://${env.SERVER_HOST}:${env.SERVER_PORT}/ws/client`);
   } catch (err) {

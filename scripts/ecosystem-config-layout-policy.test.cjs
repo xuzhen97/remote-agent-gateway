@@ -16,6 +16,11 @@ assert.ok(
 );
 
 assert.ok(
+  source.includes('server-launcher.cjs'),
+  'ecosystem.config.cjs should know about server launcher'
+);
+
+assert.ok(
   source.includes('client-launcher.cjs'),
   'ecosystem.config.cjs should know about client launcher'
 );

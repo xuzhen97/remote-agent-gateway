@@ -18,6 +18,34 @@ describe('campaign executor', () => {
     await expect(executor.start('camp_1')).rejects.toThrow('Server self-update is not implemented');
   });
 
+  it('starts server self-update and returns server_updating when enabled', async () => {
+    const updateCampaignStatus = vi.fn();
+    const serverUpdater = { run: vi.fn().mockResolvedValue(undefined) };
+    const executor = createCampaignExecutor({
+      repo: {
+        getCampaign: () => ({ id: 'camp_1', targetVersion: '1.0.1', status: 'draft', includeServer: true }),
+        listTargets: () => [{ id: 'camp_1_server', campaignId: 'camp_1', targetType: 'server', phase: 'queued' }],
+        updateCampaignStatus,
+        updateTargetPhase: vi.fn(),
+      },
+      releaseService: { resolveArtifact: () => ({ fileName: 'rag-server-v1.0.1-linux-x64.tar.gz', sha256: 'abc', size: 10 }) },
+      serverUpdater,
+      baseUrl: 'http://server:3000',
+      allowServerSelfUpdate: true,
+    } as any);
+
+    const result = await executor.start('camp_1');
+
+    expect(result.phase).toBe('server_updating');
+    expect(updateCampaignStatus).toHaveBeenCalledWith('camp_1', 'server_updating');
+    expect(serverUpdater.run).toHaveBeenCalledWith(expect.objectContaining({
+      campaignId: 'camp_1',
+      targetId: 'camp_1_server',
+      version: '1.0.1',
+      downloadUrl: 'http://server:3000/updates/artifacts/1.0.1/rag-server-v1.0.1-linux-x64.tar.gz',
+    }));
+  });
+
   it('does not mark campaign completed while client targets are only dispatched', async () => {
     const updateCampaignStatus = vi.fn();
     const updateTargetPhase = vi.fn();

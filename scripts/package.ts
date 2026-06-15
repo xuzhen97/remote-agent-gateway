@@ -87,6 +87,7 @@ const version = pkg.version || '0.1.0';
 function cleanDist() {
   const keepPatterns = [
     /^server\.bundle\.cjs$/,
+    /^server-launcher\.cjs$/,
     /^client\.bundle\.cjs$/,
     /^client-launcher\.cjs$/,
     /^sql-wasm\.wasm$/,
@@ -130,7 +131,7 @@ function writeDeployGuide(): void {
     '5. pm2 logs',
     '',
     '── Or without PM2 ──',
-    'Server: node server.bundle.cjs  (or ./start-server.sh)',
+    'Server: node server-launcher.cjs  (or ./start-server.sh; falls back to server.bundle.cjs)',
     'Client: node client-launcher.cjs  (or ./start-client.sh; falls back to client.bundle.cjs)',
     '',
     '── FRP download in China ──',

@@ -25,7 +25,9 @@ const DIST_DIR = fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'server.bundle.cjs'))
   && fs.existsSync(path.join(FLAT_BUNDLE_DIR, 'client.bundle.cjs'))
   ? FLAT_BUNDLE_DIR
   : DIST_FALLBACK_DIR;
-const SERVER_SCRIPT = path.join(DIST_DIR, 'server.bundle.cjs');
+const SERVER_LAUNCHER = path.join(DIST_DIR, 'server-launcher.cjs');
+const SERVER_BUNDLE = path.join(DIST_DIR, 'server.bundle.cjs');
+const SERVER_SCRIPT = fs.existsSync(SERVER_LAUNCHER) ? SERVER_LAUNCHER : SERVER_BUNDLE;
 const CLIENT_LAUNCHER = path.join(DIST_DIR, 'client-launcher.cjs');
 const CLIENT_BUNDLE = path.join(DIST_DIR, 'client.bundle.cjs');
 const CLIENT_SCRIPT = fs.existsSync(CLIENT_LAUNCHER) ? CLIENT_LAUNCHER : CLIENT_BUNDLE;

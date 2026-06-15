@@ -14,7 +14,7 @@ fs.mkdirSync(DIST, { recursive: true });
 
 // Clean old server builds
 for (const f of fs.readdirSync(DIST)) {
-  if ((f.startsWith('server.') && (f.endsWith('.js') || f.endsWith('.cjs') || f.endsWith('.map')))
+  if (((f.startsWith('server.') || f.startsWith('server-launcher.')) && (f.endsWith('.js') || f.endsWith('.cjs') || f.endsWith('.map')))
     || f === 'sql-wasm.wasm') {
     fs.unlinkSync(path.join(DIST, f));
   }
@@ -65,4 +65,20 @@ if (fs.existsSync(webSrc)) {
   console.log('  Copied React web console');
 }
 
+await esbuild.build({
+  entryPoints: [path.join(ROOT, 'apps/server/src/launcher.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: path.join(DIST, 'server-launcher.cjs'),
+  minify: false,
+  sourcemap: true,
+  external: [],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
+});
+
 console.log('Server bundle: dist/server.bundle.cjs');
+console.log('Server launcher: dist/server-launcher.cjs');

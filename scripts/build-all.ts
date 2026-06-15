@@ -122,6 +122,25 @@ if (webBuilt && fs.existsSync(webBuildSrc)) {
 
 console.log('  server.bundle.js ready');
 
+console.log('[1/2] Building server launcher...');
+
+await esbuild.build({
+  entryPoints: [path.join(ROOT, 'apps/server/src/launcher.ts')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: path.join(DIST, 'server-launcher.cjs'),
+  minify: false,
+  sourcemap: true,
+  external: [],
+  define: {
+    'process.env.RAG_BUILD_VERSION': BUILD_VERSION,
+  },
+});
+
+console.log('  server-launcher.cjs ready');
+
 // ── Build Client (CJS) ──────────────────────────────────────────────
 console.log('[2/2] Building client bundle...');
 
@@ -171,9 +190,14 @@ fs.writeFileSync(path.join(DIST, 'start-server.bat'), [
   'title Remote Agent Gateway - Server',
   'echo Starting server...',
   'if not exist server.config.yaml echo Missing server.config.yaml. Create it before starting. && pause && exit /b 1',
-  'node server.bundle.cjs',
+  'set RAG_DEPLOY_ROOT=%CD%',
+  'if exist server-launcher.cjs (',
+  '  node server-launcher.cjs',
+  ') else (',
+  '  node server.bundle.cjs',
+  ')',
   'pause',
-].join('\r\n'));
+].join('\r\n')); 
 
 fs.writeFileSync(path.join(DIST, 'start-client.bat'), [
   '@echo off',
@@ -192,7 +216,12 @@ const shServer = [
   '#!/bin/bash',
   'echo "Starting Remote Agent Gateway Server..."',
   '[ ! -f server.config.yaml ] && echo "Missing server.config.yaml. Create it before starting." && exit 1',
-  'node server.bundle.cjs',
+  'export RAG_DEPLOY_ROOT="${RAG_DEPLOY_ROOT:-$(pwd)}"',
+  'if [ -f server-launcher.cjs ]; then',
+  '  node server-launcher.cjs',
+  'else',
+  '  node server.bundle.cjs',
+  'fi',
 ].join('\n');
 fs.writeFileSync(path.join(DIST, 'start-server.sh'), shServer);
 fs.chmodSync(path.join(DIST, 'start-server.sh'), 0o755);
@@ -418,7 +447,7 @@ fs.writeFileSync(path.join(DIST, 'DEPLOY.txt'), [
   '5. pm2 logs',
   '',
   '── Or without PM2 ──',
-  'Server: node server.bundle.cjs  (or ./start-server.sh)',
+  'Server: node server-launcher.cjs  (or ./start-server.sh; falls back to server.bundle.cjs)',
   'Client: node client-launcher.cjs  (or ./start-client.sh; falls back to client.bundle.cjs)',
   '',
   '── FRP download in China ──',
@@ -444,5 +473,5 @@ console.log('');
 console.log('  Quick start:');
 console.log('    pm2 start ecosystem.config.cjs');
 console.log('  Or without pm2:');
-console.log('    Server:  node server.bundle.cjs  (from dist/)');
+console.log('    Server:  node server-launcher.cjs  (from dist/, falls back to server.bundle.cjs)');
 console.log('    Client:  node client-launcher.cjs  (from dist/, falls back to client.bundle.cjs)');
