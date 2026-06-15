@@ -3,9 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  clearPendingUpdateContext,
+  clearRollbackUpdateContext,
+  markPendingUpdateRolledBack,
   promotePendingVersion,
   readClientVersionState,
+  readPendingUpdateContext,
+  readRollbackUpdateContext,
   rollbackToPreviousVersion,
+  writePendingUpdateContext,
   writePendingVersion,
 } from './current-version.js';
 
@@ -53,5 +59,34 @@ describe('client current version state', () => {
     expect(state.current?.version).toBe('1.0.0');
     expect(state.previous?.version).toBe('1.0.1');
     expect(state.pending).toBeNull();
+  });
+
+  it('stores pending update context and moves it to rollback context', () => {
+    const root = makeDeployRoot();
+    const context = {
+      campaignId: 'camp_1',
+      targetId: 'target_1',
+      attemptId: 'attempt_1',
+      fromVersion: '1.0.0',
+      targetVersion: '1.0.1',
+    };
+
+    writePendingUpdateContext(root, context);
+    expect(readPendingUpdateContext(root)).toEqual(expect.objectContaining(context));
+
+    markPendingUpdateRolledBack(root, 'READY_TIMEOUT', 'new version did not become ready');
+    expect(readPendingUpdateContext(root)).toBeNull();
+    expect(readRollbackUpdateContext(root)).toEqual(expect.objectContaining({
+      ...context,
+      errorCode: 'READY_TIMEOUT',
+      errorMessage: 'new version did not become ready',
+    }));
+
+    clearRollbackUpdateContext(root);
+    expect(readRollbackUpdateContext(root)).toBeNull();
+
+    writePendingUpdateContext(root, context);
+    clearPendingUpdateContext(root);
+    expect(readPendingUpdateContext(root)).toBeNull();
   });
 });

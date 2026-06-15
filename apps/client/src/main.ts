@@ -18,17 +18,64 @@ import { forwardServerJobRun } from './server-job-runner.js';
 import { handleUpdateWsMessage } from './runtime/updates/update-ws-handler.js';
 import { createClientUpdater } from './runtime/updates/client-updater.js';
 import { createUpdateDeps } from './runtime/updates/update-deps.js';
+import { clearPendingUpdateContext, clearRollbackUpdateContext, readPendingUpdateContext, readRollbackUpdateContext } from './runtime/updates/current-version.js';
 import { CLIENT_VERSION } from './version.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { ServerAckPayload } from '@rag/shared';
 
+function getDeployRoot(): string | null {
+  return process.env.RAG_DEPLOY_ROOT ? resolve(process.env.RAG_DEPLOY_ROOT) : null;
+}
+
 function writeClientReadyMarker(): void {
-  const deployRoot = process.env.RAG_DEPLOY_ROOT;
+  const deployRoot = getDeployRoot();
   if (!deployRoot) return;
-  const stateDir = join(resolve(deployRoot), 'state');
+  const stateDir = join(deployRoot, 'state');
   mkdirSync(stateDir, { recursive: true });
   writeFileSync(join(stateDir, 'client-ready.json'), `${JSON.stringify({ version: CLIENT_VERSION, readyAt: Date.now() }, null, 2)}\n`);
+}
+
+function sendPendingUpdateCompletion(conn: ConnectionManager): void {
+  const deployRoot = getDeployRoot();
+  if (!deployRoot) return;
+
+  const rollback = readRollbackUpdateContext(deployRoot);
+  if (rollback) {
+    conn.send({
+      type: 'client.update.status',
+      requestId: `update_${rollback.attemptId}`,
+      payload: {
+        campaignId: rollback.campaignId,
+        targetId: rollback.targetId,
+        attemptId: rollback.attemptId,
+        phase: 'rolled_back',
+        currentVersion: CLIENT_VERSION,
+        targetVersion: rollback.targetVersion,
+        errorCode: rollback.errorCode,
+        errorMessage: rollback.errorMessage,
+      },
+    });
+    clearRollbackUpdateContext(deployRoot);
+    return;
+  }
+
+  const pending = readPendingUpdateContext(deployRoot);
+  if (pending && pending.targetVersion === CLIENT_VERSION) {
+    conn.send({
+      type: 'client.update.status',
+      requestId: `update_${pending.attemptId}`,
+      payload: {
+        campaignId: pending.campaignId,
+        targetId: pending.targetId,
+        attemptId: pending.attemptId,
+        phase: 'succeeded',
+        currentVersion: CLIENT_VERSION,
+        targetVersion: pending.targetVersion,
+      },
+    });
+    clearPendingUpdateContext(deployRoot);
+  }
 }
 
 const CLIENT_EXIT_UPDATE_RESTART = 20;
@@ -92,7 +139,7 @@ async function main(): Promise<void> {
     if (await handleUpdateWsMessage({
       message,
       createUpdater: (onPhase) => createClientUpdater({
-        ...createUpdateDeps(config),
+        ...createUpdateDeps(config, CLIENT_VERSION),
         onPhase,
         startNew: async () => {
           setTimeout(() => process.exit(CLIENT_EXIT_UPDATE_RESTART), 100);
@@ -250,6 +297,7 @@ async function main(): Promise<void> {
       try {
         await sendRegister(conn, config);
         writeClientReadyMarker();
+        sendPendingUpdateCompletion(conn);
         // 重新启动心跳（避免重复定时器）
         startHeartbeat(conn, config);
         console.log('重新注册完成');
@@ -275,6 +323,7 @@ async function main(): Promise<void> {
   console.log('已连接，正在注册...');
   await sendRegister(conn, config);
   writeClientReadyMarker();
+  sendPendingUpdateCompletion(conn);
 
   // 启动心跳
   startHeartbeat(conn, config);

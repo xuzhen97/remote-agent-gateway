@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { isAbsolute, join, relative, resolve } from 'node:path';
-import { promotePendingVersion, readClientVersionState, rollbackToPreviousVersion } from './runtime/updates/current-version.js';
+import { markPendingUpdateRolledBack, promotePendingVersion, readClientVersionState, rollbackToPreviousVersion } from './runtime/updates/current-version.js';
 
 export interface CurrentVersionState {
   version: string;
@@ -74,8 +74,32 @@ export function resolveClientEntrypoint(input: EntrypointResolutionInput): Entry
   throw new Error(`No client bundle found under ${deployRoot}`);
 }
 
-async function launchClient(deployRoot: string, resolved: EntrypointResolution): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+function readReadyVersion(deployRoot: string): string | null {
+  const file = join(deployRoot, 'state', 'client-ready.json');
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as { version?: string };
+    return parsed.version ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function waitForReadyVersion(deployRoot: string, version: string, timeoutMs: number): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (readReadyVersion(deployRoot) === version) return true;
+    await new Promise((resolveReady) => setTimeout(resolveReady, 250));
+  }
+  return false;
+}
+
+async function launchClient(deployRoot: string, resolved: EntrypointResolution, verifyReadyVersion?: string): Promise<{ code: number | null; signal: NodeJS.Signals | null; readyVerified: boolean }> {
   console.log(`[launcher] starting client ${resolved.version}: ${resolved.entrypoint}`);
+  if (verifyReadyVersion) {
+    rmSync(join(deployRoot, 'state', 'client-ready.json'), { force: true });
+  }
+
   const child = spawn(process.execPath, [resolved.entrypoint], {
     cwd: deployRoot,
     stdio: 'inherit',
@@ -85,9 +109,29 @@ async function launchClient(deployRoot: string, resolved: EntrypointResolution):
     },
   });
 
-  return new Promise((resolveExit) => {
+  const exitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
     child.on('exit', (code, signal) => resolveExit({ code, signal }));
   });
+
+  if (!verifyReadyVersion) {
+    const exit = await exitPromise;
+    return { ...exit, readyVerified: false };
+  }
+
+  const timeoutMs = Number(process.env.RAG_UPDATE_READY_TIMEOUT_MS ?? '30000');
+  const ready = await Promise.race([
+    waitForReadyVersion(deployRoot, verifyReadyVersion, timeoutMs).then((value) => ({ type: 'ready' as const, value })),
+    exitPromise.then((exit) => ({ type: 'exit' as const, exit })),
+  ]);
+
+  if (ready.type === 'exit') return { ...ready.exit, readyVerified: false };
+  if (!ready.value) {
+    child.kill();
+    return { code: CLIENT_EXIT_ROLLBACK, signal: null, readyVerified: false };
+  }
+
+  const exit = await exitPromise;
+  return { ...exit, readyVerified: true };
 }
 
 export async function runLauncher(): Promise<void> {
@@ -102,7 +146,8 @@ export async function runLauncher(): Promise<void> {
       bundleExists: existsSync,
     });
 
-    const { code, signal } = await launchClient(deployRoot, resolved);
+    const { code, signal, readyVerified } = await launchClient(deployRoot, resolved, verifyingPending ? resolved.version : undefined);
+    if (readyVerified) verifyingPending = false;
     if (signal) {
       process.kill(process.pid, signal);
       return;
@@ -112,7 +157,7 @@ export async function runLauncher(): Promise<void> {
     const decision = decideNextLaunch({
       exitCode: code,
       hasPending: Boolean(state.pending),
-      verificationFailed: verifyingPending && code !== 0,
+      verificationFailed: verifyingPending && !readyVerified && code !== 0,
     });
 
     if (decision === 'promote-pending') {
@@ -123,6 +168,8 @@ export async function runLauncher(): Promise<void> {
 
     if (decision === 'rollback') {
       rollbackToPreviousVersion(deployRoot);
+      const errorCode = code === CLIENT_EXIT_ROLLBACK ? 'READY_TIMEOUT' : 'START_FAILED';
+      markPendingUpdateRolledBack(deployRoot, errorCode, `client version ${resolved.version} failed to become ready`);
       verifyingPending = false;
       continue;
     }

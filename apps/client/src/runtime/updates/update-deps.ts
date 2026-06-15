@@ -5,7 +5,7 @@ import type { UpdaterDeps } from './client-updater.js';
 import { downloadArtifact } from './download.js';
 import { extractArtifact } from './extract.js';
 import { verifyArtifact } from './verify.js';
-import { writePendingVersion } from './current-version.js';
+import { writePendingUpdateContext, writePendingVersion } from './current-version.js';
 
 export function resolveDeployRoot(config: ClientConfig): string {
   if (process.env.RAG_DEPLOY_ROOT) return resolve(process.env.RAG_DEPLOY_ROOT);
@@ -13,7 +13,7 @@ export function resolveDeployRoot(config: ClientConfig): string {
   return process.cwd();
 }
 
-export function createUpdateDeps(config: ClientConfig): UpdaterDeps {
+export function createUpdateDeps(config: ClientConfig, currentVersion: string): UpdaterDeps {
   const deployRoot = resolveDeployRoot(config);
   const downloadsDir = join(deployRoot, 'downloads');
   const versionsDir = join(deployRoot, 'versions', 'client');
@@ -35,6 +35,15 @@ export function createUpdateDeps(config: ClientConfig): UpdaterDeps {
     },
     async stopCurrent() {
       // The current process remains active until launcher restart support is enabled.
+    },
+    async recordPendingUpdate(input) {
+      writePendingUpdateContext(deployRoot, {
+        campaignId: input.campaignId,
+        targetId: input.targetId,
+        attemptId: input.attemptId,
+        fromVersion: currentVersion,
+        targetVersion: input.version,
+      });
     },
     async switchCurrent(version) {
       writePendingVersion(deployRoot, {

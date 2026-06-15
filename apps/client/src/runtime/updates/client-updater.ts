@@ -8,6 +8,7 @@ export interface UpdaterDeps {
   switchCurrent(version: string): Promise<void>;
   startNew(): Promise<void>;
   rollback(): Promise<void>;
+  recordPendingUpdate?(input: ClientUpdateInput): Promise<void> | void;
   onPhase?: (phase: ClientUpdatePhase, extra?: Record<string, unknown>) => void | Promise<void>;
 }
 
@@ -51,6 +52,7 @@ export function createClientUpdater(deps: UpdaterDeps) {
 
         // Phase 4-6: Stop, switch, start
         await emit('restarting');
+        await deps.recordPendingUpdate?.(input);
         await deps.stopCurrent();
         await deps.switchCurrent(input.version);
         await deps.startNew();
