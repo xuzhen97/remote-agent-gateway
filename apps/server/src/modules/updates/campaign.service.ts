@@ -7,6 +7,14 @@ function normalizePlatform(os: string | null | undefined): 'windows' | 'linux' {
   return 'linux';
 }
 
+function currentServerPlatform(): 'windows' | 'linux' {
+  return process.platform === 'win32' ? 'windows' : 'linux';
+}
+
+function currentServerArch(): string {
+  return process.arch === 'x64' || process.arch === 'arm64' ? process.arch : 'x64';
+}
+
 export interface CreateCampaignInput {
   targetVersion: string;
   includeServer: boolean;
@@ -51,12 +59,12 @@ export function createCampaignService(deps: {
       const campaignId = deps.id();
       const targets: UpdateTargetRecord[] = [];
 
-      // Precheck: server artifact (linux/x64)
+      // Precheck: server artifact for the current runtime platform/arch
       if (input.includeServer) {
         deps.releaseService.resolveArtifact(input.targetVersion, {
           targetType: 'server',
-          platform: 'linux',
-          arch: 'x64',
+          platform: currentServerPlatform(),
+          arch: currentServerArch(),
         });
       }
 
@@ -98,7 +106,7 @@ export function createCampaignService(deps: {
           id: `${campaignId}_server`,
           campaignId,
           targetType: 'server',
-          platform: 'linux',
+          platform: currentServerPlatform(),
           currentVersion: null,
           targetVersion: input.targetVersion,
           phase: 'queued',

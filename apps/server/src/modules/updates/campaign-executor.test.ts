@@ -28,7 +28,7 @@ describe('campaign executor', () => {
         updateCampaignStatus,
         updateTargetPhase: vi.fn(),
       },
-      releaseService: { resolveArtifact: () => ({ fileName: 'rag-server-v1.0.1-linux-x64.tar.gz', sha256: 'abc', size: 10 }) },
+      releaseService: { resolveArtifact: () => ({ fileName: `rag-server-v1.0.1-${process.platform === 'win32' ? 'windows' : 'linux'}-x64.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`, sha256: 'abc', size: 10 }) },
       serverUpdater,
       baseUrl: 'http://server:3000',
       allowServerSelfUpdate: true,
@@ -42,7 +42,7 @@ describe('campaign executor', () => {
       campaignId: 'camp_1',
       targetId: 'camp_1_server',
       version: '1.0.1',
-      downloadUrl: 'http://server:3000/updates/artifacts/1.0.1/rag-server-v1.0.1-linux-x64.tar.gz',
+      downloadUrl: `http://server:3000/updates/artifacts/1.0.1/rag-server-v1.0.1-${process.platform === 'win32' ? 'windows' : 'linux'}-x64.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`,
     }));
   });
 

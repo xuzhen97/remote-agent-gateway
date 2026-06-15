@@ -25,6 +25,7 @@ export const env = {
   CLIENT_HTTP_TOKEN_SECRET: serverConfig.clientHttp.tokenSecret,
   CLIENT_HTTP_TOKEN_VERSION: serverConfig.clientHttp.tokenVersion,
   CLIENT_HTTP_REQUEST_TIMEOUT_MS: serverConfig.clientHttp.requestTimeoutMs,
+  UPDATE_PUBLIC_BASE_URL: serverConfig.updates.publicBaseUrl || '',
 } as const;
 
 export type FrpEnvLike = Pick<typeof env, 'FRP_MODE' | 'FRPS_HOST' | 'FRPS_PUBLIC_HOST' | 'SERVER_HOST'>;

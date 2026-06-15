@@ -33,6 +33,7 @@ import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
 import { createServerUpdater } from './modules/updates/server-updater.js';
 import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
+import { summarizeTargets, transitionCampaignStatus } from './modules/updates/update-state.js';
 import { registerWsRoutes } from './ws/ws-server.js';
 import { clientsService } from './modules/clients/clients.service.js';
 import { startFrps, stopFrps } from './modules/frp/frps-manager.js';
@@ -59,11 +60,12 @@ async function main(): Promise<void> {
     id: () => crypto.randomUUID(),
   });
   const deployRoot = path.resolve(process.env.RAG_DEPLOY_ROOT ?? process.cwd());
+  const updateBaseUrl = env.UPDATE_PUBLIC_BASE_URL || `http://${env.SERVER_HOST}:${env.SERVER_PORT}`;
   const campaignExecutor = createCampaignExecutor({
     repo: updateRepo,
     releaseService,
     serverUpdater: createServerUpdater({ deployRoot, currentVersion: SERVER_VERSION }),
-    baseUrl: `http://${env.SERVER_HOST}:${env.SERVER_PORT}`,
+    baseUrl: updateBaseUrl,
     allowServerSelfUpdate: Boolean(process.env.RAG_DEPLOY_ROOT),
   });
   const campaignRunner = createCampaignRunner({
@@ -72,6 +74,14 @@ async function main(): Promise<void> {
     verifyServerVersion: () => SERVER_VERSION,
   });
   await campaignRunner.recoverPendingCampaigns();
+
+  const reconcileCampaignStatus = (campaignId: string) => {
+    const targets = updateRepo.listTargets(campaignId);
+    const terminal = new Set(['succeeded', 'failed', 'rolled_back', 'offline_skipped', 'cancelled']);
+    if (targets.length > 0 && targets.every((target) => terminal.has(target.phase))) {
+      updateRepo.updateCampaignStatus(campaignId, transitionCampaignStatus(summarizeTargets(targets)));
+    }
+  };
 
   // ==================== FRP 模式初始化 ====================
   console.log(`FRP 模式: ${env.FRP_MODE}`);
@@ -246,6 +256,7 @@ async function main(): Promise<void> {
           errorCode: rollback.errorCode,
           errorMessage: rollback.errorMessage,
         });
+        reconcileCampaignStatus(rollback.campaignId);
         clearRollbackServerUpdateContext(deployRoot);
         saveDb();
       }
@@ -262,6 +273,7 @@ async function main(): Promise<void> {
         });
         clearPendingServerUpdateContext(deployRoot);
         await campaignExecutor.dispatchClients(pending.campaignId);
+        reconcileCampaignStatus(pending.campaignId);
         saveDb();
       }
     }

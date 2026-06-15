@@ -23,6 +23,14 @@ export interface CampaignExecutorDeps {
 
 const terminalPhases = new Set(['succeeded', 'failed', 'rolled_back', 'offline_skipped', 'cancelled']);
 
+function currentServerPlatform(): 'windows' | 'linux' {
+  return process.platform === 'win32' ? 'windows' : 'linux';
+}
+
+function currentServerArch(): string {
+  return process.arch === 'x64' || process.arch === 'arm64' ? process.arch : 'x64';
+}
+
 export function createCampaignExecutor(deps: CampaignExecutorDeps) {
   async function dispatchClients(campaignId: string): Promise<{ phase: string }> {
     const campaign = deps.repo.getCampaign(campaignId);
@@ -97,8 +105,8 @@ export function createCampaignExecutor(deps: CampaignExecutorDeps) {
       if (!serverTarget) throw new Error('Server update target not found');
       const artifact = deps.releaseService.resolveArtifact(campaign.targetVersion, {
         targetType: 'server',
-        platform: 'linux',
-        arch: 'x64',
+        platform: currentServerPlatform(),
+        arch: currentServerArch(),
       });
       const attemptId = `${serverTarget.id}_1`;
       await deps.serverUpdater.run({

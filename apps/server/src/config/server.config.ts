@@ -40,6 +40,9 @@ const ServerConfigSchema = z.object({
     tokenVersion: z.coerce.number().int().positive().default(1),
     requestTimeoutMs: z.coerce.number().int().positive().default(10_000),
   }).default({}),
+  updates: z.object({
+    publicBaseUrl: z.string().url().optional(),
+  }).default({}),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema> & {
@@ -89,6 +92,7 @@ function applyOverrides(config: ServerConfig): ServerConfig {
   if (process.env.RAG_ADMIN_TOKEN) next.auth.adminToken = process.env.RAG_ADMIN_TOKEN;
   if (process.env.RAG_AGENT_API_TOKEN) next.auth.agentApiToken = process.env.RAG_AGENT_API_TOKEN;
   if (process.env.RAG_FRP_TOKEN) next.frp.token = process.env.RAG_FRP_TOKEN;
+  if (process.env.RAG_UPDATE_PUBLIC_BASE_URL) next.updates.publicBaseUrl = process.env.RAG_UPDATE_PUBLIC_BASE_URL;
 
   return next;
 }
