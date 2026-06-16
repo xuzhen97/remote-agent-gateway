@@ -127,4 +127,49 @@ describe('PortAllocatorService', () => {
     expect(first).toBe(23000);
     expect(second).toBe(23001);
   });
+
+  it('allows a client http control port to remain sticky for the same client when only its own control proxy uses that port', async () => {
+    const db = getDb();
+    const now = Date.now();
+    db.run(
+      `INSERT INTO clients (id, name, status, http_remote_port, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['client-1', 'client-1', 'online', 23000, now, now],
+    );
+
+    const service = new PortAllocatorService({
+      portRange: { start: 23000, end: 23002 },
+      listFrpsProxies: vi.fn().mockResolvedValue({
+        dashboardReachable: true,
+        proxies: [{ name: 'rag-client-1-http-control', proxyType: 'tcp', remotePort: 23000 }],
+      }),
+      auditLog: vi.fn(),
+    });
+
+    await expect(service.isAvailableForClientHttp(23000, 'client-1')).resolves.toBe(true);
+  });
+
+  it('rejects a sticky client http port reuse when a business mapping already uses that port', async () => {
+    const db = getDb();
+    const now = Date.now();
+    db.run('DELETE FROM clients');
+    db.run(
+      `INSERT INTO clients (id, name, status, http_remote_port, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      ['client-1', 'client-1', 'online', 23000, now, now],
+    );
+    db.run(
+      `INSERT INTO port_mappings (id, client_id, name, proxy_type, local_ip, local_port, remote_port, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['pm-used', 'other-client', 'used', 'tcp', '127.0.0.1', 3000, 23000, 'active', now, now],
+    );
+
+    const service = new PortAllocatorService({
+      portRange: { start: 23000, end: 23002 },
+      listFrpsProxies: vi.fn().mockResolvedValue({
+        dashboardReachable: true,
+        proxies: [{ name: 'rag-client-1-http-control', proxyType: 'tcp', remotePort: 23000 }],
+      }),
+      auditLog: vi.fn(),
+    });
+
+    await expect(service.isAvailableForClientHttp(23000, 'client-1')).resolves.toBe(false);
+  });
 });

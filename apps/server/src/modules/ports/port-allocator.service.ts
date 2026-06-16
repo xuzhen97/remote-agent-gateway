@@ -146,7 +146,22 @@ export class PortAllocatorService {
     stmt.free();
     if (usedByOtherClient) return false;
 
-    return this.isAvailable(port);
+    const businessStmt = db.prepare('SELECT id FROM port_mappings WHERE remote_port = ?');
+    businessStmt.bind([port]);
+    const usedByBusinessMapping = businessStmt.step();
+    businessStmt.free();
+    if (usedByBusinessMapping) return false;
+
+    const dashboardState = await this.loadDashboardState();
+    if (dashboardState.ports.has(port)) {
+      const ownControlProxyName = `rag-${clientId}-http-control`;
+      const dashboardResult = await this.listFrpsProxiesFn(this.dashboardConfig);
+      if (!dashboardResult.dashboardReachable) return false;
+      const conflictingProxy = dashboardResult.proxies.find((proxy) => proxy.remotePort === port && proxy.name !== ownControlProxyName);
+      if (conflictingProxy) return false;
+    }
+
+    return true;
   }
 
   async getUsage(): Promise<PortUsageReport> {

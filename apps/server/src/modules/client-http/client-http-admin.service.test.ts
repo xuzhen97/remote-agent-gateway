@@ -8,7 +8,7 @@ vi.mock('../clients/clients.service.js', () => ({
 }));
 
 describe('ClientHttpAdminService', () => {
-  it('sends trusted source and actor headers to client HTTP', async () => {
+  it('prefers public base url before local loopback client http endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 })
     );
@@ -22,7 +22,7 @@ describe('ClientHttpAdminService', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://127.0.0.1:17890/frp/mappings',
+      'http://client:20317/frp/mappings',
       expect.objectContaining({
         headers: expect.objectContaining({
           'x-rag-source': 'web-console',
@@ -47,7 +47,7 @@ describe('ClientHttpAdminService', () => {
     expect(callHeaders['x-rag-source']).toBeUndefined();
   });
 
-  it('falls back to public base url when local client http is unreachable', async () => {
+  it('falls back to local loopback endpoint when public base url is unreachable', async () => {
     const fetchMock = vi.fn()
       .mockRejectedValueOnce(new Error('connect ECONNREFUSED'))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, data: { logs: [] } }), { status: 200 }));
@@ -58,8 +58,8 @@ describe('ClientHttpAdminService', () => {
       path: '/jobs/job_01/logs',
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://127.0.0.1:17890/jobs/job_01/logs', expect.any(Object));
-    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://client:20317/jobs/job_01/logs', expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://client:20317/jobs/job_01/logs', expect.any(Object));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, 'http://127.0.0.1:17890/jobs/job_01/logs', expect.any(Object));
     expect(result.status).toBe(200);
   });
 });

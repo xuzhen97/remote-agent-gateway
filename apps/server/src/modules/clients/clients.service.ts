@@ -111,11 +111,11 @@ export class ClientsService {
     );
   }
 
-  markHttpReady(clientId: string, baseUrl: string, remotePort: number): void {
+  markHttpReady(clientId: string, _baseUrl: string, _remotePort: number): void {
     const now = Date.now();
     getDb().run(
-      `UPDATE clients SET http_ready = 1, http_base_url = ?, http_remote_port = ?, http_last_ready_at = ?, updated_at = ? WHERE id = ?`,
-      [baseUrl, remotePort, now, now, clientId],
+      `UPDATE clients SET http_ready = 1, http_last_ready_at = ?, updated_at = ? WHERE id = ?`,
+      [now, now, clientId],
     );
   }
 

@@ -16,8 +16,8 @@ export class ClientHttpAdminService {
     }
 
     const candidateBases = [
-      client.http_local_host && client.http_local_port ? `http://${client.http_local_host}:${client.http_local_port}` : null,
       client.http_base_url ?? null,
+      client.http_local_host && client.http_local_port ? `http://${client.http_local_host}:${client.http_local_port}` : null,
     ].filter((value, index, array): value is string => Boolean(value) && array.indexOf(value) === index);
 
     for (const baseUrl of candidateBases) {

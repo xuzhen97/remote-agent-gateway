@@ -90,4 +90,23 @@ describe('ClientsService', () => {
 
     expect(client?.status).toBe('online');
   });
+
+  it('marks client http ready without overwriting the coordinated remote endpoint', () => {
+    insertClient({ id: 'client-http', status: 'online', updatedAt: 1_000_000 });
+    service.updateHttpEndpoint('client-http', {
+      localHost: '127.0.0.1',
+      localPort: 17890,
+      remotePort: 20001,
+      baseUrl: 'http://public:20001',
+      token: 'token-1',
+      ready: false,
+    });
+
+    service.markHttpReady('client-http', 'http://public:29999', 29999);
+
+    const client = service.getClient('client-http');
+    expect(client?.http_ready).toBe(1);
+    expect(client?.http_base_url).toBe('http://public:20001');
+    expect(client?.http_remote_port).toBe(20001);
+  });
 });
