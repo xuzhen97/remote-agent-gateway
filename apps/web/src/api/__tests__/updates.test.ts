@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { buildReleaseManifest, type UploadedArtifact } from '../updates.js';
+import { describe, expect, it, vi } from 'vitest';
+import { buildReleaseManifest, deleteCampaign, deleteRelease, type UploadedArtifact } from '../updates.js';
 
 describe('update manifest builder', () => {
   it('builds a complete release manifest from uploaded artifacts', () => {
@@ -60,5 +60,25 @@ describe('update manifest builder', () => {
         },
       ],
     });
+  });
+});
+
+describe('update delete api', () => {
+  it('calls deleteRelease with optional force query', async () => {
+    const api = { delete: vi.fn().mockResolvedValue({ data: { version: 'v1.4.0' } }) } as any;
+    await deleteRelease(api, 'v1.4.0');
+    await deleteRelease(api, 'v1.4.0', { force: true });
+
+    expect(api.delete).toHaveBeenNthCalledWith(1, '/admin/updates/releases/v1.4.0');
+    expect(api.delete).toHaveBeenNthCalledWith(2, '/admin/updates/releases/v1.4.0?force=true');
+  });
+
+  it('calls deleteCampaign with optional force query', async () => {
+    const api = { delete: vi.fn().mockResolvedValue({ data: { campaignId: 'camp_1' } }) } as any;
+    await deleteCampaign(api, 'camp_1');
+    await deleteCampaign(api, 'camp_1', { force: true });
+
+    expect(api.delete).toHaveBeenNthCalledWith(1, '/admin/updates/campaigns/camp_1');
+    expect(api.delete).toHaveBeenNthCalledWith(2, '/admin/updates/campaigns/camp_1?force=true');
   });
 });

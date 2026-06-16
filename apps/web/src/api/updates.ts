@@ -178,3 +178,35 @@ export async function startCampaign(api: Api, campaignId: string): Promise<{ pha
   const res = await api.post(`/admin/updates/campaigns/${campaignId}/start`);
   return res.data;
 }
+
+export async function deleteRelease(
+  api: Api,
+  version: string,
+  options?: { force?: boolean },
+): Promise<{
+  version: string;
+  force: boolean;
+  deletedCampaignCount: number;
+  deletedTargetCount: number;
+  deletedAttemptCount: number;
+  deletedArtifactDir: boolean;
+}> {
+  const suffix = options?.force ? '?force=true' : '';
+  const res = await api.delete(`/admin/updates/releases/${encodeURIComponent(version)}${suffix}`);
+  return res.data;
+}
+
+export async function deleteCampaign(
+  api: Api,
+  id: string,
+  options?: { force?: boolean },
+): Promise<{
+  campaignId: string;
+  force: boolean;
+  deletedTargetCount: number;
+  deletedAttemptCount: number;
+}> {
+  const suffix = options?.force ? '?force=true' : '';
+  const res = await api.delete(`/admin/updates/campaigns/${encodeURIComponent(id)}${suffix}`);
+  return res.data;
+}
