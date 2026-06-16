@@ -1,3 +1,15 @@
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code?: string,
+    public readonly status?: number,
+    public readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 export interface ApiClientOptions {
   baseUrl?: string;
   getToken: () => string;
@@ -19,8 +31,12 @@ export function createApiClient(options: ApiClientOptions) {
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
     if (!res.ok) {
-      const msg = data?.error?.message ?? data?.error ?? `HTTP ${res.status}`;
-      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      throw new ApiError(
+        data?.error?.message ?? data?.error ?? `HTTP ${res.status}`,
+        data?.error?.code,
+        res.status,
+        data?.error?.details,
+      );
     }
     return data;
   }
