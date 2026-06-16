@@ -9,9 +9,11 @@ import {
   InboxOutlined, CheckCircleOutlined, CloseCircleOutlined,
 } from '@ant-design/icons';
 import type { Api } from '../api/http';
+import { ApiError } from '../api/http';
 import {
   listReleases, registerRelease, getRelease, uploadArtifact, createCampaign, getCampaign,
   listCampaigns, listTargets, listTargetAttempts, retryCampaign, buildReleaseManifest,
+  deleteRelease, deleteCampaign,
   type ReleaseSummary, type ReleaseDetail, type CampaignRecord, type TargetRecord, type UploadedArtifact, type AttemptRecord,
 } from '../api/updates';
 import { StatusTag } from '../components/StatusTag';
@@ -62,6 +64,35 @@ function ReleasesTab({ api }: { api: Api }) {
     }
   };
 
+  const handleDeleteRelease = async (version: string, force = false) => {
+    try {
+      const result = await deleteRelease(api, version, force ? { force: true } : undefined);
+      message.success(`已删除 ${result.version}`);
+      if (detail?.version === version) {
+        setDetail(null);
+        setDetailOpen(false);
+      }
+      await load();
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'RELEASE_IN_USE' && !force) {
+        return new Promise<void>((resolve) => {
+          Modal.confirm({
+            title: '该版本已被编排引用',
+            content: '强制删除会级联删除关联 campaign、targets 和 attempts。确定继续吗？',
+            okText: '强制删除',
+            okButtonProps: { danger: true },
+            onOk: async () => {
+              await handleDeleteRelease(version, true);
+              resolve();
+            },
+            onCancel: () => resolve(),
+          });
+        });
+      }
+      message.error(error instanceof Error ? error.message : '删除版本失败');
+    }
+  };
+
   return (
     <Card
       title="已发布版本"
@@ -81,9 +112,19 @@ function ReleasesTab({ api }: { api: Api }) {
             render: (v: boolean) => v ? <Tag color="green">已启用</Tag> : <Tag color="default">已禁用</Tag>,
           },
           {
-            title: '操作', key: 'actions', width: 120,
+            title: '操作', key: 'actions', width: 180,
             render: (_: unknown, record: ReleaseSummary) => (
-              <Button type="link" size="small" onClick={() => handleViewDetail(record.version)}>查看详情</Button>
+              <Space size="small">
+                <Button type="link" size="small" onClick={() => handleViewDetail(record.version)}>查看详情</Button>
+                <Popconfirm
+                  title={`确定删除版本 ${record.version} 吗？`}
+                  okText="确定"
+                  cancelText="取消"
+                  onConfirm={() => handleDeleteRelease(record.version)}
+                >
+                  <Button type="link" size="small" danger>删除</Button>
+                </Popconfirm>
+              </Space>
             ),
           },
         ]}
@@ -401,6 +442,21 @@ function CampaignsTab({ api }: { api: Api }) {
     }
   };
 
+  const handleDeleteCampaign = async (campaignId: string) => {
+    try {
+      const result = await deleteCampaign(api, campaignId);
+      message.success(`已删除编排 ${result.campaignId}`);
+      if (selectedCampaign?.id === campaignId) {
+        setSelectedCampaign(null);
+        setTargets([]);
+        setAttempts([]);
+      }
+      await loadCampaigns();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '删除编排失败');
+    }
+  };
+
   const phaseColor = (phase: string) => {
     if (phase === 'succeeded' || phase === 'verifying') return 'green';
     if (phase === 'failed' || phase === 'rolled_back') return 'red';
@@ -428,7 +484,19 @@ function CampaignsTab({ api }: { api: Api }) {
               { title: '状态', dataIndex: 'status', key: 'status', render: (v: string) => <Tag>{v}</Tag> },
               { title: '对象', key: 'server', render: (_: unknown, r: CampaignRecord) => r.includeServer ? 'Server + Client' : 'Client' },
               { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', render: (v: number) => new Date(v).toLocaleString() },
-              { title: '操作', key: 'actions', render: (_: unknown, r: CampaignRecord) => <Button type="link" size="small" onClick={() => handleSelectCampaign(r.id)}>查看</Button> },
+              { title: '操作', key: 'actions', render: (_: unknown, r: CampaignRecord) => (
+                <Space size="small">
+                  <Button type="link" size="small" onClick={() => handleSelectCampaign(r.id)}>查看</Button>
+                  <Popconfirm
+                    title={`确定删除编排 ${r.id.slice(0, 12)}... 吗？`}
+                    okText="确定"
+                    cancelText="取消"
+                    onConfirm={() => handleDeleteCampaign(r.id)}
+                  >
+                    <Button type="link" size="small" danger>删除</Button>
+                  </Popconfirm>
+                </Space>
+              ), },
             ]}
             locale={{ emptyText: <Empty description="暂无编排" /> }}
           />
