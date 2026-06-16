@@ -5,12 +5,25 @@ import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { join } from 'node:path';
 
+import { UpdateDeleteDomainError } from './update-delete-errors.js';
+
 export interface ReleaseServiceForRoutes {
   listReleases(): Array<{ version: string; enabled?: boolean }>;
   getRelease(version: string): unknown;
   registerRelease(manifestJson: string): { version: string };
   getArtifactDownload(version: string, artifactName: string): { path: string };
   getArtifactDir(version: string): string;
+  deleteRelease(input: {
+    version: string;
+    force: boolean;
+  }): {
+    version: string;
+    force: boolean;
+    deletedCampaignCount: number;
+    deletedTargetCount: number;
+    deletedAttemptCount: number;
+    deletedArtifactDir: boolean;
+  };
 }
 
 export async function releaseRoutes(app: FastifyInstance, opts: { service: ReleaseServiceForRoutes }): Promise<void> {
@@ -82,6 +95,33 @@ export async function releaseRoutes(app: FastifyInstance, opts: { service: Relea
       });
     }
   });
+
+  // ==================== 删除 Release ====================
+  app.delete<{ Params: { version: string }; Querystring: { force?: string } }>(
+    '/admin/updates/releases/:version',
+    async (request, reply) => {
+      try {
+        return {
+          ok: true,
+          data: service.deleteRelease({
+            version: request.params.version,
+            force: request.query.force === 'true',
+          }),
+        };
+      } catch (err) {
+        if (err instanceof UpdateDeleteDomainError) {
+          return reply.code(err.statusCode).send({
+            ok: false,
+            error: { code: err.code, message: err.message, details: err.details },
+          });
+        }
+        return reply.code(500).send({
+          ok: false,
+          error: { code: 'DELETE_CONSISTENCY_FAILED', message: err instanceof Error ? err.message : String(err) },
+        });
+      }
+    },
+  );
 
   // ==================== 下载 Artifact ====================
   app.get<{ Params: { version: string; artifactName: string } }>(

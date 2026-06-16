@@ -32,6 +32,8 @@ import { createReleaseService } from './modules/updates/release.service.js';
 import { createCampaignService } from './modules/updates/campaign.service.js';
 import { createCampaignExecutor } from './modules/updates/campaign-executor.js';
 import { createReleaseStorage } from './modules/updates/release-storage.js';
+import { createReleaseDeletionService } from './modules/updates/release-deletion.service.js';
+import { createCampaignDeletionService } from './modules/updates/campaign-deletion.service.js';
 import { createServerUpdater } from './modules/updates/server-updater.js';
 import { clearPendingServerUpdateContext, clearRollbackServerUpdateContext, readCurrentServerVersion, readPendingServerUpdateContext, readRollbackServerUpdateContext } from './modules/updates/server-version-state.js';
 
@@ -81,6 +83,14 @@ async function main(): Promise<void> {
     verifyServerVersion: () => SERVER_VERSION,
   });
   await campaignRunner.recoverPendingCampaigns();
+
+  const campaignDeletionService = createCampaignDeletionService({ repo: updateRepo });
+  const releaseDeletionService = createReleaseDeletionService({
+    repo: updateRepo,
+    storage: releaseStorage,
+    fileOps: fs,
+    idFactory: () => crypto.randomUUID(),
+  });
 
   const reconcileCampaignStatus = (campaignId: string) => {
     const targets = updateRepo.listTargets(campaignId);
@@ -179,11 +189,14 @@ async function main(): Promise<void> {
         path: releaseStorage.artifactPath(version, artifactName),
       }),
       getArtifactDir: (version: string) => releaseStorage.artifactDir(version),
+      deleteRelease: ({ version, force }: { version: string; force: boolean }) =>
+        releaseDeletionService.deleteRelease({ version, force }),
     },
   }); // 更新发布路由
   await app.register(campaignRoutes, {
     service: campaignService,
     executor: campaignExecutor,
+    deletionService: campaignDeletionService,
   }); // 更新编排路由
   transferCleanupService.start();             // 传输清理定时任务
 
