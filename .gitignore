@@ -46,3 +46,4 @@ scripts/show-*.js
 scripts/test-*.js
 scripts/upload-*.js
 scripts/verify-*.js
+.tmp/
