@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { CampaignService } from './campaign.service.js';
+import { UpdateDeleteDomainError } from './update-delete-errors.js';
 
 export interface CampaignExecutorForRoutes {
   start(campaignId: string): Promise<{ phase: string }>;
@@ -11,9 +12,17 @@ export async function campaignRoutes(
   opts: {
     service: CampaignService;
     executor?: CampaignExecutorForRoutes;
+    deletionService?: {
+      deleteCampaign(input: { campaignId: string; force: boolean }): {
+        campaignId: string;
+        force: boolean;
+        deletedTargetCount: number;
+        deletedAttemptCount: number;
+      };
+    };
   },
 ): Promise<void> {
-  const { service, executor } = opts;
+  const { service, executor, deletionService } = opts;
 
   app.get('/admin/updates/campaigns', async () => ({
     ok: true,
@@ -73,6 +82,36 @@ export async function campaignRoutes(
         return reply.code(400).send({
           ok: false,
           error: { code: 'RETRY_ERROR', message: err instanceof Error ? err.message : String(err) },
+        });
+      }
+    },
+  );
+
+  // ==================== 删除编排 ====================
+  app.delete<{ Params: { id: string }; Querystring: { force?: string } }>(
+    '/admin/updates/campaigns/:id',
+    async (request, reply) => {
+      if (!deletionService) {
+        return reply.code(501).send({ ok: false, error: { code: 'NOT_IMPLEMENTED', message: 'Deletion service not available' } });
+      }
+      try {
+        return {
+          ok: true,
+          data: deletionService.deleteCampaign({
+            campaignId: request.params.id,
+            force: request.query.force === 'true',
+          }),
+        };
+      } catch (err) {
+        if (err instanceof UpdateDeleteDomainError) {
+          return reply.code(err.statusCode).send({
+            ok: false,
+            error: { code: err.code, message: err.message, details: err.details },
+          });
+        }
+        return reply.code(500).send({
+          ok: false,
+          error: { code: 'DELETE_CONSISTENCY_FAILED', message: err instanceof Error ? err.message : String(err) },
         });
       }
     },
