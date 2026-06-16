@@ -87,6 +87,18 @@ function queryAll(db: Database, sql: string, params: unknown[]): Record<string, 
 
 export function createUpdateRepository(db: Database) {
   return {
+    withTransaction<T>(fn: () => T): T {
+      db.run('BEGIN');
+      try {
+        const result = fn();
+        db.run('COMMIT');
+        return result;
+      } catch (error) {
+        db.run('ROLLBACK');
+        throw error;
+      }
+    },
+
     // ---------- Releases ----------
     saveRelease(record: UpdateReleaseRecord): void {
       db.run(
@@ -100,6 +112,19 @@ export function createUpdateRepository(db: Database) {
     },
     listReleases(): UpdateReleaseRecord[] {
       return queryAll(db, 'SELECT * FROM update_releases ORDER BY created_at DESC', []).map(rowToRelease);
+    },
+
+    listCampaignsByTargetVersion(version: string): UpdateCampaignRecord[] {
+      return queryAll(
+        db,
+        'SELECT * FROM update_campaigns WHERE target_version = ? ORDER BY created_at DESC',
+        [version],
+      ).map(rowToCampaign);
+    },
+
+    deleteRelease(version: string): number {
+      db.run('DELETE FROM update_releases WHERE version = ?', [version]);
+      return db.getRowsModified();
     },
 
     // ---------- Campaigns ----------
@@ -136,6 +161,42 @@ export function createUpdateRepository(db: Database) {
     },
     listTargets(campaignId: string): UpdateTargetRecord[] {
       return queryAll(db, 'SELECT * FROM update_targets WHERE campaign_id = ?', [campaignId]).map(rowToTarget);
+    },
+
+    listTargetsByCampaignIds(campaignIds: string[]): UpdateTargetRecord[] {
+      if (campaignIds.length === 0) return [];
+      const placeholders = campaignIds.map(() => '?').join(', ');
+      return queryAll(
+        db,
+        `SELECT * FROM update_targets WHERE campaign_id IN (${placeholders}) ORDER BY created_at ASC`,
+        campaignIds,
+      ).map(rowToTarget);
+    },
+
+    deleteCampaignsByIds(ids: string[]): number {
+      if (ids.length === 0) return 0;
+      const placeholders = ids.map(() => '?').join(', ');
+      db.run(`DELETE FROM update_campaigns WHERE id IN (${placeholders})`, ids);
+      return db.getRowsModified();
+    },
+
+    deleteTargetsByCampaignIds(campaignIds: string[]): number {
+      if (campaignIds.length === 0) return 0;
+      const placeholders = campaignIds.map(() => '?').join(', ');
+      db.run(`DELETE FROM update_targets WHERE campaign_id IN (${placeholders})`, campaignIds);
+      return db.getRowsModified();
+    },
+
+    deleteAttemptsByTargetIds(targetIds: string[]): number {
+      if (targetIds.length === 0) return 0;
+      const placeholders = targetIds.map(() => '?').join(', ');
+      db.run(`DELETE FROM update_attempts WHERE target_id IN (${placeholders})`, targetIds);
+      return db.getRowsModified();
+    },
+
+    deleteCampaign(id: string): number {
+      db.run('DELETE FROM update_campaigns WHERE id = ?', [id]);
+      return db.getRowsModified();
     },
     updateTargetPhase(id: string, phase: string, errorCode?: string | null, errorMessage?: string | null): void {
       db.run(

@@ -138,4 +138,77 @@ describe('update repository', () => {
     expect(JSON.parse(attempts[0].phaseTimelineJson)).toHaveLength(2);
     expect(repo.listCampaigns().some((campaign) => campaign.id === 'camp_status_1')).toBe(true);
   });
+
+  it('lists release-linked campaigns and deletes attempts/targets/campaigns/releases', () => {
+    const repo = createUpdateRepository(db);
+    const now = Date.now();
+
+    repo.saveRelease({ version: 'v2.0.0', manifestJson: '{}', enabled: true, createdAt: now, updatedAt: now });
+    repo.saveCampaign({
+      id: 'camp_delete_1',
+      targetVersion: 'v2.0.0',
+      scopeJson: '{"all":true}',
+      includeServer: false,
+      batchSize: 10,
+      maxConcurrency: 5,
+      status: 'completed',
+      createdBy: 'spec',
+      createdAt: now,
+      updatedAt: now,
+    });
+    repo.saveTarget({
+      id: 'target_delete_1',
+      campaignId: 'camp_delete_1',
+      targetType: 'client',
+      clientId: 'client-1',
+      platform: 'windows',
+      currentVersion: 'v1.0.0',
+      targetVersion: 'v2.0.0',
+      phase: 'succeeded',
+      attemptCount: 1,
+      createdAt: now,
+      updatedAt: now,
+    });
+    repo.saveAttempt({
+      id: 'attempt_delete_1',
+      targetId: 'target_delete_1',
+      attemptNo: 1,
+      phaseTimelineJson: '[]',
+      result: 'succeeded',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    expect(repo.listCampaignsByTargetVersion('v2.0.0').map((item) => item.id)).toEqual(['camp_delete_1']);
+    expect(repo.listTargetsByCampaignIds(['camp_delete_1']).map((item) => item.id)).toEqual(['target_delete_1']);
+    expect(repo.deleteAttemptsByTargetIds(['target_delete_1'])).toBe(1);
+    expect(repo.deleteTargetsByCampaignIds(['camp_delete_1'])).toBe(1);
+    expect(repo.deleteCampaignsByIds(['camp_delete_1'])).toBe(1);
+    expect(repo.deleteRelease('v2.0.0')).toBe(1);
+  });
+
+  it('rolls back transaction work when withTransaction throws', () => {
+    const repo = createUpdateRepository(db);
+    const now = Date.now();
+
+    repo.saveCampaign({
+      id: 'camp_tx_1',
+      targetVersion: 'v9.9.9',
+      scopeJson: '{"all":true}',
+      includeServer: false,
+      batchSize: 10,
+      maxConcurrency: 5,
+      status: 'completed',
+      createdBy: 'spec',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    expect(() => repo.withTransaction(() => {
+      repo.deleteCampaignsByIds(['camp_tx_1']);
+      throw new Error('boom');
+    })).toThrow('boom');
+
+    expect(repo.getCampaign('camp_tx_1')?.id).toBe('camp_tx_1');
+  });
 });
